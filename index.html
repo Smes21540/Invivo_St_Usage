@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Explorateur données séchoirs</title>
+
+<script src="libs/jszip.min.js"></script>
+<script src="libs/FileSaver.min.js"></script>
+
+<style>
+body{font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:#fff5f5;margin:0;padding:0;display:flex;height:100vh;overflow:hidden;}
+#sidebar{background:#ffe5d9;border-right:2px solid #ff7043;padding:20px 10px;overflow-y:auto;z-index:1000;width:auto;min-width:200px;max-width:500px;transition: width 0.3s ease, transform 0.3s ease;}
+#folderTree ul{list-style:none;padding-left:20px;margin:0;transition: all 0.3s ease;}
+#folderTree li{cursor:pointer;margin:5px 0;}
+.folder-toggle{font-weight:bold;margin-right:5px;cursor:pointer;color:#ff7043;}
+.folder-name{cursor:pointer;}
+.active-folder{background:#ffccbc;border-radius:3px;padding:2px 4px;}
+#main{flex:1;padding:10px 20px;display:flex;flex-direction:column;overflow:hidden;transition:margin-left 0.3s;}
+.header{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:15px;}
+.header .logo{height:60px;width:auto;}
+#fileNameContainer{position:absolute;right:0;top:0;text-align:right;}
+#fileName,#lineCount{color:#d84315;}
+#fileName{font-size:20px;font-weight:bold;white-space:nowrap;max-width:250px;overflow:hidden;text-overflow:ellipsis;display:none;}
+#lineCount{font-size:12px;display:none;}
+.controls{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:10px;margin-bottom:10px;}
+.controls button{background:#ff7043;color:white;border:none;cursor:pointer;font-weight:bold;padding:6px 12px;border-radius:6px;font-size:13px;transition:0.3s;}
+.controls button:hover{background:#e64a19;transform:scale(1.05);}
+.controls input[type=date]{padding:5px;}
+#tableWrapper{flex:1;overflow:auto;}
+#tableContainer{overflow:auto;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);background:white;}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;table-layout:auto;}
+thead th,tbody td{padding:10px 12px;text-align:left;border-bottom:1px solid #eee;white-space:nowrap;}
+thead th{position:sticky;top:0;z-index:2;background:#ff7043;color:white;font-weight:bold;text-transform:uppercase;cursor:pointer;}
+tbody tr:nth-child(even){background:#ffe5d9;}
+tbody tr:nth-child(odd){background:#fff5f5;}
+tbody tr:hover{background:#ffccbc;}
+#toggleSidebar{position:fixed;top:10px;left:10px;z-index:1100;background:#ff7043;color:#fff;border:none;padding:5px 10px;border-radius:5px;cursor:pointer;display:none;}
+#spinner{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border:6px solid #f3f3f3;border-top:6px solid #ff7043;border-radius:50%;z-index:1200;}
+.modal{display:none;position:fixed;z-index:1300;padding-top:50px;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.8);text-align:center;}
+.modal .close{position:absolute;top:15px;right:25px;color:#fff;font-size:30px;cursor:pointer;}
+.modal iframe{width:90%;height:80vh;border:none;border-radius:10px;}
+.modal-actions{margin-top:15px;display:flex;justify-content:center;gap:10px;}
+.modal-actions button{background:#ff7043;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;font-weight:bold;}
+.modal-actions button:hover{background:#e64a19;}
+@media(max-width:768px){
+  #sidebar{position:fixed;top:0;left:0;height:100vh;width:80vw;transform:translateX(-100%);transition:transform 0.3s ease;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:1000;background:#ffe5d9;}
+  #sidebar.visible{transform:translateX(0);}
+  #main{margin-left:0;}
+  #toggleSidebar{display:block;}
+}
+
+/* --- Overlay ZIP --- */
+#zipOverlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:1400;justify-content:center;align-items:center;}
+#zipBox {background:#fff0e5;color:#333;padding:20px 25px;border-radius:12px;text-align:center;width:300px;box-shadow:0 4px 12px rgba(0,0,0,0.3);position:relative;}
+#zipBox h2{margin:0 0 10px 0;color:#ff7043;font-size:18px;}
+#zipFileName{font-size:13px;margin-bottom:15px;color:#555;word-break:break-word;}
+#zipProgressBar{width:100%;height:22px;background:#eee;border-radius:11px;overflow:hidden;}
+#zipProgress{height:100%;width:0;background:#ff7043;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:13px;}
+#zipCounter{margin-top:10px;font-size:12px;color:#333;}
+#zipTime{margin-top:5px;font-size:12px;color:#666;}
+#zipClose{position:absolute;top:8px;right:12px;font-size:18px;font-weight:bold;color:#ff7043;cursor:pointer;}
+#zipClose:hover{color:#e64a19;}
+
+/* --- Tri colonnes --- */
+.sort-arrow {
+  margin-left: 5px;
+  font-size: 11px;
+  color: #fff;
+}
+</style>
+</head>
+<body>
+
+<div id="spinner"></div>
+<button id="toggleSidebar">☰</button>
+
+<div id="sidebar">
+<h2>Dossiers</h2>
+<ul id="folderTree"></ul>
+</div>
+
+<div id="main">
+<div class="header">
+<img src="img/logo.png" class="logo" alt="Logo"/>
+<div id="fileNameContainer">
+<div id="fileName"></div>
+<div id="lineCount"></div>
+</div>
+</div>
+
+<div class="controls">
+Filtrer par date : <input type="date" id="startDate"> à <input type="date" id="endDate">
+<button onclick="applyFilter()">Filtrer</button>
+<button onclick="clearFilter()">Tout afficher</button>
+<button id="downloadFolderBtn">Télécharger le dossier</button>
+</div>
+
+<div id="tableWrapper">
+<div id="tableContainer">
+<table id="csvTable">
+<thead>
+<tr>
+<th onclick="sortTable(0,'date')">Date <span class="sort-arrow"></span></th>
+<th>Nom du fichier</th>
+<th>Dossier</th>
+<th onclick="sortTable(3,'number')">Taille <span class="sort-arrow"></span></th>
+<th>Télécharger / Ouvrir</th>
+</tr>
+</thead>
+<tbody><tr><td colspan="5">Sélectionner un dossier...</td></tr></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<div id="imageModal" class="modal">
+<span class="close" onclick="closeModal()">&times;</span>
+<iframe id="modalFrame"></iframe>
+<div class="modal-actions">
+<button id="prevBtn">&larr; Précédent</button>
+<button id="nextBtn">Suivant &rarr;</button>
+<button id="downloadBtn">Télécharger</button>
+</div>
+</div>
+
+<!-- Overlay ZIP -->
+<div id="zipOverlay">
+  <div id="zipBox">
+    <span id="zipClose">&times;</span>
+    <h2>Préparation du ZIP...</h2>
+    <div id="zipFileName"></div>
+    <div id="zipProgressBar"><div id="zipProgress">0%</div></div>
+    <div id="zipCounter">0 / 0 fichiers</div>
+    <div id="zipTime">Temps restant : --</div>
+  </div>
+</div>
+
+<script>
+const API_KEY='AIzaSyCbEV3CS9bOcxq5eK-QXbjczGHjvzyXS6M';
+const ROOT_FOLDER_ID='1BlX-uFXDADwAYRinFJJtscGOU557JZl3';
+let imageFiles=[], currentImageIndex=0, sortAsc=true, filterStartDate='', filterEndDate='';
+
+const sidebar=document.getElementById('sidebar');
+const toggleBtn=document.getElementById('toggleSidebar');
+const spinner=document.getElementById('spinner');
+const csvTableBody=document.querySelector('#csvTable tbody');
+
+/* Hamburger */
+toggleBtn.addEventListener('click', ()=>{
+  sidebar.classList.toggle('visible');
+  toggleBtn.textContent = sidebar.classList.contains('visible') ? '✖' : '☰';
+});
+
+/* Spinner */
+function showSpinner(){spinner.style.display='block';}
+function hideSpinner(){spinner.style.display='none';}
+
+/* --- Fetch Google Drive --- */
+async function fetchFolderContents(folderId){
+  showSpinner();
+  const res=await fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&key=${API_KEY}&fields=files(id,name,mimeType,size)`);
+  const data=await res.json();
+  hideSpinner();
+  return data.files;
+}
+
+/* --- Load folders --- */
+async function loadRootFolders(){
+  const files=await fetchFolderContents(ROOT_FOLDER_ID);
+  const rootUL=document.getElementById('folderTree');
+  rootUL.innerHTML='';
+  const folders=files.filter(f=>f.mimeType==='application/vnd.google-apps.folder');
+  folders.forEach(f=>{
+    const li=document.createElement('li'); li.dataset.id=f.id;
+    const toggle=document.createElement('span'); toggle.className='folder-toggle'; toggle.textContent='+'; toggle.onclick=()=>toggleFolder(li);
+    const span=document.createElement('span'); span.className='folder-name'; span.textContent=f.name; 
+    span.onclick=()=>loadFolderFilesOnClick(li);
+    li.appendChild(toggle); li.appendChild(span); rootUL.appendChild(li);
+  });
+}
+
+/* Toggle folders */
+async function toggleFolder(li){
+  const toggle=li.querySelector('.folder-toggle');
+  if(li.dataset.loaded==='true'){ 
+    const ul=li.querySelector('ul'); 
+    if(ul){ul.style.display=ul.style.display==='none'?'block':'none'; toggle.textContent=ul.style.display==='block'?'–':'+';} 
+    return; 
+  }
+  toggle.textContent='…';
+  const files=await fetchFolderContents(li.dataset.id);
+  const ul=document.createElement('ul');
+  files.filter(f=>f.mimeType==='application/vnd.google-apps.folder').forEach(f=>{
+    const childLi=document.createElement('li'); childLi.dataset.id=f.id;
+    const childToggle=document.createElement('span'); childToggle.className='folder-toggle'; childToggle.textContent='+'; childToggle.onclick=()=>toggleFolder(childLi);
+    const span=document.createElement('span'); span.className='folder-name'; span.textContent=f.name; span.onclick=()=>loadFolderFilesOnClick(childLi);
+    childLi.appendChild(childToggle); childLi.appendChild(span); ul.appendChild(childLi);
+  });
+  li.appendChild(ul); li.dataset.loaded='true'; toggle.textContent='+';
+}
+
+/* Load files */
+async function loadFolderFilesOnClick(li){
+  await toggleFolder(li);
+  document.querySelectorAll('#folderTree li span.folder-name').forEach(s=>s.classList.remove('active-folder'));
+  li.querySelector('span.folder-name').classList.add('active-folder');
+  localStorage.setItem('lastFolderId', li.dataset.id);
+
+  const files = await fetchFolderContents(li.dataset.id);
+  const filteredFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv') || f.name.toLowerCase().endsWith('.jpg') || f.name.toLowerCase().endsWith('.jpeg'));
+  imageFiles = filteredFiles.filter(f => f.name.toLowerCase().endsWith('.jpg') || f.name.toLowerCase().endsWith('.jpeg'));
+  displayFiles(filteredFiles, li.querySelector('span.folder-name').textContent);
+}
+
+/* Display files */
+function displayFiles(files, folderName){
+  csvTableBody.innerHTML='';
+  if(files.length===0){csvTableBody.innerHTML='<tr><td colspan="5">Aucun fichier</td></tr>'; return;}
+  for(const f of files){
+    const dateMatch=f.name.match(/(\d{8})\.csv$/);
+    const date=dateMatch?`${dateMatch[1].slice(0,4)}-${dateMatch[1].slice(4,6)}-${dateMatch[1].slice(6,8)}`:'';
+    if((filterStartDate&&date<filterStartDate)||(filterEndDate&&date>filterEndDate)) continue;
+    const row=document.createElement('tr');
+    const dateCell=document.createElement('td'); dateCell.textContent=date;
+    const nameCell=document.createElement('td'); nameCell.textContent=f.name;
+    const folderCell=document.createElement('td'); folderCell.textContent=folderName;
+    const sizeCell=document.createElement('td'); sizeCell.textContent=f.size?Math.round(f.size/1024)+' Ko':'?';
+    const actionCell=document.createElement('td');
+    let actions=`<a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank"><button>Télécharger</button></a>`;
+    if(f.name.toLowerCase().endsWith('.csv')){
+      actions+=`<button onclick="window.open('viewer.html?fileId=${f.id}&fileName=${encodeURIComponent(f.name)}','_blank')">Tableau</button>`;
+      actions+=`<button onclick="window.open('viewer02.html?fileId=${f.id}&fileName=${encodeURIComponent(f.name)}','_blank')">Courbes</button>`;
+    }
+    if(f.name.toLowerCase().endsWith('.jpg')||f.name.toLowerCase().endsWith('.jpeg')){
+      actions+=`<br><img src="https://drive.google.com/thumbnail?id=${f.id}" style="max-width:80px;cursor:pointer;border:1px solid #ccc;border-radius:5px" onclick="openModal('${f.id}')">`;
+    }
+    actionCell.innerHTML=actions;
+    row.appendChild(dateCell); row.appendChild(nameCell); row.appendChild(folderCell); row.appendChild(sizeCell); row.appendChild(actionCell);
+    csvTableBody.appendChild(row);
+  }
+}
+
+/* Filter */
+function applyFilter(){filterStartDate=document.getElementById('startDate').value; filterEndDate=document.getElementById('endDate').value; const active=document.querySelector('#folderTree .active-folder'); if(active) active.click();}
+function clearFilter(){filterStartDate=''; filterEndDate=''; document.getElementById('startDate').value=''; document.getElementById('endDate').value=''; const active=document.querySelector('#folderTree .active-folder'); if(active) active.click();}
+
+/* --- Modal images --- */
+function openModal(id){
+  const modal=document.getElementById('imageModal'); 
+  modal.style.display='block'; 
+  document.getElementById('modalFrame').src=`https://drive.google.com/file/d/${id}/preview`; 
+  currentImageIndex=imageFiles.findIndex(f=>f.id===id); 
+  document.getElementById('downloadBtn').onclick=()=>window.open(`https://drive.google.com/uc?export=download&id=${id}`,'_blank');
+}
+function closeModal(){document.getElementById('imageModal').style.display='none';}
+document.getElementById('prevBtn').onclick=()=>{if(currentImageIndex>0) openModal(imageFiles[--currentImageIndex].id);};
+document.getElementById('nextBtn').onclick=()=>{if(currentImageIndex<imageFiles.length-1) openModal(imageFiles[++currentImageIndex].id);};
+window.onclick=e=>{if(e.target===document.getElementById('imageModal')) closeModal();};
+
+/* --- Overlay ZIP --- */
+const zipOverlay=document.getElementById('zipOverlay');
+const zipProgress=document.getElementById('zipProgress');
+const zipCounter=document.getElementById('zipCounter');
+const zipFileName=document.getElementById('zipFileName');
+const zipTime=document.getElementById('zipTime');
+const zipClose=document.getElementById('zipClose');
+let zipCancelled=false;
+let zipStartTime=0;
+
+function showZipOverlay(name){
+  zipCancelled=false;
+  zipOverlay.style.display='flex';
+  zipFileName.textContent=name;
+  zipProgress.style.width='0%';
+  zipProgress.textContent='0%';
+  zipCounter.textContent='0 / 0 fichiers';
+  zipTime.textContent='Temps restant : --';
+  zipStartTime=Date.now();
+}
+function hideZipOverlay(){zipOverlay.style.display='none';}
+function updateZipProgress(pct,current,total,sizeAccum){
+  zipProgress.style.width=pct+'%';
+  zipProgress.textContent=pct+'%';
+  zipCounter.textContent=`${current} / ${total} fichiers`;
+  if(current>0){
+    const elapsed=(Date.now()-zipStartTime)/1000;
+    const speedFiles=current/elapsed;
+    const speedKB=(sizeAccum/1024)/elapsed;
+    const remainingFiles=total-current;
+    const remainingTime=remainingFiles/speedFiles;
+    const mins=Math.floor(remainingTime/60);
+    const secs=Math.round(remainingTime%60);
+    zipTime.textContent=`Temps restant : ${mins>0?mins+'m ':''}${secs}s (${speedFiles.toFixed(1)} fichiers/s, ${speedKB.toFixed(0)} Ko/s)`;
+  }
+}
+zipClose.onclick=()=>{zipCancelled=true;hideZipOverlay();alert("Préparation ZIP annulée.");};
+
+/* --- Télécharger dossier --- */
+document.getElementById('downloadFolderBtn').onclick=async()=>{
+  const activeFolder=document.querySelector('#folderTree .active-folder');
+  if(!activeFolder){alert("Sélectionnez un dossier !"); return;}
+  const folderId=localStorage.getItem('lastFolderId');
+  const folderName=activeFolder.textContent.trim();
+  showZipOverlay(folderName+".zip");
+  const files=await fetchFolderContents(folderId);
+  if(!files||files.length===0){hideZipOverlay();alert("Aucun fichier dans ce dossier."); return;}
+  const zip=new JSZip(); let count=0; let totalSize=0; let doneSize=0;
+  files.forEach(f=>{if(f.size) totalSize+=parseInt(f.size);});
+  for(const f of files){
+    if(zipCancelled) return;
+    try{
+      const url=`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${API_KEY}`;
+      const res=await fetch(url);
+      const blob=await res.blob();
+      zip.file(f.name,blob);
+      count++; doneSize+=f.size?parseInt(f.size):0;
+      updateZipProgress(Math.round((count/files.length)*100),count,files.length,doneSize);
+    }catch(e){console.error("Erreur sur",f.name,e);}
+  }
+  if(zipCancelled) return;
+  const content=await zip.generateAsync({type:"blob"});
+  saveAs(content,folderName+".zip");
+  hideZipOverlay();
+};
+
+/* --- Tri de tableau --- */
+let currentSort = {col: null, asc: true};
+function sortTable(colIndex, type){
+  const table = document.getElementById("csvTable");
+  const tbody = table.tBodies[0];
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+  
+  if(currentSort.col === colIndex){
+    currentSort.asc = !currentSort.asc;
+  }else{
+    currentSort.col = colIndex;
+    currentSort.asc = true;
+  }
+
+  rows.sort((a,b)=>{
+    let aText = a.cells[colIndex]?.textContent.trim() || "";
+    let bText = b.cells[colIndex]?.textContent.trim() || "";
+    if(type==="number"){
+      aText = parseInt(aText) || 0;
+      bText = parseInt(bText) || 0;
+    }else if(type==="date"){
+      aText = new Date(aText).getTime() || 0;
+      bText = new Date(bText).getTime() || 0;
+    }
+    if(aText<bText) return currentSort.asc?-1:1;
+    if(aText>bText) return currentSort.asc?1:-1;
+    return 0;
+  });
+
+  tbody.innerHTML="";
+  rows.forEach(r=>tbody.appendChild(r));
+
+  document.querySelectorAll("th .sort-arrow").forEach(el=>el.textContent="");
+  const arrow = table.tHead.rows[0].cells[colIndex].querySelector(".sort-arrow");
+  if(arrow){
+    arrow.textContent = currentSort.asc ? "↑" : "↓";
+  }
+}
+
+/* --- Init --- */
+window.onload=()=>{loadRootFolders(); const last=localStorage.getItem('lastFolderId'); if(last){const temp={dataset:{id:last},querySelector:()=>({classList:{add:()=>{}}})}; loadFolderFilesOnClick(temp);}};
+</script>
+</body>
+</html>
+
+
+
