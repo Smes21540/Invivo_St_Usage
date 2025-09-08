@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Graphique CSV</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background-color: #fff0e5; margin: 0; padding: 5px 20px; color: #d84315; position: relative; }
+.header { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+.header .logo { height: 60px; width: auto; }
+#fileNameContainer { position: absolute; right: 0; top: 0; text-align: right; }
+#fileName, #lineCount { color: #e64a19; }
+#fileName { font-size: 24px; font-weight: bold; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; display: none; }
+#lineCount { font-size: 12px; display: none; }
+.controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 10px; }
+button { background-color: #ff7043; color: white; border: none; cursor: pointer; font-weight: bold; padding: 8px 12px; border-radius: 6px; font-size: 13px; transition: background-color 0.3s ease, transform 0.2s ease; }
+button:hover { background-color: #e64a19; transform: scale(1.05); }
+select { appearance: none; min-width: 200px; border-radius:6px; border:1px solid #e64a19; padding:6px 10px; font-weight:bold; font-size:13px; color:#e64a19; background:white; cursor:pointer; transition: all 0.2s ease; }
+select:hover { border-color:#ff7043; }
+#yColumns { height:100px; }
+#myChart { 
+  background: transparent;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  display:block;
+  margin: 0 auto;
+  max-width:100%;
+}
+#zoomInfo {
+    position: absolute;
+    top: 80px;
+    right: 20px;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #ff7043;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #ff7043;
+    font-weight: bold;
+    z-index: 10;
+    pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="img/logo.png" alt="Logo" class="logo" />
+  <div id="fileNameContainer">
+    <div id="fileName"></div>
+    <div id="lineCount"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="backBtn">⬅️ Retour</button>
+  <button id="exportPDF" style="display:none;">📄 Exporter PDF</button>
+  <button id="resetZoom" style="display:none;">🔄 Réinitialiser zoom</button>
+</div>
+
+<div class="controls" id="columnSelectors" style="display:none;">
+  <select id="xColumn"></select>
+  <select id="yColumns" multiple></select>
+  <button id="drawChartBtn">📊 Afficher courbes</button>
+</div>
+
+<canvas id="myChart" width="1600" height="800"></canvas>
+
+<div id="zoomInfo">🔍 Sélectionner une zone avec le clic gauche pour zoomer</div>
+
+<script>
+const API_KEY='AIzaSyCbEV3CS9bOcxq5eK-QXbjczGHjvzyXS6M';
+let csvData=[], chart, currentX="", currentY=[];
+const colors=["#e53935","#ff7043","#ffc300","#33ff57","#3380ff","#8e44ad","#ff33a6","#33cccc"];
+
+const fileNameDiv=document.getElementById('fileName');
+const lineCountDiv=document.getElementById('lineCount');
+const exportBtn=document.getElementById('exportPDF');
+const resetBtn=document.getElementById('resetZoom');
+const xSelect=document.getElementById('xColumn');
+const ySelect=document.getElementById('yColumns');
+const drawBtn=document.getElementById('drawChartBtn');
+const columnSelectors=document.getElementById('columnSelectors');
+const zoomInfoDiv=document.getElementById('zoomInfo');
+
+document.getElementById('backBtn').addEventListener('click',()=>{ window.close(); });
+
+function getParam(n){ return new URLSearchParams(window.location.search).get(n); }
+
+async function loadCSVFromDrive(){
+  const fileId=getParam('fileId');
+  const fullFileName=getParam('fileName') || '';
+  if(!fileId){ alert('Aucun fichier spécifié'); return; }
+
+  fileNameDiv.textContent=fullFileName;
+  fileNameDiv.style.display="block"; 
+  lineCountDiv.style.display="block";
+  exportBtn.style.display="inline-block"; 
+  resetBtn.style.display="inline-block";
+
+  const url=`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
+  const response=await fetch(url);
+  const arrayBuffer=await (await response.blob()).arrayBuffer();
+  const text=new TextDecoder('windows-1252').decode(arrayBuffer);
+
+  const results = Papa.parse(text, { header:false, dynamicTyping:true, skipEmptyLines:true });
+
+  let headers = results.data[0];
+  let headerCount = {};
+  headers = headers.map(h => {
+    if(headerCount[h]){ headerCount[h]++; return `${h}_${headerCount[h]}`; } 
+    else { headerCount[h] = 1; return h; }
+  });
+
+  csvData = results.data.slice(1).map(row=>{
+    let obj = {};
+    row.forEach((v,i)=> obj[headers[i]] = v);
+    return obj;
+  });
+
+  lineCountDiv.textContent=csvData.length+" ligne"+(csvData.length>1?"s":"");
+
+  xSelect.innerHTML=""; ySelect.innerHTML="";
+  headers.forEach(f=>{
+    const optionX=document.createElement("option"); optionX.value=f; optionX.text=f; xSelect.appendChild(optionX);
+    const optionY=document.createElement("option"); optionY.value=f; optionY.text=f; ySelect.appendChild(optionY);
+  });
+  columnSelectors.style.display="flex";
+
+  let defaultX = headers.find(h => h.toLowerCase().includes("time") || h.toLowerCase()==="heure");
+  if(defaultX){ xSelect.value = defaultX; xSelect.style.display = "none"; }
+
+  Array.from(ySelect.options).forEach((opt, idx)=>{ if(idx<2) opt.style.display='none'; });
+  zoomInfoDiv.style.display='block';
+  setTimeout(()=>{ zoomInfoDiv.style.display='none'; }, 5000);
+}
+
+drawBtn.addEventListener('click',()=>{
+  currentX = xSelect.value || "heure";
+  currentY = Array.from(ySelect.selectedOptions).map(o=>o.value);
+  drawChart();
+});
+
+function drawChart(){
+  if(!csvData.length || !currentX) return;
+  const ctx = document.getElementById('myChart').getContext('2d');
+  const labels = csvData.map(r => r[currentX]);
+  const datasets = currentY.map((yCol,i)=>{
+    const values = csvData.map(r=>r[yCol]);
+    const color = colors[i % colors.length];
+    return { label: yCol, data: values, borderColor: color, borderWidth: 3, fill: false, tension: 0.4, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: color, pointBorderColor: color, pointBorderWidth: 2 };
+  });
+
+  if(chart) chart.destroy();
+  chart = new Chart(ctx,{
+    type:"line",
+    data: { labels, datasets },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      interaction: { mode:'nearest', axis:'x', intersect:true },
+      plugins: {
+        tooltip: { enabled: true, mode:'nearest', intersect:true },
+        legend: { position:'top' },
+        datalabels: { display: false },
+        zoom: { zoom: { wheel:{enabled:true,modifierKey:'ctrl'}, pinch:{enabled:true}, drag:{enabled:true,modifierKey:null,mode:'xy'} }, pan: { enabled:true, mode:'xy' } }
+      },
+      scales: { x: { title:{ display:true, text:currentX }, grid: { color:'rgba(0,0,0,0.05)' } }, y: { title:{ display:true, text:'Valeurs' }, grid: { color:'rgba(0,0,0,0.05)' } } }
+    },
+    plugins:[ChartDataLabels],
+    devicePixelRatio: window.devicePixelRatio
+  });
+}
+
+// === Export PDF corrigé ===
+exportBtn.addEventListener('click', () => {
+    if (!chart) return;
+    const { jsPDF } = window.jspdf;
+    const canvas = chart.canvas;
+    const pdf = new jsPDF({ orientation: 'landscape' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    const csvName = (getParam('fileName') || '').split('\\').pop() || '';
+    let titleText = csvName;
+    let pdfFileName = csvName.replace(/\.csv$/i, '.pdf');
+
+    if (csvName.startsWith("Z")) {
+        const matchZ = csvName.match(/^Z\d+(\d{2})_(\d{8})/);
+        if (matchZ) {
+            const xx = parseInt(matchZ[1],10).toString();
+            const dateRaw = matchZ[2];
+            const yyyy = dateRaw.substring(0,4), mm = dateRaw.substring(4,6), dd = dateRaw.substring(6,8);
+            titleText = `Historique Séchoir ${xx} - ${dd}/${mm}/${yyyy}`;
+        }
+    } else {
+        const match = csvName.match(/^SA(\d+)_([0-9]{8})/);
+        if (match) {
+            const numRaw = match[1];
+            const numTwoDigits = parseInt(numRaw,10).toString().padStart(2,'0');
+            const dateRaw = match[2];
+            const yyyy = dateRaw.substring(0,4), mm = dateRaw.substring(4,6), dd = dateRaw.substring(6,8);
+            titleText = parseInt(numRaw) > 0 ? `Séchoir ${parseInt(numRaw,10)} - ${dd}/${mm}/${yyyy}` : `${dd}/${mm}/${yyyy}`;
+            pdfFileName = parseInt(numRaw) > 0 ? `Séchoir-${numTwoDigits}_${dateRaw}.pdf` : `${dateRaw}.pdf`;
+        }
+    }
+
+    pdf.setFontSize(14);
+    pdf.setTextColor(229,57,53);
+    const lines = pdf.splitTextToSize(titleText, pageWidth - 20);
+    pdf.text(lines, 14, 12);
+
+    const scale = Math.min((pageWidth-20)/canvas.width, (pageHeight-30)/canvas.height);
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (pageWidth - canvas.width*scale)/2, 20 + lines.length*5, canvas.width*scale, canvas.height*scale);
+
+    pdf.save(pdfFileName);
+});
+
+document.getElementById('resetZoom').addEventListener('click',()=>{ if(chart) chart.resetZoom(); });
+
+loadCSVFromDrive();
+</script>
+</body>
+</html>
+
+
+
+
