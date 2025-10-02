@@ -418,21 +418,22 @@ async function toggleFolder(li){
     ul.appendChild(childLi);
 
     // ✅ Cas spécial : si le dossier est Traça_Temp → précharger Historique
-if (
-  f.name.toLowerCase().includes("traça_temp") || 
-  f.name.toLowerCase().includes("traca_temp") || 
-  f.name.toLowerCase().includes("temperatures")
-) {
-  const siblings = await fetchFolderContents(li.dataset.id);
-  const hist = siblings.find(
-    s => s.mimeType === 'application/vnd.google-apps.folder' && s.name.toLowerCase().includes("historique")
-  );
-  if (hist) {
-    const histFiles = await fetchFolderContents(hist.id);
-    const z3Files = histFiles.filter(ff => ff.name.toUpperCase().startsWith("Z3") && ff.name.toLowerCase().endsWith(".csv"));
-    localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-    console.log("[INDEX] Z3 préchargés:", z3Files.length);
-  }
+    if (
+      f.name.toLowerCase().includes("traça_temp") || 
+      f.name.toLowerCase().includes("traca_temp") || 
+      f.name.toLowerCase().includes("temperatures")
+    ) {
+      const siblings = await fetchFolderContents(li.dataset.id);
+      const hist = siblings.find(
+        s => s.mimeType === 'application/vnd.google-apps.folder' && s.name.toLowerCase().includes("historique")
+      );
+      if (hist) {
+        const histFiles = await fetchFolderContents(hist.id);
+        const z3Files = histFiles.filter(ff => ff.name.toUpperCase().startsWith("Z3") && ff.name.toLowerCase().endsWith(".csv"));
+        localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
+        console.log("[INDEX] Z3 préchargés:", z3Files.length);
+      }
+    }
 
 
     // ✅ Vérif Temp (flamme 🔥)
