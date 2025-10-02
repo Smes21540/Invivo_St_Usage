@@ -418,7 +418,10 @@ async function toggleFolder(li){
     ul.appendChild(childLi);
 
     // ✅ Cas spécial : si le dossier est Traça_Temp → précharger Historique
-    if (f.name.toLowerCase().includes("traça_temp") || f.name.toLowerCase().includes("traca_temp")) {
+      f.name.toLowerCase().includes("traça_temp") || 
+  f.name.toLowerCase().includes("traca_temp") || 
+  f.name.toLowerCase().includes("temperatures")
+) {
       const siblings = await fetchFolderContents(li.dataset.id);
       const hist = siblings.find(s => s.mimeType === 'application/vnd.google-apps.folder' && s.name.toLowerCase().includes("historique"));
       if (hist) {
