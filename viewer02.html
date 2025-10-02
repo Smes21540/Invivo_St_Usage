@@ -53,12 +53,52 @@
     .controls button{flex:0 0 auto; width:auto; display:inline-block;}
 
     /* Zone graphe */
-    .graph-wrapper{display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:40px;}
-    .graph-side{display:flex;flex-direction:column;gap:10px;}
-    #myChart{
-      width:100%; aspect-ratio:16/9; max-height:800px; background:#fff;
-      border-radius:8px; box-shadow:0 4px 12px var(--shadow); display:block; margin:0 auto;
-    }
+.graph-wrapper {
+  display: flex;
+  align-items: stretch;   /* le canvas prend toute la hauteur */
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 40px;
+  height: 1000px;          /* hauteur fixée comme le canvas */
+}
+
+.graph-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* centre verticalement si le menu est plus petit */
+}
+
+#myChart {
+  width: 100%;
+  aspect-ratio: 16/9;
+  max-height: 1000px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--shadow);
+  display: block;
+  margin: 0 auto;
+}
+
+.y-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  /* hauteur adaptative */
+  max-height: 1000px;      /* ne jamais dépasser 1000px */
+  height: auto;            /* prend la taille du contenu si < 1000px */
+
+  overflow-y: auto;        /* ajoute une barre de défilement si trop long */
+  border: 1px solid #ddd;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--panel);
+  scrollbar-width: thin;
+  width: 220px;
+}
+
+
+
 
     /* Infos & états */
     #zoomInfo{
@@ -102,11 +142,24 @@
 
     /* Sélecteurs colonnes */
     @media (max-width:600px){#myChart{width:100%;}}
+.y-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 
-    .y-columns{
-      display:flex; flex-direction:column; gap:4px;
-      max-height:8.5em; overflow-y:auto; border:1px solid #ddd; padding:6px; border-radius:6px;
-      background:var(--panel); scrollbar-width:thin; margin:0 auto; width:220px;
+  /* hauteur auto sauf si trop long */
+  height: auto;            /* s'adapte au contenu */
+  max-height: 1000px;      /* plafonné à 1000px si trop grand */
+  overflow-y: auto;        /* active le scroll uniquement si nécessaire */
+
+  border: 1px solid #ddd;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--panel);
+  scrollbar-width: thin;
+  width: 220px;
+}
+
     }
     .y-columns::-webkit-scrollbar{width:6px;}
     .y-columns::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px;}
@@ -120,6 +173,25 @@
 
     /* Petite mise au point pour le conteneur des sélecteurs */
     #columnSelectors{align-items:center;}
+
+/* 🔒 Masquer les boutons "avant/après" et "étendre" */
+#extendPrev,
+#extendNext,
+#panPrev,
+#panNext {
+  display: none !important;
+}
+
+/* Positionnement du bloc à gauche du graphe */
+.graph-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* centre verticalement */
+  align-items: center;     /* centre horizontalement */
+}
+
+
+
   </style>
 </head>
 <body>
@@ -148,27 +220,25 @@
       <button id="drawChartBtn" style="display:none;">📊 Afficher courbes</button>
     </div>
     <!-- Cases à cocher pour les colonnes Y -->
+    
+  </div>
+
+<!-- === PARTIE 6 : Zone Graphique === -->
+<div class="graph-wrapper">
+  <!-- Côté gauche : menu Y -->
+  <div class="graph-side">
     <div id="yColumnsContainer" class="y-columns"></div>
   </div>
 
-  <!-- === PARTIE 6 : Zone Graphique === -->
-  <div class="graph-wrapper">
-    <div class="graph-side">
-      <button id="extendPrev">⬅️ Étendre veille</button>
-      <button id="panPrev">⏪ Avant</button>
-    </div>
-
-    <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
-      <canvas id="myChart" width="1600" height="800"></canvas>
-      <input type="color" id="colorPicker" style="display:none;" />
-      <div id="dateLabels" style="text-align:center; margin-top:8px; font-weight:bold; color:var(--danger);"></div>
-    </div>
-
-    <div class="graph-side">
-      <button id="extendNext">Étendre lendemain ➡️</button>
-      <button id="panNext">⏩ Après</button>
-    </div>
+  <!-- Zone centrale : graphe -->
+  <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+    <canvas id="myChart" width="1400" height="1000"></canvas>
+    <input type="color" id="colorPicker" style="display:none;" />
+    <div id="dateLabels" style="text-align:center; margin-top:8px; font-weight:bold; color:var(--danger);"></div>
   </div>
+</div>
+
+
 
   <!-- === PARTIE 7 : Aides/états === -->
   <div id="zoomInfo">🔍 Sélectionner une zone (drag) pour zoomer, molette+Ctrl pour zoom, Ctrl+clic sur la courbe pour changer sa couleur</div>
@@ -208,6 +278,8 @@
   let colors=[]; let themeMenuTimer;
   let loadedDays=new Set(); let saMeta=null;
   let customColors = {}; // mémorise les couleurs choisies par label
+  let initialMin = null, initialMax = null;
+
 
 
   // Z3
@@ -633,6 +705,10 @@ if (!isNaN(dt.getTime())) {
   const allX=csvData.map(r=>r.__sortKey).filter(v=>Number.isFinite(v));
   const minX=Math.min(...allX), maxX=Math.max(...allX);
 
+  // stocker les bornes initiales une seule fois
+  if (initialMin === null) initialMin = minX;
+  if (initialMax === null) initialMax = maxX;
+
   const datasets = buildDatasets();
 
   // Sauvegarder zoom avant destruction
@@ -681,14 +757,19 @@ if (!isNaN(dt.getTime())) {
           zoom:{
             wheel:{enabled:true,modifierKey:'ctrl'},
             pinch:{enabled:true},
-            drag:{enabled:true,mode:'x'},
-            mode:'x'
+            drag:{
+              enabled:true,
+              mode:'x',
+              backgroundColor:'rgba(54, 162, 235, 0.1)', // fond semi-transparent
+              borderColor:'rgba(54, 162, 235, 0.5)',     // contour visible
+              borderWidth:1
+            }
           },
           pan:{enabled:true,mode:'x'},
           limits:{ y:{min:'original',max:'original'} }
         }
       },
-      tooltip:{   // au bon niveau
+      tooltip:{
         callbacks:{
           title:(items)=>{
             if(!items?.length) return '';
@@ -755,6 +836,7 @@ if (!isNaN(dt.getTime())) {
 
 
 
+
   /* ===================== UI ===================== */
   document.getElementById('backBtn').onclick=()=>window.close();
 
@@ -792,14 +874,23 @@ ds.pointBorderColor = newColor;
     colorPickerEl.click();
   });
 
-  // Reset zoom
-  document.getElementById('resetZoom').onclick=()=>{
-    if(!chart) return;
-    chart.resetZoom();
-    chart.options.scales.x.min=undefined;
-    chart.options.scales.x.max=undefined;
-    applyAdaptiveTicks();
-  };
+// Reset zoom
+document.getElementById('resetZoom').onclick=()=>{
+  if(!chart) return;
+
+  // Empêcher autoLoadDays de s’exécuter pendant le reset
+  chart.$isResetting = true;
+
+  chart.resetZoom();
+  chart.options.scales.x.min = initialMin;
+  chart.options.scales.x.max = initialMax;
+  applyAdaptiveTicks();
+  chart.update('none');
+
+  // Réactiver autoLoadDays après un petit délai
+  setTimeout(()=>{ chart.$isResetting = false; }, 200);
+};
+
 
   // ==== LISSAGE avec mémorisation ====
   function updateSmoothBtnUI() {
@@ -935,8 +1026,6 @@ async function loadDayIfAvailable(yyyymmdd){
     }
   }
 
-  document.getElementById('panPrev').onclick = ()=> panAndLoad(-1);
-  document.getElementById('panNext').onclick = ()=> panAndLoad(+1);
 
   async function extendDays(direction,days){
     if(!saMeta) return;
@@ -963,25 +1052,23 @@ async function loadDayIfAvailable(yyyymmdd){
     document.getElementById('dayModal').style.display='none';
     if(modalResolve){modalResolve(isNaN(n)?null:{n,dir:modalDirection}); modalResolve=null;}
   };
-  document.getElementById('extendPrev').onclick=async()=>{ const res=await openDayModal(1,-1); if(res&&res.n>0) extendDays(-1,res.n); };
-  document.getElementById('extendNext').onclick=async()=>{ const res=await openDayModal(1,+1); if(res&&res.n>0) extendDays(+1,res.n); };
+
 
 /* ===================== AUTO LOAD DAYS (zoom/pan) ===================== */
 async function autoLoadDays(chart){
+  // 🚫 si on est en train de faire un reset → on sort direct
+  if(chart.$isResetting) return;
   if(!saMeta) return;
+
   const xScale = chart.scales.x;
   const min = xScale.min, max = xScale.max;
 
   const d0 = new Date(min);
   const d1 = new Date(max);
 
-  // Mise à zéro heure
+  // Mise à zéro heure (⚠️ pas de limite veille/lendemain)
   d0.setHours(0,0,0,0);
   d1.setHours(0,0,0,0);
-
-  // 🔥 inclure la veille et le lendemain
-  d0.setDate(d0.getDate()-1);
-  d1.setDate(d1.getDate()+1);
 
   let newData = false;
 
@@ -1013,6 +1100,7 @@ async function autoLoadDays(chart){
     if(z3Visible && chart) chart.update('none');
   }
 }
+
 
 
   /* ===================== EXPORT PDF ===================== */
@@ -1124,191 +1212,6 @@ async function autoLoadDays(chart){
   </script>
 </body>
 </html>
-
-
-</style>
-</head>
-<body>
-
-<div class="header">
-  <img src="img/logo.png" alt="Logo" class="logo" />
-  <div id="fileNameContainer">
-    <div id="fileName"></div>
-    <div id="lineCount"></div>
-  </div>
-</div>
-
-<div class="controls">
-  <button id="backBtn">⬅️ Retour</button>
-  <button id="exportPDF" style="display:none;">📄 Exporter PDF</button>
-  <button id="resetZoom" style="display:none;">🔄 Réinitialiser zoom</button>
-</div>
-
-<div class="controls" id="columnSelectors" style="display:none;">
-  <select id="xColumn"></select>
-  <select id="yColumns" multiple></select>
-  <button id="drawChartBtn">📊 Afficher courbes</button>
-</div>
-
-<canvas id="myChart" width="1600" height="800"></canvas>
-
-<div id="zoomInfo">🔍 Sélectionner une zone avec le clic gauche pour zoomer</div>
-
-<script>
-const API_KEY='AIzaSyCbEV3CS9bOcxq5eK-QXbjczGHjvzyXS6M';
-let csvData=[], chart, currentX="", currentY=[];
-const colors=["#e53935","#ff7043","#ffc300","#33ff57","#3380ff","#8e44ad","#ff33a6","#33cccc"];
-
-const fileNameDiv=document.getElementById('fileName');
-const lineCountDiv=document.getElementById('lineCount');
-const exportBtn=document.getElementById('exportPDF');
-const resetBtn=document.getElementById('resetZoom');
-const xSelect=document.getElementById('xColumn');
-const ySelect=document.getElementById('yColumns');
-const drawBtn=document.getElementById('drawChartBtn');
-const columnSelectors=document.getElementById('columnSelectors');
-const zoomInfoDiv=document.getElementById('zoomInfo');
-
-document.getElementById('backBtn').addEventListener('click',()=>{ window.close(); });
-
-function getParam(n){ return new URLSearchParams(window.location.search).get(n); }
-
-async function loadCSVFromDrive(){
-  const fileId=getParam('fileId');
-  const fullFileName=getParam('fileName') || '';
-  if(!fileId){ alert('Aucun fichier spécifié'); return; }
-
-  fileNameDiv.textContent=fullFileName;
-  fileNameDiv.style.display="block"; 
-  lineCountDiv.style.display="block";
-  exportBtn.style.display="inline-block"; 
-  resetBtn.style.display="inline-block";
-
-  const url=`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
-  const response=await fetch(url);
-  const arrayBuffer=await (await response.blob()).arrayBuffer();
-  const text=new TextDecoder('windows-1252').decode(arrayBuffer);
-
-  const results = Papa.parse(text, { header:false, dynamicTyping:true, skipEmptyLines:true });
-
-  let headers = results.data[0];
-  let headerCount = {};
-  headers = headers.map(h => {
-    if(headerCount[h]){ headerCount[h]++; return `${h}_${headerCount[h]}`; } 
-    else { headerCount[h] = 1; return h; }
-  });
-
-  csvData = results.data.slice(1).map(row=>{
-    let obj = {};
-    row.forEach((v,i)=> obj[headers[i]] = v);
-    return obj;
-  });
-
-  lineCountDiv.textContent=csvData.length+" ligne"+(csvData.length>1?"s":"");
-
-  xSelect.innerHTML=""; ySelect.innerHTML="";
-  headers.forEach(f=>{
-    const optionX=document.createElement("option"); optionX.value=f; optionX.text=f; xSelect.appendChild(optionX);
-    const optionY=document.createElement("option"); optionY.value=f; optionY.text=f; ySelect.appendChild(optionY);
-  });
-  columnSelectors.style.display="flex";
-
-  let defaultX = headers.find(h => h.toLowerCase().includes("time") || h.toLowerCase()==="heure");
-  if(defaultX){ xSelect.value = defaultX; xSelect.style.display = "none"; }
-
-  Array.from(ySelect.options).forEach((opt, idx)=>{ if(idx<2) opt.style.display='none'; });
-  zoomInfoDiv.style.display='block';
-  setTimeout(()=>{ zoomInfoDiv.style.display='none'; }, 5000);
-}
-
-drawBtn.addEventListener('click',()=>{
-  currentX = xSelect.value || "heure";
-  currentY = Array.from(ySelect.selectedOptions).map(o=>o.value);
-  drawChart();
-});
-
-function drawChart(){
-  if(!csvData.length || !currentX) return;
-  const ctx = document.getElementById('myChart').getContext('2d');
-  const labels = csvData.map(r => r[currentX]);
-  const datasets = currentY.map((yCol,i)=>{
-    const values = csvData.map(r=>r[yCol]);
-    const color = colors[i % colors.length];
-    return { label: yCol, data: values, borderColor: color, borderWidth: 3, fill: false, tension: 0.4, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: color, pointBorderColor: color, pointBorderWidth: 2 };
-  });
-
-  if(chart) chart.destroy();
-  chart = new Chart(ctx,{
-    type:"line",
-    data: { labels, datasets },
-    options: {
-      responsive: false,
-      maintainAspectRatio: false,
-      interaction: { mode:'nearest', axis:'x', intersect:true },
-      plugins: {
-        tooltip: { enabled: true, mode:'nearest', intersect:true },
-        legend: { position:'top' },
-        datalabels: { display: false },
-        zoom: { zoom: { wheel:{enabled:true,modifierKey:'ctrl'}, pinch:{enabled:true}, drag:{enabled:true,modifierKey:null,mode:'xy'} }, pan: { enabled:true, mode:'xy' } }
-      },
-      scales: { x: { title:{ display:true, text:currentX }, grid: { color:'rgba(0,0,0,0.05)' } }, y: { title:{ display:true, text:'Valeurs' }, grid: { color:'rgba(0,0,0,0.05)' } } }
-    },
-    plugins:[ChartDataLabels],
-    devicePixelRatio: window.devicePixelRatio
-  });
-}
-
-// === Export PDF corrigé ===
-exportBtn.addEventListener('click', () => {
-    if (!chart) return;
-    const { jsPDF } = window.jspdf;
-    const canvas = chart.canvas;
-    const pdf = new jsPDF({ orientation: 'landscape' });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-
-    const csvName = (getParam('fileName') || '').split('\\').pop() || '';
-    let titleText = csvName;
-    let pdfFileName = csvName.replace(/\.csv$/i, '.pdf');
-
-    if (csvName.startsWith("Z")) {
-        const matchZ = csvName.match(/^Z\d+(\d{2})_(\d{8})/);
-        if (matchZ) {
-            const xx = parseInt(matchZ[1],10).toString();
-            const dateRaw = matchZ[2];
-            const yyyy = dateRaw.substring(0,4), mm = dateRaw.substring(4,6), dd = dateRaw.substring(6,8);
-            titleText = `Historique Séchoir ${xx} - ${dd}/${mm}/${yyyy}`;
-        }
-    } else {
-        const match = csvName.match(/^SA(\d+)_([0-9]{8})/);
-        if (match) {
-            const numRaw = match[1];
-            const numTwoDigits = parseInt(numRaw,10).toString().padStart(2,'0');
-            const dateRaw = match[2];
-            const yyyy = dateRaw.substring(0,4), mm = dateRaw.substring(4,6), dd = dateRaw.substring(6,8);
-            titleText = parseInt(numRaw) > 0 ? `Séchoir ${parseInt(numRaw,10)} - ${dd}/${mm}/${yyyy}` : `${dd}/${mm}/${yyyy}`;
-            pdfFileName = parseInt(numRaw) > 0 ? `Séchoir-${numTwoDigits}_${dateRaw}.pdf` : `${dateRaw}.pdf`;
-        }
-    }
-
-    pdf.setFontSize(14);
-    pdf.setTextColor(229,57,53);
-    const lines = pdf.splitTextToSize(titleText, pageWidth - 20);
-    pdf.text(lines, 14, 12);
-
-    const scale = Math.min((pageWidth-20)/canvas.width, (pageHeight-30)/canvas.height);
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (pageWidth - canvas.width*scale)/2, 20 + lines.length*5, canvas.width*scale, canvas.height*scale);
-
-    pdf.save(pdfFileName);
-});
-
-document.getElementById('resetZoom').addEventListener('click',()=>{ if(chart) chart.resetZoom(); });
-
-loadCSVFromDrive();
-</script>
-</body>
-</html>
-
 
 
 
