@@ -390,34 +390,37 @@ async function loadRootFolders(){
 }
 
 async function toggleFolder(li){
-  const toggle=li.querySelector('.folder-toggle');
-  if(li.dataset.loaded==='true'){
-    const ul=li.querySelector('ul');
-    if(ul){ul.style.display=ul.style.display==='none'?'block':'none'; toggle.textContent=ul.style.display==='block'?'–':'+';}
+  const toggle = li.querySelector('.folder-toggle');
+  if (li.dataset.loaded === 'true') {
+    const ul = li.querySelector('ul');
+    if (ul) {
+      ul.style.display = ul.style.display === 'none' ? 'block' : 'none';
+      toggle.textContent = ul.style.display === 'block' ? '–' : '+';
+    }
     return;
   }
-  toggle.textContent='…';
-  const files=await fetchFolderContents(li.dataset.id);
-  const ul=document.createElement('ul');
+  toggle.textContent = '…';
+  const files = await fetchFolderContents(li.dataset.id);
+  const ul = document.createElement('ul');
   for (const f of files.filter(f => f.mimeType === 'application/vnd.google-apps.folder')) {
-    const childLi=document.createElement('li'); 
-    childLi.dataset.id=f.id;
+    const childLi = document.createElement('li'); 
+    childLi.dataset.id = f.id;
 
-    const childToggle=document.createElement('span'); 
-    childToggle.className='folder-toggle'; 
-    childToggle.textContent='+';
-    childToggle.onclick=()=>toggleFolder(childLi);
+    const childToggle = document.createElement('span'); 
+    childToggle.className = 'folder-toggle'; 
+    childToggle.textContent = '+';
+    childToggle.onclick = () => toggleFolder(childLi);
 
-    const span=document.createElement('span'); 
-    span.className='folder-name'; 
-    span.textContent=f.name;
-    span.onclick=()=>loadFolderFilesOnClick(childLi);
+    const span = document.createElement('span'); 
+    span.className = 'folder-name'; 
+    span.textContent = f.name;
+    span.onclick = () => loadFolderFilesOnClick(childLi);
 
     childLi.appendChild(childToggle); 
     childLi.appendChild(span); 
     ul.appendChild(childLi);
 
-    // ✅ Cas spécial : si le dossier est Traça_Temp → précharger Historique
+    // ✅ Cas spécial : si le dossier est Traça_Temp, Traca_Temp ou Temperatures → précharger Historique
     if (
       f.name.toLowerCase().includes("traça_temp") || 
       f.name.toLowerCase().includes("traca_temp") || 
@@ -435,14 +438,19 @@ async function toggleFolder(li){
       }
     }
 
-
-    // ✅ Vérif Temp (flamme 🔥)
-    if(f.name.includes("Temp")){ checkTraçaTempToday(li, f.id); }
+    // ✅ Vérif Temp (flamme 🔥) → s’applique aussi à Temperatures
+    if (
+      f.name.toLowerCase().includes("temp") || 
+      f.name.toLowerCase().includes("temperatures")
+    ) {
+      checkTraçaTempToday(li, f.id);
+    }
   }
   li.appendChild(ul); 
-  li.dataset.loaded='true'; 
-  toggle.textContent='+';
+  li.dataset.loaded = 'true'; 
+  toggle.textContent = '+';
 }
+
 
 
 // Fonction utilitaire pour récupérer les sous-dossiers sans modifier l'affichage
