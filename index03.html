@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Plan des sondes</title>
+
+<style>
+:root{
+  /* Thème (identique viewer02) */
+  --bg:#fff5f5; --panel:#ffffff; --accent:#ff7043; --accent-darker:#e64a19;
+  --accent-muted:#ffccbc; --danger:#d84315; --text:#333;
+
+  /* Grille logique */
+  --cols: 22;
+  --rows-top: 6;
+  --rows-bot: 6;
+  --split-gap: 0.3;          /* espace vertical entre les 2 sous-grilles (en fraction de case) */
+
+  /* Cellules */
+  --tile-size: 110px;        /* sera recalculé en JS */
+  --cell-gap: 8px;
+
+  /* Sidebar temporelle (en dessous) */
+  --timebar-cols: 6;         /* largeur = 6 cases */
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;
+  background:var(--bg); color:var(--text);
+  min-height:100vh; display:flex; flex-direction:column;
+}
+
+/* ===== Header (style viewer02) ===== */
+.header{
+  position:relative; display:flex; align-items:center; justify-content:center;
+  min-height:60px; padding:10px 16px 0;
+}
+.header .logo{height:50px;width:auto;}
+#currentFolderName{
+  position:absolute; left:16px; top:8px; font-size:22px; font-weight:bold; color:var(--accent);
+  max-width:45vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#fileNameContainer{position:absolute; right:16px; top:8px; text-align:right;}
+#fileName{font-size:18px; font-weight:bold; color:var(--accent-darker); max-width:40vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+#lineCount{font-size:12px; color:var(--accent-darker); margin-top:2px;}
+.flame{display:inline-block; animation:flicker 1s infinite alternate;}
+@keyframes flicker{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+
+/* ===== Titre date/heure ===== */
+#datetimeLabel{
+  font-weight:bold; font-size:18px; text-align:center; color:var(--danger);
+  margin:8px auto 6px;
+}
+
+/* ===== Zone centrale : deux sous-grilles 22×6 centrées ===== */
+#gridWrap{
+  flex:1; display:flex; align-items:center; justify-content:center; padding:10px 12px;
+  overflow:auto;
+}
+#grid{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap: calc(var(--tile-size) * var(--split-gap)); /* espace vertical entre top/bottom */
+}
+
+/* Sous-grilles 22 colonnes chacune */
+.grid-part{
+  display:grid;
+  grid-template-columns: repeat(var(--cols), var(--tile-size));
+  grid-auto-rows: var(--tile-size);
+  gap: var(--cell-gap);
+}
+
+/* Cellules “sonde” */
+.sonde{
+  width: var(--tile-size); height: var(--tile-size);
+  background: var(--panel); border-radius: 10px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  box-shadow:0 2px 5px rgba(0,0,0,0.2); padding:6px;
+  overflow:hidden;
+}
+.sonde .label{ font-size: clamp(10px, calc(var(--tile-size)*0.12), 14px); font-weight:bold; color:#000; margin-bottom:2px; }
+.sonde .consigne{ font-size: clamp(9px, calc(var(--tile-size)*0.10), 12px); color:#555; font-style:italic; }
+.sonde .val{ font-size: clamp(14px, calc(var(--tile-size)*0.18), 22px); font-weight:bold; color:#000; }
+
+/* ===== Cases spéciales ===== */
+.sonde.special {
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;   /* ✅ centre verticalement */
+  text-align: center;        /* ✅ centre horizontalement */
+  padding: 0;                /* ✅ enlève les décalages internes */
+}
+
+/* ===== Sidebar temporelle (en dessous de la grille) ===== */
+#bottomBar{
+  display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:10px 16px 14px;
+}
+#timeBar{
+  width: calc(var(--timebar-cols) * var(--tile-size) + (var(--timebar-cols) - 1) * var(--cell-gap));
+  display:flex; align-items:center; justify-content:center;
+}
+#slider{ width:100%; height: calc(var(--tile-size) * 0.35); }
+
+#scaleBox{
+  background:var(--panel); border:1px solid #ddd; border-radius:8px;
+  padding:8px 10px; box-shadow:0 2px 8px rgba(0,0,0,0.12); font-size:13px; color:var(--text);
+}
+#scaleBox label{ margin-right:6px; }
+#scaleBox input{ width:70px; padding:4px; border:1px solid #ccc; border-radius:6px; }
+
+/* Scrollbars (grille) */
+#gridWrap::-webkit-scrollbar{height:10px;width:10px;}
+#gridWrap::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;}
+#gridWrap::-webkit-scrollbar-track{background:#eee;}
+</style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<div class="header">
+  <div id="currentFolderName"></div>
+  <img src="img/logo.png" class="logo" alt="Logo"/>
+  <div id="fileNameContainer">
+    <div id="fileName"></div>
+    <div id="lineCount"></div>
+  </div>
+</div>
+
+<div id="datetimeLabel">-- / -- / ---- — --:--</div>
+
+<!-- ===== Grille centrale (22×12 en 2× 22×6) ===== -->
+<div id="gridWrap">
+  <div id="grid">
+    <div id="gridTop" class="grid-part"></div>
+    <div id="gridBottom" class="grid-part"></div>
+  </div>
+</div>
+
+<!-- ===== Sidebar temporelle + min/max ===== -->
+<div id="bottomBar">
+  <div id="timeBar">
+    <input type="range" id="slider" min="0" max="0" value="0"/>
+  </div>
+  <div id="scaleBox" title="Réglage des bornes couleurs">
+    <label>Min</label><input type="number" id="minInput" step="0.1" value="30"/>
+    <label style="margin-left:10px;">Max</label><input type="number" id="maxInput" step="0.1" value="60"/>
+  </div>
+</div>
+
+<script src="libs/papaparse.min.js"></script>
+<script>
+/* =================== Thème =================== */
+function applyThemeVars(vars){const r=document.documentElement;Object.entries(vars).forEach(([k,v])=>r.style.setProperty(k,v));}
+function setTheme(theme){
+  localStorage.setItem("selectedTheme",theme);
+  if(theme==="orange") applyThemeVars({"--accent":"#ff7043","--accent-darker":"#e64a19","--accent-muted":"#ffccbc","--bg":"#fff5f5","--panel":"#ffffff","--danger":"#d84315","--text":"#333"});
+}
+
+/* =================== Globals =================== */
+let csvData=[], headers=[], planTop=[], planBottom=[];
+const params=new URLSearchParams(window.location.search);
+const fileId=params.get("fileId");
+const fileName=params.get("fileName");
+
+/* =================== Header dossier + flamme =================== */
+(function hydrateFolderHeader(){
+  let title="";
+  try{
+    const list = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
+    const f = list.find(x=>x.id===fileId);
+    if(f && f.parents && f.parents.length){
+      const parent = list.find(x=>x.id===f.parents[0]);
+      if(parent && parent.name){
+        title = parent.name;
+        if(parent.parents && parent.parents.length){
+          const root = list.find(x=>x.id===parent.parents[0]);
+          if(root && root.name) title = root.name+" / "+parent.name;
+        }
+      }
+    }
+  }catch(e){}
+  if(!title) title = decodeURIComponent(fileName||"");
+  const flameTitle = title.replace(/🔥/g,'<span class="flame" title="Brûleur(s) en fonctionnement">🔥</span>');
+  const el=document.getElementById("currentFolderName");
+  if(el) el.innerHTML=flameTitle;
+  const fn=document.getElementById("fileName");
+  if(fn) fn.textContent = decodeURIComponent(fileName||"");
+})();
+
+/* =================== Plan depuis localStorage =================== */
+function loadPlan(){
+  const raw=localStorage.getItem("planSondes");
+  if(!raw){
+    document.getElementById("gridTop").innerHTML="<b style='color:red'>❌ planSondes manquant</b>";
+    return;
+  }
+  const lines = raw.trim().split(/\r?\n/).map(l=>{
+    const cols = l.split(",").map(v=>v.trim());
+    return cols.every(v=>v==="") ? null : cols;
+  });
+
+  // scinder en deux blocs (ligne vide = séparation)
+  let top=[], bottom=[], buf=[];
+  let topDone=false;
+  for(const row of lines){
+    if(row===null){ if(!topDone){ top = buf; topDone=true; buf=[]; } else { /* ignore extra splits */ } }
+    else buf.push(row);
+  }
+  bottom = topDone ? buf : [];
+
+  planTop = top;
+  planBottom = bottom;
+
+  buildGrid();
+}
+
+/* =================== Construction de la grille centrée =================== */
+function buildGrid(){
+  const gridTop = document.getElementById("gridTop");
+  const gridBottom = document.getElementById("gridBottom");
+  gridTop.innerHTML = ""; 
+  gridBottom.innerHTML = "";
+
+  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols')) || 22;
+
+  function placeRows(container, rows){
+    if(!rows || !rows.length) return;
+    const planCols = rows[0].length;
+    const startCol = Math.max(1, Math.floor((cols - planCols)/2) + 1); // centre dans 22
+    rows.forEach(r=>{
+      r.forEach((num, j)=>{
+        if(!num) return;
+        const d=document.createElement("div");
+        d.className="sonde";
+        d.id="sonde"+num;
+        d.style.gridColumn = (startCol + j) + " / span 1";
+        d.innerHTML = `
+          <div class="label">Sonde ${num}</div>
+          <div class="consigne">-- °C</div>
+          <div class="val">-- °C</div>`;
+        container.appendChild(d);
+      });
+    });
+  }
+
+  placeRows(gridTop, planTop);
+  placeRows(gridBottom, planBottom);
+} // 🔹 Fin de buildGrid()
+
+
+// === Ajout différé des cases spéciales après lecture du CSV ===
+function addSpecialsAfterCSV() {
+  const normalize = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
+
+  // ✅ Détection ultra tolérante sur les intitulés du CSV
+  const hasExt   = headers.some(h => normalize(h).includes("tcext") || normalize(h).includes("temperatureexterieure") || normalize(h).includes("tempext"));
+  const hasDebit = headers.some(h => normalize(h).includes("debit") || normalize(h).includes("debitth") || normalize(h).includes("dbit") || normalize(h).includes("tonne"));
+  const hasGaz   = headers.some(h => normalize(h).includes("gaz"));
+  const hasNorm  = headers.some(h => normalize(h).includes("normalis"));
+  const hasIpe   = headers.some(h => normalize(h).includes("ipe") || normalize(h).includes("ip") || normalize(h).includes("ipekwh"));
+
+  console.log("Colonnes détectées →", { hasExt, hasDebit, hasGaz, hasNorm, hasIpe });
+
+  const specials = [
+// 🔸 Sondes internes
+{ id: "SondeACsup", label: "Air chaud Supérieur", col: "G", row: 4 },
+{ id: "SondeACinf", label: "Air chaud Inférieur", col: "G", row: 10 },
+{ id: "TempGrain",  label: "Température Grain",   col: "P", row: 7 },
+{ id: "TempExt",    label: "Température Extérieure 🌡️", col: "E", row: 10, optional: true, active: hasExt },
+
+
+    // 🔸 Nouvelles cases de suivi
+    { id: "DebitTH",   label: "Débit Séchage", col: "D", row: 7, optional: true, bg: "#00CCFF", active: hasDebit },
+    { id: "GazM3H",    label: "🔥 GAZ", col: "D", row: 8, optional: true, bg: "#FFCC33", active: hasGaz },
+    { id: "Normalise", label: "🔥 GAZ", col: "D", row: 9, optional: true, bg: "#FFCC33", active: hasNorm },
+    { id: "IPE",       label: "🔥 Ipé", col: "D", row: 10, optional: true, bg: "#33FF00", active: hasIpe }
+  ];
+
+  function colIdx(letter){ return letter.toUpperCase().charCodeAt(0) - 64; }
+
+  function placeSpecial(s){
+    const col = colIdx(s.col);
+    const row = s.row;
+    const d = document.createElement("div");
+    d.className = "sonde special";
+    d.id = s.id;
+    if (s.bg) d.style.background = s.bg;
+    d.innerHTML = `
+      <div class="label">${s.label}</div>
+      <div class="consigne">--</div>
+      <div class="val">--</div>`;
+    const target = (row <= 6) ? document.getElementById("gridTop") : document.getElementById("gridBottom");
+    d.style.gridColumn = `${col} / span 1`;
+    d.style.gridRow = `${row <= 6 ? row : row - 6} / span 1`;
+    target.appendChild(d);
+  }
+
+  // Ajout conditionnel
+  specials.forEach(s => {
+    if (!s.optional || s.active) placeSpecial(s);
+  });
+}
+
+
+
+
+
+/* =================== Responsive : calcule la taille de case =================== */
+function updateTileSize(){
+  const wrap = document.getElementById("gridWrap");
+  const cols = 22;
+  const rows = 12;
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'))||8;
+  const splitGapRatio = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--split-gap'))||0.3;
+
+  const availW = wrap.clientWidth - 32;   // marges internes
+  const availH = wrap.clientHeight - 16;
+
+  // largeur = cols * s + (cols -1)*gap
+  // hauteur = (rows * s) + ( (rows-2*1) gaps inter-cellules ) + (split-gap*s)
+  // On a 2 blocs de 6 lignes => total gaps verticaux = (6-1)+(6-1) = 10 gaps entre cellules
+  const totalVCellGaps = (6-1) + (6-1); // 10
+  const hByW = (availW - (cols-1)*gap) / cols;
+  const hByH = (availH - totalVCellGaps*gap) / (rows + splitGapRatio); // on ajoute l’espace central en “s”
+  const s = Math.max(60, Math.floor(Math.min(hByW, hByH))); // taille min 60px
+
+  document.documentElement.style.setProperty('--tile-size', s + 'px');
+}
+
+/* =================== CSV (Drive) =================== */
+async function loadCSV(){
+  if(!fileId) return;
+  const url=`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=AIzaSyCbEV3CS9bOcxq5eK-QXbjczGHjvzyXS6M`;
+  let text="";
+  try{ const res=await fetch(url); text=await res.text(); }catch(e){ console.error(e); return; }
+
+  const seen={};
+  const results=Papa.parse(text,{header:true,skipEmptyLines:true,
+    transformHeader:(h)=>{h=(h||"").replace(/"/g,"").trim(); if(seen[h]){seen[h]++; return h+"_"+seen[h];} else {seen[h]=1; return h+"_1";}}
+  });
+  headers=results.meta.fields||[]; csvData=results.data||[];
+  const lc=document.getElementById("lineCount");
+  if(lc) lc.textContent = (csvData?.length||0)+" ligne"+((csvData?.length||0)>1?"s":"");
+  document.getElementById("slider").max=Math.max(0,(csvData.length||1)-1);
+
+  // min/max défaut (30/60)
+  const minInit=parseFloat(localStorage.getItem("scaleMin")||"30");
+  const maxInit=parseFloat(localStorage.getItem("scaleMax")||"60");
+  document.getElementById("minInput").value=isNaN(minInit)?30:minInit;
+  document.getElementById("maxInput").value=isNaN(maxInit)?60:maxInit;
+
+// === T°C Ext présent ? (gestion de variantes possibles) ===
+const hasExt = headers.some(h => {
+  const norm = (h || "")
+    .normalize("NFD")                  // enlève les accents
+    .replace(/[^\w]/g, "")             // retire °, espaces, tirets, etc.
+    .toLowerCase();
+  return (
+    norm.includes("tcext") ||
+    norm.includes("temperatureexterieure") ||
+    norm.includes("tempext")           // tolère d'autres variantes
+  );
+});
+
+
+
+
+console.log("Colonnes CSV détectées :", headers);
+console.log("Présence de T°C Ext :", hasExt);
+
+
+
+
+addSpecialsAfterCSV(); // 🧠 crée toutes les cases spéciales
+
+// Déplacer ce bloc ICI après la création
+const extEl = document.getElementById("TempExt");
+if (extEl) {
+  extEl.style.display = hasExt ? "flex" : "none";
+}
+
+updateGrid(0); // et seulement ensuite on met à jour les valeurs
+
+
+}
+
+/* =================== Helpers date & couleurs =================== */
+function getScale(){
+  let min=parseFloat(document.getElementById("minInput").value);
+  let max=parseFloat(document.getElementById("maxInput").value);
+  if(!isFinite(min)) min=30;
+  if(!isFinite(max)) max=60;
+  if(max<=min) max=min+1;
+  return {min,max};
+}
+function getColor(v){
+  const {min,max}=getScale();
+  let t=(v-min)/(max-min); t=Math.max(0,Math.min(1,t));
+  if(t<0.5){const r=t/0.5;return `rgb(0,${Math.round(150+105*r)},${Math.round(255-255*r)})`;}
+  else if(t<0.75){const r=(t-0.5)/0.25;return `rgb(${Math.round(255*r)},255,0)`;}
+  else if(t<0.9){const r=(t-0.75)/0.15;return `rgb(255,${Math.round(255-90*r)},0)`;}
+  else{const r=(t-0.9)/0.1;return `rgb(255,${Math.round(165-165*r)},0)`;}
+}
+
+/* =================== Actualisation d’une ligne =================== */
+/* =================== Actualisation d’une ligne =================== */
+function updateGrid(idx){
+  if(!csvData[idx]) return;
+  const row = csvData[idx];
+
+  // Date/Heure
+  const dateKey=headers.find(h=>(h||"").toLowerCase().includes("date"));
+  const timeKey=headers.find(h=>{
+    const a=(h||"").toLowerCase();
+    return a.includes("heure")||a.includes("time")||a==="h";
+  });
+  let dt=""; 
+  if(dateKey&&row[dateKey]) dt+=String(row[dateKey]); 
+  if(timeKey&&row[timeKey]) dt+=(dt?" — ":"")+String(row[timeKey]);
+  document.getElementById("datetimeLabel").textContent = dt||"";
+
+  // === Sondes normales ===
+  const allCells = document.querySelectorAll('.sonde:not(.special)');
+  allCells.forEach(div=>{
+    const n = div.id.replace("sonde","").padStart(2,"0");
+    const consCol = "Sonde"+n+"_1";
+    const valCol  = "Sonde"+n+"_2";
+    const cons = parseFloat(row[consCol]);
+    const val  = parseFloat(row[valCol]);
+    div.querySelector(".consigne").textContent = isNaN(cons) ? "-- °C" : cons.toFixed(1)+" °C";
+    const vdiv = div.querySelector(".val");
+    if(!isNaN(val)){
+      vdiv.textContent=val.toFixed(1)+" °C"; 
+      div.style.background=getColor(val);
+    } else {
+      vdiv.textContent="-- °C"; 
+      div.style.background="#eee";
+    }
+  });
+
+// 🔸 Fonction générique pour les cases spéciales
+function updateSpecial(label, id, opts = {}) {
+  const { altLabels = [], prefer = [] } = opts;
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  const norm = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
+  const wanted  = [label, ...altLabels].map(norm);
+  const prefers = (prefer || []).map(norm);
+
+  // --- Recherche colonne exacte ---
+  let valCol = null;
+  for (const h of headers) {
+    const n = norm(h);
+    if (prefers.some(p => n === p || n.includes(p))) { valCol = h; break; }
+  }
+  if (!valCol) {
+    for (const h of headers) {
+      const n = norm(h);
+      if (wanted.some(w => n.includes(w))) { valCol = h; break; }
+    }
+  }
+
+  const val = valCol ? parseFloat(row[valCol]) : NaN;
+
+  // --- Unités auto ---
+  let unit = "°C";
+  const L = norm(label);
+  if (L.includes("debit")) unit = "t/h";
+  else if (L.includes("gaz") && !L.includes("normal")) unit = "m³/h";
+  else if (L.includes("normal")) unit = "Nm³/h";
+  else if (L.includes("ip")) unit = "kWh/tee";
+
+  // --- Style valeur ---
+  const vdiv = el.querySelector(".val");
+  vdiv.style.fontSize = "clamp(11px, calc(var(--tile-size)*0.13), 17px)";
+  vdiv.textContent = isNaN(val) ? `-- ${unit}` : `${val.toFixed(1)} ${unit}`;
+
+// --- Couleur fixe (on garde la couleur d'origine) ---
+if (!el.hasAttribute("data-bg-fixed")) {
+  el.setAttribute("data-bg-fixed", "1");
+}
+
+// --- Gestion de la consigne ---
+const consEl = el.querySelector(".consigne");
+
+// Affiche la consigne seulement pour ACsup / ACinf / TempGrain
+if (L.includes("acsup") || L.includes("acinf") || L.includes("grain")) {
+  // 🔹 Cherche la 1re occurrence pour consigne et la 2e pour valeur
+  let base = null;
+  let consCol = null, valCol = null;
+  let count = 0;
+
+  for (const h of headers) {
+    const n = norm(h);
+    if (n.includes(norm(label))) {
+      count++;
+      if (count === 1) consCol = h;
+      if (count === 2) valCol = h;
+    }
+  }
+
+  const consVal = consCol ? parseFloat(row[consCol]) : NaN;
+  const valVal  = valCol ? parseFloat(row[valCol])  : NaN;
+
+  // --- Affiche consigne + valeur ---
+  consEl.style.display = "block";
+  consEl.textContent = isNaN(consVal) ? "-- °C" : `${consVal.toFixed(1)} °C`;
+
+  const vdiv = el.querySelector(".val");
+  vdiv.textContent = isNaN(valVal) ? "-- °C" : `${valVal.toFixed(1)} °C`;
+  if (!isNaN(valVal)) el.style.background = getColor(valVal);
+
+} else {
+  consEl.style.display = "none";
+}
+
+
+
+}
+
+// 🔹 Appels
+updateSpecial("Sonde AC sup", "SondeACsup");
+updateSpecial("Sonde AC inf", "SondeACinf");
+updateSpecial("Temp Grain",    "TempGrain");
+updateSpecial("T°C Ext",       "TempExt", {
+  altLabels: ["Temperature Exterieure", "Temp Ext", "TC Ext", "T C Ext"]
+});
+
+// 🔹 Suivis (1 seule colonne)
+updateSpecial("Débit", "DebitTH", {
+  altLabels: ["D bit t/h", "Débit T/H", "Débit (Tonnes / Heure)"],
+  prefer: ["dbitth"]
+});
+updateSpecial("Gaz", "GazM3H", {
+  altLabels: ["Gaz m3/h", "GAZ M3/H", "Consommation (m3 / Heure)"],
+  prefer: ["gazm3h"]
+});
+updateSpecial("Normalisé", "Normalise", {
+  altLabels: ["Normalis", "Normalisé", "Consommation (Nm3 / Heure)"],
+  prefer: ["normalis"]
+});
+updateSpecial("Ipé", "IPE", {
+  altLabels: ["Ip", "Ipe", "Ipé (kWh/tee)", "IPE"],
+  prefer: ["ip"]
+});
+}
+
+/* =================== Listeners =================== */
+window.addEventListener("resize", updateTileSize);
+document.getElementById("slider").addEventListener("input", e => updateGrid(parseInt(e.target.value)||0));
+document.getElementById("minInput").addEventListener("change", ()=>{
+  const v=parseFloat(document.getElementById("minInput").value);
+  localStorage.setItem("scaleMin", isFinite(v)?String(v):"30");
+  if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
+});
+document.getElementById("maxInput").addEventListener("change", ()=>{
+  const v=parseFloat(document.getElementById("maxInput").value);
+  localStorage.setItem("scaleMax", isFinite(v)?String(v):"60");
+  if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
+});
+
+/* =================== INIT =================== */
+(function init(){
+  setTheme(localStorage.getItem("selectedTheme")||"orange");
+  loadPlan();
+  buildGrid();
+  updateTileSize();
+  loadCSV();
+})();
+
+</script>
+</body>
+</html>
