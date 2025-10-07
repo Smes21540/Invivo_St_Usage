@@ -1,1081 +1,590 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-YG4RV4W27S"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-YG4RV4W27S');
-</script>
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Explorateur données séchoirs</title>
-
-<!-- Dépendances -->
-<script src="libs/jszip.min.js"></script>
-<script src="libs/FileSaver.min.js"></script>
+<title>Plan des sondes</title>
 
 <style>
 :root{
-  --bg:#fff5f5;
-  --panel:#ffffff;
-  --sidebar-bg:#ffe5d9;
-  --text:#333;
-  --muted-text:#555;
-  --shadow:rgba(0,0,0,0.1);
-  --overlay:rgba(0,0,0,0.8);
-  --table-border:#eee;
-  --thumb-border:#ccc;
+  /* Thème (identique viewer02) */
+  --bg:#fff5f5; --panel:#ffffff; --accent:#ff7043; --accent-darker:#e64a19;
+  --accent-muted:#ffccbc; --danger:#d84315; --text:#333;
 
-  /* Thème (orange par défaut) */
-  --accent:#ff7043;
-  --accent-contrast:#fff;
-  --accent-darker:#e64a19;
-  --accent-muted:#ffccbc;
-  --danger:#d84315;
+  /* Grille logique */
+  --cols: 22;
+  --rows-top: 6;
+  --rows-bot: 6;
+  --split-gap: 0.3;          /* espace vertical entre les 2 sous-grilles (en fraction de case) */
 
-  /* Couleurs des lignes du tableau */
-  --row-even:#ffe5d9;
-  --row-odd:#fff5f5;
+  /* Cellules */
+  --tile-size: 110px;        /* sera recalculé en JS */
+  --cell-gap: 8px;
+
+  /* Sidebar temporelle (en dessous) */
+  --timebar-cols: 6;         /* largeur = 6 cases */
 }
 
-*{box-sizing:border-box}
-
+*{box-sizing:border-box;margin:0;padding:0}
 body{
   font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;
-  background:var(--bg);color:var(--text);margin:0;padding:0;
-  display:flex;height:100vh;overflow:hidden;
+  background:var(--bg); color:var(--text);
+  min-height:100vh; display:flex; flex-direction:column;
 }
 
-/* Alerte réseau */
-#netAlert{
-  display:none;position:fixed;top:0;left:0;right:0;z-index:3000;
-  background:var(--accent-muted);color:var(--danger);
-  padding:8px;text-align:center;font-weight:bold;
+/* ===== Header (style viewer02) ===== */
+.header{
+  position:relative; display:flex; align-items:center; justify-content:center;
+  min-height:60px; padding:10px 16px 0;
+}
+.header .logo{height:50px;width:auto;}
+#currentFolderName{
+  position:absolute; left:16px; top:8px; font-size:22px; font-weight:bold; color:var(--accent);
+  max-width:45vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#fileNameContainer{position:absolute; right:16px; top:8px; text-align:right;}
+#fileName{font-size:18px; font-weight:bold; color:var(--accent-darker); max-width:40vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+#lineCount{font-size:12px; color:var(--accent-darker); margin-top:2px;}
+.flame{display:inline-block; animation:flicker 1s infinite alternate;}
+@keyframes flicker{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+
+/* ===== Titre date/heure ===== */
+#datetimeLabel{
+  font-weight:bold; font-size:18px; text-align:center; color:var(--danger);
+  margin:8px auto 6px;
 }
 
-/* Sidebar */
-#sidebar{
-  background:var(--sidebar-bg);border-right:2px solid var(--accent);
-  padding:20px 10px;overflow-y:auto;z-index:1000;
-  width:auto;min-width:200px;max-width:500px;
+/* ===== Zone centrale : deux sous-grilles 22×6 centrées ===== */
+#gridWrap{
+  flex:1; display:flex; align-items:center; justify-content:center; padding:10px 12px;
+  overflow:auto;
 }
-#sidebar h2{
-  color:var(--accent);font-size:18px;font-weight:bold;text-transform:uppercase;
-  margin:0 0 12px 0;padding-left:5px;display:flex;align-items:center;gap:6px;
-}
-#folderTree ul{list-style:none;padding-left:20px;margin:0;}
-#folderTree li{cursor:pointer;margin:5px 0;}
-.folder-toggle{font-weight:bold;margin-right:5px;cursor:pointer;color:var(--accent);}
-.folder-name{cursor:pointer;}
-.active-folder{background:var(--accent-muted);border-radius:3px;padding:2px 4px;}
-
-/* Main */
-#main{flex:1;padding:10px 20px;display:flex;flex-direction:column;overflow:hidden;}
-.header{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:15px;}
-.header .logo{height:60px;width:auto;}
-#fileNameContainer{position:absolute;right:0;top:0;text-align:right;}
-#fileName,#lineCount{color:var(--danger);}
-#fileName{font-size:20px;font-weight:bold;white-space:nowrap;max-width:250px;overflow:hidden;text-overflow:ellipsis;display:none;}
-#lineCount{font-size:12px;display:none;}
-
-/* Contrôles */
-.controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;align-items:center;}
-.controls button{
-  background:var(--accent);color:var(--accent-contrast);
-  border:none;cursor:pointer;font-weight:bold;
-  padding:6px 12px;border-radius:6px;font-size:13px;transition:0.3s;
-}
-.controls button:hover{background:var(--accent-darker);transform:scale(1.05);}
-
-/* Champs date + icône custom */
-.date-field{
-  display:flex;align-items:center;gap:6px;background:var(--panel);
-  border:2px solid var(--table-border);border-radius:6px;padding:4px 8px;
-}
-.date-field span{font-size:16px;color:var(--accent);cursor:pointer;user-select:none;transition:0.2s;}
-.date-field span:hover{transform:scale(1.2);}
-.date-field input[type=date]{border:none;outline:none;background:transparent;font-size:14px;color:var(--text);padding:6px 2px;}
-input[type="date"]::-webkit-calendar-picker-indicator{display:none;-webkit-appearance:none;}
-.date-field input[type=date]:focus {box-shadow:0 0 6px var(--accent);border-color:var(--accent);color:var(--danger);}
-
-/* Tableau */
-#tableWrapper{flex:1;overflow:auto;}
-#tableContainer{overflow:auto;border-radius:8px;box-shadow:0 4px 12px var(--shadow);background:var(--panel);}
-table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;}
-thead th,tbody td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--table-border);white-space:nowrap;}
-thead th{
-  position:sticky;top:0;z-index:2;background:var(--accent);
-  color:var(--accent-contrast);font-weight:bold;text-transform:uppercase;cursor:pointer;
-}
-tbody tr:nth-child(even){background:var(--row-even);}
-tbody tr:nth-child(odd){background:var(--row-odd);}
-tbody tr:hover{background:var(--accent-muted);}
-.sort-arrow{margin-left:5px;font-size:11px;color:var(--accent-contrast);}
-
-/* Cellule actions + boutons survol */
-td.action-cell{display:flex;align-items:center;gap:8px;}
-.action-btn{
-  background:var(--accent);color:var(--accent-contrast);border:none;cursor:pointer;
-  font-weight:bold;padding:6px 12px;border-radius:6px;font-size:12px;transition:0.2s;
-  margin-right:6px;opacity:0;visibility:hidden;
-}
-tbody tr:hover .action-btn{opacity:1;visibility:visible;}
-.action-btn:hover{background:var(--accent-darker);transform:scale(1.05);}
-
-/* Miniatures JPG */
-#csvTable td img{
-  max-width:120px;
-  cursor:pointer;border-radius:6px;border:1px solid var(--thumb-border);
-  transition:transform 0.2s,box-shadow 0.2s;margin-right:6px;
-}
-#csvTable td img:hover{transform:scale(1.08);box-shadow:0 0 8px var(--shadow);}
-
-/* Flèche animée */
-@keyframes bounceLeft {0%,100% { transform: translateX(0);}50% { transform: translateX(-8px);} }
-.arrow-hint {display:inline-block;margin-right:8px;color:var(--accent-darker);
-  font-size:22px;animation:bounceLeft 1s infinite;}
-
-/* Spinner */
-#spinner{
-  display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:40px;height:40px;border:6px solid #f3f3f3;border-top:6px solid var(--accent);border-radius:50%;
+#grid{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap: calc(var(--tile-size) * var(--split-gap)); /* espace vertical entre top/bottom */
 }
 
-/* Modale images */
-.modal{display:none;position:fixed;z-index:1300;padding-top:50px;left:0;top:0;width:100%;height:100%;background-color:var(--overlay);text-align:center;}
-.modal .close{position:absolute;top:15px;right:25px;color:#fff;font-size:30px;cursor:pointer;}
-.modal iframe{width:90%;height:80vh;border:none;border-radius:10px;background:#000;}
-.modal-actions{margin-top:15px;display:flex;justify-content:center;gap:10px;}
-.modal-actions button{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;font-weight:bold;}
-.modal-actions button:hover{background:var(--accent-darker);}
-
-/* Overlay ZIP */
-#zipOverlay{
-  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.4);z-index:1400;justify-content:center;align-items:center;
-}
-#zipBox{
-  background:var(--accent-muted);color:var(--text);padding:20px 25px;border-radius:12px;
-  text-align:center;width:300px;box-shadow:0 4px 12px rgba(0,0,0,0.3);position:relative;
-}
-#zipBox h2{margin:0 0 10px 0;color:var(--accent);font-size:18px;}
-#zipFileName{font-size:13px;margin-bottom:15px;color:var(--muted-text);word-break:break-word;}
-#zipProgressBar{width:100%;height:22px;background:#eee;border-radius:11px;overflow:hidden;}
-#zipProgress{
-  height:100%;width:0;background:var(--accent);transition:width 0.3s;
-  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:13px;
-}
-#zipCounter{margin-top:10px;font-size:12px;color:var(--text);}
-#zipTime{margin-top:5px;font-size:12px;color:var(--muted-text);}
-#zipClose{
-  position:absolute;top:8px;right:12px;font-size:18px;font-weight:bold;color:var(--accent);cursor:pointer;
-}
-#zipClose:hover{color:var(--accent-darker);}
-
-/* Menu secret (thèmes) */
-#secretBtn {
-  position: fixed;bottom: 10px;right: 10px;width: 25px;height: 25px;
-  opacity: 0;cursor: pointer;z-index: 2000;
-}
-#themeMenu {
-  display:none;position:fixed;bottom:50px;right:10px;background: var(--panel);
-  border:2px solid var(--accent);border-radius:8px;box-shadow:0 4px 12px var(--shadow);
-  padding:10px;z-index:2001;min-width:150px;
-}
-#themeMenu h3 {margin:0 0 8px 0;font-size:14px;color: var(--accent);}
-#themeMenu .closeMenu {position:absolute;top:5px;right:8px;font-size:14px;cursor:pointer;color:var(--accent);}
-#themeMenu .closeMenu:hover {color:var(--accent-darker);}
-#themeMenu button {
-  display:block;width:100%;margin:4px 0;padding:6px;border:none;border-radius:6px;
-  background: var(--accent);color: var(--accent-contrast);cursor:pointer;font-size:13px;
-}
-#themeMenu button:hover {background: var(--accent-darker);}
-.flame {
-  display:inline-block;
-  animation:flicker 0.6s infinite alternate;
+/* Sous-grilles 22 colonnes chacune */
+.grid-part{
+  display:grid;
+  grid-template-columns: repeat(var(--cols), var(--tile-size));
+  grid-auto-rows: var(--tile-size);
+  gap: var(--cell-gap);
 }
 
-@keyframes flicker {
-  0%   { transform: translateY(0) scale(1); color: #ff7043; }
-  30%  { transform: translateY(-1px) scale(1.05); color: #ff5722; }
-  60%  { transform: translateY(-2px) scale(1.1); color: #ff9800; }
-  100% { transform: translateY(0) scale(1); color: #ff7043; }
+/* Cellules “sonde” */
+.sonde{
+  width: var(--tile-size); height: var(--tile-size);
+  background: var(--panel); border-radius: 10px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  box-shadow:0 2px 5px rgba(0,0,0,0.2); padding:6px;
+  overflow:hidden;
+}
+.sonde .label{ font-size: clamp(10px, calc(var(--tile-size)*0.12), 14px); font-weight:bold; color:#000; margin-bottom:2px; }
+.sonde .consigne{ font-size: clamp(9px, calc(var(--tile-size)*0.10), 12px); color:#555; font-style:italic; }
+.sonde .val{ font-size: clamp(14px, calc(var(--tile-size)*0.18), 22px); font-weight:bold; color:#000; }
+
+/* ===== Cases spéciales ===== */
+.sonde.special {
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;   /* ✅ centre verticalement */
+  text-align: center;        /* ✅ centre horizontalement */
+  padding: 0;                /* ✅ enlève les décalages internes */
 }
 
-#eventAlert {
-  display:none;
-  position:fixed;
-  top:40px; /* juste sous netAlert */
-  left:50%;
-  transform:translateX(-50%);
-  background:var(--accent);
-  color:#fff;
-  padding:8px 16px;
-  border-radius:6px;
-  font-weight:bold;
-  z-index:3000;
-  box-shadow:0 2px 8px rgba(0,0,0,0.2);
+/* ===== Sidebar temporelle (en dessous de la grille) ===== */
+#bottomBar{
+  display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:10px 16px 14px;
 }
+#timeBar{
+  width: calc(var(--timebar-cols) * var(--tile-size) + (var(--timebar-cols) - 1) * var(--cell-gap));
+  display:flex; align-items:center; justify-content:center;
+}
+#slider{ width:100%; height: calc(var(--tile-size) * 0.35); }
 
+#scaleBox{
+  background:var(--panel); border:1px solid #ddd; border-radius:8px;
+  padding:8px 10px; box-shadow:0 2px 8px rgba(0,0,0,0.12); font-size:13px; color:var(--text);
+}
+#scaleBox label{ margin-right:6px; }
+#scaleBox input{ width:70px; padding:4px; border:1px solid #ccc; border-radius:6px; }
 
+/* Scrollbars (grille) */
+#gridWrap::-webkit-scrollbar{height:10px;width:10px;}
+#gridWrap::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;}
+#gridWrap::-webkit-scrollbar-track{background:#eee;}
 </style>
 </head>
 <body>
 
-<div id="netAlert">⚠️ Pas de connexion internet détectée. Vérifiez votre réseau.</div>
-<div id="eventAlert">✅ Événements chargés</div>
-<div id="spinner"></div>
-
-
-<!-- Sidebar dossiers -->
-<div id="sidebar">
-  <h2><span>📁</span>Dossiers</h2>
-  <ul id="folderTree"></ul>
-</div>
-
-<!-- Main -->
-<div id="main">
-  <div class="header">
-    <img src="img/logo.png" class="logo" id="mainLogo" alt="Logo"/>
-    <div id="fileNameContainer">
-      <div id="fileName"></div>
-      <div id="lineCount"></div>
-    </div>
-  </div>
-
-  <div class="controls">
-    Filtrer par date : 
-    <div class="date-field"><span id="iconStart">📅</span><input type="date" id="startDate"></div>
-    à
-    <div class="date-field"><span id="iconEnd">📅</span><input type="date" id="endDate"></div>
-    <button onclick="applyFilter()">Filtrer</button>
-    <button onclick="clearFilter()">Tout afficher</button>
-    <button id="downloadFolderBtn">Télécharger le dossier</button>
-  </div>
-
-  <div id="tableWrapper">
-    <div id="tableContainer">
-      <table id="csvTable">
-        <thead>
-          <tr>
-            <th onclick="sortTable(0,'date')">Date <span class="sort-arrow"></span></th>
-            <th>Nom du fichier</th>
-            <th>Dossier</th>
-            <th onclick="sortTable(3,'number')">Taille <span class="sort-arrow"></span></th>
-            <th>Télécharger / Ouvrir</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td colspan="5" style="text-align:left;">
-              <span class="arrow-hint">⬅</span> Sélectionner un dossier...
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+<!-- ===== Header ===== -->
+<div class="header">
+  <div id="currentFolderName"></div>
+  <img src="img/logo.png" class="logo" alt="Logo"/>
+  <div id="fileNameContainer">
+    <div id="fileName"></div>
+    <div id="lineCount"></div>
   </div>
 </div>
 
-<!-- Modale image -->
-<div id="imageModal" class="modal" role="dialog" aria-modal="true">
-  <span class="close" onclick="closeModal()" aria-label="Fermer">&times;</span>
-  <!-- tabindex=-1 pour éviter que l'iframe vole le focus / bloque les flèches -->
-  <iframe id="modalFrame" tabindex="-1"></iframe>
-  <div class="modal-actions">
-    <button id="prevBtn">&larr; Précédent</button>
-    <button id="nextBtn">Suivant &rarr;</button>
-    <button id="downloadBtn">Télécharger</button>
+<div id="datetimeLabel">-- / -- / ---- — --:--</div>
+
+<!-- ===== Grille centrale (22×12 en 2× 22×6) ===== -->
+<div id="gridWrap">
+  <div id="grid">
+    <div id="gridTop" class="grid-part"></div>
+    <div id="gridBottom" class="grid-part"></div>
   </div>
 </div>
 
-<!-- Overlay ZIP -->
-<div id="zipOverlay">
-  <div id="zipBox">
-    <span id="zipClose">&times;</span>
-    <h2>Préparation du ZIP...</h2>
-    <div id="zipFileName"></div>
-    <div id="zipProgressBar"><div id="zipProgress">0%</div></div>
-    <div id="zipCounter">0 / 0 fichiers</div>
-    <div id="zipTime">Temps restant : --</div>
+<!-- ===== Sidebar temporelle + min/max ===== -->
+<div id="bottomBar">
+  <div id="timeBar">
+    <input type="range" id="slider" min="0" max="0" value="0"/>
+  </div>
+  <div id="scaleBox" title="Réglage des bornes couleurs">
+    <label>Min</label><input type="number" id="minInput" step="0.1" value="30"/>
+    <label style="margin-left:10px;">Max</label><input type="number" id="maxInput" step="0.1" value="60"/>
   </div>
 </div>
 
-<!-- Bouton secret + menu thèmes -->
-<div id="secretBtn" title=" "></div>
-<div id="themeMenu">
-  <span class="closeMenu" onclick="closeThemeMenu()">❌</span>
-  <h3>Choisir un thème</h3>
-  <button onclick="setTheme('orange')">Orange (défaut)</button>
-  <button onclick="setTheme('blue')">Bleu</button>
-  <button onclick="setTheme('green')">Vert</button>
-  <button onclick="setTheme('purple')">Violet</button>
-  <button onclick="setTheme('bordeaux')">Bordeaux</button>
-</div>
-
+<script src="libs/papaparse.min.js"></script>
 <script>
-/* ----------- Config Drive ----------- */
-const ROOT_FOLDER_ID="18QkQPyCZxTCAaoz_qd1wAelmQbSE4ex8";
-
-/* ----------- Config personnalisée ----------- */
-const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
-
-/* ----------- État ----------- */
-let imageFiles=[], currentImageIndex=0;
-let filterStartDate="", filterEndDate="";
-let themeMenuTimer;
-let cancelScan = false; // 🛑 permet d’arrêter le scan si on clique ailleurs
-
-
-/* ----------- Utilitaires UI ----------- */
-const spinner=document.getElementById('spinner');
-function showSpinner(){spinner.style.display='block';}
-function hideSpinner(){spinner.style.display='none';}
-
-function updateNetworkStatus(){
-  document.getElementById("netAlert").style.display = navigator.onLine ? "none" : "block";
-}
-window.addEventListener("online",updateNetworkStatus);
-window.addEventListener("offline",updateNetworkStatus);
-
-function formatSize(bytes){
-  if(!bytes) return "?";
-  const units=["o","Ko","Mo","Go"]; let i=0; let v=Number(bytes);
-  while(v>=1024 && i<units.length-1){ v/=1024; i++; }
-  return (i===0?Math.round(v):v.toFixed(1))+" "+units[i];
+/* =================== Thème =================== */
+function applyThemeVars(vars){const r=document.documentElement;Object.entries(vars).forEach(([k,v])=>r.style.setProperty(k,v));}
+function setTheme(theme){
+  localStorage.setItem("selectedTheme",theme);
+  if(theme==="orange") applyThemeVars({"--accent":"#ff7043","--accent-darker":"#e64a19","--accent-muted":"#ffccbc","--bg":"#fff5f5","--panel":"#ffffff","--danger":"#d84315","--text":"#333"});
 }
 
-function showEventAlert(msg="✅ Événements chargés") {
-  const alertBox = document.getElementById("eventAlert");
-  alertBox.textContent = msg;
-  alertBox.style.display = "block";
-  setTimeout(()=>{ alertBox.style.display="none"; },2000);
-}
+/* =================== Globals =================== */
+let csvData=[], headers=[], planTop=[], planBottom=[];
+const params=new URLSearchParams(window.location.search);
+const fileId=params.get("fileId");
+const fileName=params.get("fileName");
 
-
-/* ----------- Drive API ----------- */
-async function fetchFolderContents(folderId){
-  if(!navigator.onLine){updateNetworkStatus();return [];}
-  showSpinner();
+/* =================== Header dossier + flamme =================== */
+(function hydrateFolderHeader(){
+  let title="";
   try{
-    // 🔄 Appel au proxy Netlify (plus de clé API côté navigateur)
-    const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?list=true&id=${folderId}`);
-    const data = await res.json();
-
-    if(!res.ok || data.error){
-      console.error("Erreur proxy Drive:", data.error || res.statusText);
-      alert("Erreur Drive (proxy). Ouvre la console pour le détail.");
-      return [];
-    }
-
-    return data.files || [];
-  }catch(e){
-    console.error("Erreur Drive:", e);
-    alert("Impossible de charger le dossier (réseau/proxy).");
-    return [];
-  }finally{
-    hideSpinner();
-  }
-}
-
-
-async function loadRootFolders(){
-  const files = await fetchFolderContents(ROOT_FOLDER_ID);
-  const rootUL = document.getElementById('folderTree');
-  rootUL.innerHTML = '';
-
-  files.filter(f => f.mimeType === 'application/vnd.google-apps.folder').forEach(f => {
-    const li = document.createElement('li'); 
-    li.dataset.id = f.id;
-
-    const toggle = document.createElement('span'); 
-    toggle.className = 'folder-toggle'; 
-    toggle.textContent = '+';
-    toggle.onclick = () => toggleFolder(li);
-
-    const span = document.createElement('span'); 
-    span.className = 'folder-name'; 
-    span.textContent = f.name;
-    span.onclick = () => loadFolderFilesOnClick(li);
-
-    li.appendChild(toggle); 
-    li.appendChild(span); 
-    rootUL.appendChild(li);
-  });
-
-  // 🔥 Vérifier automatiquement deux crans plus bas sans ouvrir visuellement
-  setTimeout(async () => {
-    const siteFolders = document.querySelectorAll("#folderTree > li");
-
-    for (const siteLi of siteFolders) {
-      const subFolders = await fetchChildren(siteLi.dataset.id);
-      for (const sub of subFolders) {
-        if (sub.name.includes("Temp")) {
-          await checkTraçaTempToday(siteLi, sub.id); 
+    const list = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
+    const f = list.find(x=>x.id===fileId);
+    if(f && f.parents && f.parents.length){
+      const parent = list.find(x=>x.id===f.parents[0]);
+      if(parent && parent.name){
+        title = parent.name;
+        if(parent.parents && parent.parents.length){
+          const root = list.find(x=>x.id===parent.parents[0]);
+          if(root && root.name) title = root.name+" / "+parent.name;
         }
       }
     }
-  }, 1000);
-}
+  }catch(e){}
+  if(!title) title = decodeURIComponent(fileName||"");
+  const flameTitle = title.replace(/🔥/g,'<span class="flame" title="Brûleur(s) en fonctionnement">🔥</span>');
+  const el=document.getElementById("currentFolderName");
+  if(el) el.innerHTML=flameTitle;
+  const fn=document.getElementById("fileName");
+  if(fn) fn.textContent = decodeURIComponent(fileName||"");
+})();
 
-async function toggleFolder(li){
-  const toggle=li.querySelector('.folder-toggle');
-  if(li.dataset.loaded==='true'){
-    const ul=li.querySelector('ul');
-    if(ul){ul.style.display=ul.style.display==='none'?'block':'none'; toggle.textContent=ul.style.display==='block'?'–':'+';}
+/* =================== Plan depuis localStorage =================== */
+function loadPlan(){
+  const raw=localStorage.getItem("planSondes");
+  if(!raw){
+    document.getElementById("gridTop").innerHTML="<b style='color:red'>❌ planSondes manquant</b>";
     return;
   }
-  toggle.textContent='…';
-  const files=await fetchFolderContents(li.dataset.id);
-  const ul=document.createElement('ul');
-  for (const f of files.filter(f => f.mimeType === 'application/vnd.google-apps.folder')) {
-    const childLi=document.createElement('li'); 
-    childLi.dataset.id=f.id;
+  const lines = raw.trim().split(/\r?\n/).map(l=>{
+    const cols = l.split(",").map(v=>v.trim());
+    return cols.every(v=>v==="") ? null : cols;
+  });
 
-    const childToggle=document.createElement('span'); 
-    childToggle.className='folder-toggle'; 
-    childToggle.textContent='+';
-    childToggle.onclick=()=>toggleFolder(childLi);
-
-    const span=document.createElement('span'); 
-    span.className='folder-name'; 
-    span.textContent=f.name;
-    span.onclick=()=>loadFolderFilesOnClick(childLi);
-
-    childLi.appendChild(childToggle); 
-    childLi.appendChild(span); 
-    ul.appendChild(childLi);
-
-    // ✅ Cas spécial : si le dossier est Traça_Temp → précharger Historique
-    if (f.name.toLowerCase().includes("traça_temp") || f.name.toLowerCase().includes("traca_temp")) {
-      const siblings = await fetchFolderContents(li.dataset.id);
-      const hist = siblings.find(s => s.mimeType === 'application/vnd.google-apps.folder' && s.name.toLowerCase().includes("historique"));
-      if (hist) {
-        const histFiles = await fetchFolderContents(hist.id);
-        const z3Files = histFiles.filter(ff => ff.name.toUpperCase().startsWith("Z3") && ff.name.toLowerCase().endsWith(".csv"));
-localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-console.log("[Z3] Préchargés depuis Historique:", z3Files.length);
-showEventAlert();
-
-      }
-    }
-
-    // ✅ Vérif Temp (flamme 🔥)
-    if(f.name.includes("Temp")){ checkTraçaTempToday(li, f.id); }
+  // scinder en deux blocs (ligne vide = séparation)
+  let top=[], bottom=[], buf=[];
+  let topDone=false;
+  for(const row of lines){
+    if(row===null){ if(!topDone){ top = buf; topDone=true; buf=[]; } else { /* ignore extra splits */ } }
+    else buf.push(row);
   }
-  li.appendChild(ul); 
-  li.dataset.loaded='true'; 
-  toggle.textContent='+';
+  bottom = topDone ? buf : [];
+
+  planTop = top;
+  planBottom = bottom;
+
+  buildGrid();
+}
+
+/* =================== Construction de la grille centrée =================== */
+function buildGrid(){
+  const gridTop = document.getElementById("gridTop");
+  const gridBottom = document.getElementById("gridBottom");
+  gridTop.innerHTML = ""; 
+  gridBottom.innerHTML = "";
+
+  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols')) || 22;
+
+  function placeRows(container, rows){
+    if(!rows || !rows.length) return;
+    const planCols = rows[0].length;
+    const startCol = Math.max(1, Math.floor((cols - planCols)/2) + 1); // centre dans 22
+    rows.forEach(r=>{
+      r.forEach((num, j)=>{
+        if(!num) return;
+        const d=document.createElement("div");
+        d.className="sonde";
+        d.id="sonde"+num;
+        d.style.gridColumn = (startCol + j) + " / span 1";
+        d.innerHTML = `
+          <div class="label">Sonde ${num}</div>
+          <div class="consigne">-- °C</div>
+          <div class="val">-- °C</div>`;
+        container.appendChild(d);
+      });
+    });
+  }
+
+  placeRows(gridTop, planTop);
+  placeRows(gridBottom, planBottom);
+} // 🔹 Fin de buildGrid()
+
+
+// === Ajout différé des cases spéciales après lecture du CSV ===
+function addSpecialsAfterCSV() {
+  const normalize = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
+
+  // ✅ Détection ultra tolérante sur les intitulés du CSV
+  const hasExt   = headers.some(h => normalize(h).includes("tcext") || normalize(h).includes("temperatureexterieure") || normalize(h).includes("tempext"));
+  const hasDebit = headers.some(h => normalize(h).includes("debit") || normalize(h).includes("debitth") || normalize(h).includes("dbit") || normalize(h).includes("tonne"));
+  const hasGaz   = headers.some(h => normalize(h).includes("gaz"));
+  const hasNorm  = headers.some(h => normalize(h).includes("normalis"));
+  const hasIpe   = headers.some(h => normalize(h).includes("ipe") || normalize(h).includes("ip") || normalize(h).includes("ipekwh"));
+
+  console.log("Colonnes détectées →", { hasExt, hasDebit, hasGaz, hasNorm, hasIpe });
+
+  const specials = [
+// 🔸 Sondes internes
+{ id: "SondeACsup", label: "Air chaud Supérieur", col: "G", row: 4 },
+{ id: "SondeACinf", label: "Air chaud Inférieur", col: "G", row: 10 },
+{ id: "TempGrain",  label: "Température Grain",   col: "P", row: 7 },
+{ id: "TempExt",    label: "Température Extérieure 🌡️", col: "E", row: 10, optional: true, active: hasExt },
+
+
+    // 🔸 Nouvelles cases de suivi
+    { id: "DebitTH",   label: "Débit Séchage", col: "D", row: 7, optional: true, bg: "#00CCFF", active: hasDebit },
+    { id: "GazM3H",    label: "🔥 GAZ", col: "D", row: 8, optional: true, bg: "#FFCC33", active: hasGaz },
+    { id: "Normalise", label: "🔥 GAZ", col: "D", row: 9, optional: true, bg: "#FFCC33", active: hasNorm },
+    { id: "IPE",       label: "🔥 Ipé", col: "D", row: 10, optional: true, bg: "#33FF00", active: hasIpe }
+  ];
+
+  function colIdx(letter){ return letter.toUpperCase().charCodeAt(0) - 64; }
+
+  function placeSpecial(s){
+    const col = colIdx(s.col);
+    const row = s.row;
+    const d = document.createElement("div");
+    d.className = "sonde special";
+    d.id = s.id;
+    if (s.bg) d.style.background = s.bg;
+    d.innerHTML = `
+      <div class="label">${s.label}</div>
+      <div class="consigne">--</div>
+      <div class="val">--</div>`;
+    const target = (row <= 6) ? document.getElementById("gridTop") : document.getElementById("gridBottom");
+    d.style.gridColumn = `${col} / span 1`;
+    d.style.gridRow = `${row <= 6 ? row : row - 6} / span 1`;
+    target.appendChild(d);
+  }
+
+  // Ajout conditionnel
+  specials.forEach(s => {
+    if (!s.optional || s.active) placeSpecial(s);
+  });
 }
 
 
-// Fonction utilitaire pour récupérer les sous-dossiers sans modifier l'affichage
-async function fetchChildren(folderId){
-  const files = await fetchFolderContents(folderId);
-  return files.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+
+
+
+/* =================== Responsive : calcule la taille de case =================== */
+function updateTileSize(){
+  const wrap = document.getElementById("gridWrap");
+  const cols = 22;
+  const rows = 12;
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'))||8;
+  const splitGapRatio = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--split-gap'))||0.3;
+
+  const availW = wrap.clientWidth - 32;   // marges internes
+  const availH = wrap.clientHeight - 16;
+
+  // largeur = cols * s + (cols -1)*gap
+  // hauteur = (rows * s) + ( (rows-2*1) gaps inter-cellules ) + (split-gap*s)
+  // On a 2 blocs de 6 lignes => total gaps verticaux = (6-1)+(6-1) = 10 gaps entre cellules
+  const totalVCellGaps = (6-1) + (6-1); // 10
+  const hByW = (availW - (cols-1)*gap) / cols;
+  const hByH = (availH - totalVCellGaps*gap) / (rows + splitGapRatio); // on ajoute l’espace central en “s”
+  const s = Math.max(60, Math.floor(Math.min(hByW, hByH))); // taille min 60px
+
+  document.documentElement.style.setProperty('--tile-size', s + 'px');
 }
 
-async function loadFolderFilesOnClick(li){
-  await toggleFolder(li);
+/* =================== CSV (Drive) =================== */
+async function loadCSV(){
+  if(!fileId) return;
 
-  // Réinitialiser la sélection visuelle
-  document.querySelectorAll('#folderTree li span.folder-name').forEach(s=>s.classList.remove('active-folder'));
-  const nameSpan = li.querySelector('span.folder-name');
-  if(nameSpan){ 
-    nameSpan.classList.add('active-folder'); 
-  }
-  localStorage.setItem('lastFolderId', li.dataset.id);
+  // 🔄 Passe maintenant par ton proxy Netlify sécurisé
+  const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}&name=${encodeURIComponent(fileName || "")}`;
 
-  const folderName = nameSpan ? nameSpan.textContent.toLowerCase() : "";
-
-  // ⚡ Gestion spéciale Z3
-  if (folderName.includes("traça_temp") || folderName.includes("traca_temp")) {
-    // récupérer le dossier parent (= site)
-    const siteLi = li.parentElement.closest("li");
-    if (siteLi && siteLi.dataset.id) {
-      const siblings = await fetchFolderContents(siteLi.dataset.id);
-      const hist = siblings.find(s => 
-        s.mimeType === 'application/vnd.google-apps.folder' && 
-        s.name.toLowerCase().includes("historique")
-      );
-
-      if (hist) {
-        const histFiles = await fetchFolderContents(hist.id);
-        const z3Files = histFiles.filter(ff => 
-          ff.name.toUpperCase().startsWith("Z3") && 
-          ff.name.toLowerCase().endsWith(".csv")
-        );
-        localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-        console.log("[Z3] Préchargés depuis Historique voisin:", z3Files.length);
-      } else {
-        localStorage.removeItem("csvZ3Files");
-        console.warn("[Z3] Aucun dossier Historique trouvé pour", nameSpan.textContent);
-      }
-    }
-  } 
-  else if (folderName.includes("historique")) {
-    // directement charger les Z3 de ce dossier
-    const histFiles = await fetchFolderContents(li.dataset.id);
-    const z3Files = histFiles.filter(ff => 
-      ff.name.toUpperCase().startsWith("Z3") && 
-      ff.name.toLowerCase().endsWith(".csv")
-    );
-    localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-    console.log("[Z3] Préchargés directement (Historique):", z3Files.length);
-  } 
-  else {
-    // Sinon → effacer le cache Z3
-    localStorage.removeItem("csvZ3Files");
-    console.log("[Z3] Cache vidé (hors Traça_Temp / Historique)");
+  let text = "";
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Erreur proxy Drive");
+    text = await res.text();
+  } catch (e) {
+    console.error("Erreur chargement CSV :", e);
+    return;
   }
 
-  // Charger fichiers CSV/JPG classiques du dossier
-  const files = await fetchFolderContents(li.dataset.id);
-  const filtered = files.filter(f => 
-    f.name.toLowerCase().endsWith('.csv') || 
-    f.name.toLowerCase().endsWith('.jpg') || 
-    f.name.toLowerCase().endsWith('.jpeg')
+
+  const seen={};
+  const results=Papa.parse(text,{header:true,skipEmptyLines:true,
+    transformHeader:(h)=>{h=(h||"").replace(/"/g,"").trim(); if(seen[h]){seen[h]++; return h+"_"+seen[h];} else {seen[h]=1; return h+"_1";}}
+  });
+  headers=results.meta.fields||[]; csvData=results.data||[];
+  const lc=document.getElementById("lineCount");
+  if(lc) lc.textContent = (csvData?.length||0)+" ligne"+((csvData?.length||0)>1?"s":"");
+  document.getElementById("slider").max=Math.max(0,(csvData.length||1)-1);
+
+  // min/max défaut (30/60)
+  const minInit=parseFloat(localStorage.getItem("scaleMin")||"30");
+  const maxInit=parseFloat(localStorage.getItem("scaleMax")||"60");
+  document.getElementById("minInput").value=isNaN(minInit)?30:minInit;
+  document.getElementById("maxInput").value=isNaN(maxInit)?60:maxInit;
+
+// === T°C Ext présent ? (gestion de variantes possibles) ===
+const hasExt = headers.some(h => {
+  const norm = (h || "")
+    .normalize("NFD")                  // enlève les accents
+    .replace(/[^\w]/g, "")             // retire °, espaces, tirets, etc.
+    .toLowerCase();
+  return (
+    norm.includes("tcext") ||
+    norm.includes("temperatureexterieure") ||
+    norm.includes("tempext")           // tolère d'autres variantes
   );
-  imageFiles = filtered.filter(f => /\.(jpg|jpeg)$/i.test(f.name)); // pour la modale
-  displayFiles(filtered, nameSpan ? nameSpan.textContent : '');
-}
-
-
-
-function displayFiles(files, folderName){
-  const tbody=document.querySelector('#csvTable tbody');
-  const downloadBtn=document.getElementById('downloadFolderBtn');
-  tbody.innerHTML='';
-
-  if(files.length===0){
-    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;">Aucun fichier</td></tr>';
-    downloadBtn.style.display="none";
-    return;
-  }
-
-  downloadBtn.style.display="inline-block";
-
-  for(const f of files){
-    // Date
-    let date='';
-    const m=f.name.match(/(\d{8})\.csv$/i);
-    if(m){ date=`${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`; }
-    else if(/\.(jpg|jpeg)$/i.test(f.name)){
-      if(f.modifiedTime) date=f.modifiedTime.slice(0,10);
-      else if(f.createdTime) date=f.createdTime.slice(0,10);
-    }
-
-    if((filterStartDate && date<filterStartDate) || (filterEndDate && date>filterEndDate)) continue;
-
-const tr=document.createElement('tr');
-
-// Bloc DATE avec affichage du jour
-const tdDate=document.createElement('td');
-if (date) {
-  const d = new Date(date);
-  const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
-  const jourNom = jours[d.getDay()];
-  tdDate.textContent = `${date} (${jourNom})`;
-
-  // Week-end → rouge + gras
-  if (d.getDay() === 0 || d.getDay() === 6) {
-    tdDate.style.color = "var(--danger)";
-    tdDate.style.fontWeight = "bold";
-  }
-} else {
-  tdDate.textContent = '';
-}
-
-const tdName = document.createElement('td');
-tdName.textContent = f.name;
-
-// === FLAMME FILE (avec cancelScan) ===
-if (f.name.toLowerCase().endsWith(".csv") &&
-    (folderName.toLowerCase().includes("traça_temp") || folderName.toLowerCase().includes("traca_temp"))) {
-  
-  // Message provisoire
-  tdName.innerHTML = `${f.name}&nbsp;&nbsp;&nbsp;<span style="color:gray;font-size:11px;">(scan en cours...)</span>`;
-
-  (async () => {
-    try {
-      if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop si demandé
-
-      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}`;
-
-      const res = await fetch(url);
-      if (!res.ok) { tdName.innerHTML = f.name; return; }
-
-      const text = await res.text();
-      if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop si demandé
-
-      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-      if (lines.length < 2) { tdName.innerHTML = f.name; return; }
-
-      const headers = lines[0].split(",").map(h => h.replace(/"/g,"").trim().toLowerCase());
-      let idxInf = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac inf"))[1]?.i;
-      let idxSup = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac sup"))[1]?.i;
-
-      if (idxInf === undefined && idxSup === undefined) { tdName.innerHTML = f.name; return; }
-
-      let countFlame = 0;
-      for (let i = 1; i < lines.length; i++) {
-        if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop en plein scan
-        const cols = lines[i].split(",").map(c => c.replace(/"/g,"").trim());
-        const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
-        const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
-        if ((isFinite(vInf) && vInf > FLAME_THRESHOLD) ||
-            (isFinite(vSup) && vSup > FLAME_THRESHOLD)) {
-          countFlame++;
-        }
-      }
-
-      if (countFlame >= 1) {
-        tdName.innerHTML = `${f.name}&nbsp;&nbsp;&nbsp;<span class="flame" title="Brûleur actif détecté">🔥</span>`;
-      } else {
-        tdName.innerHTML = f.name;
-      }
-    } catch(e) {
-      console.error("Erreur flamme fichier:", f.name, e);
-      tdName.innerHTML = f.name;
-    }
-  })();
-}
-// === FIN FLAMME FILE ===
-
-
-
-const tdFolder=document.createElement('td'); tdFolder.textContent=folderName;
-
-    const tdSize = document.createElement('td');
-    if (f.size) {
-      tdSize.textContent = formatSize(f.size);
-      if (parseInt(f.size) < 200) {
-        tdSize.style.color = "#999";
-        tdSize.textContent += " (vide)";
-      } else {
-        tdSize.style.color = "inherit";
-      }
-    } else {
-      tdSize.textContent = '?';
-    }
-
-    const tdAction=document.createElement('td'); tdAction.className='action-cell';
-    let html='';
-if(f.name.toLowerCase().endsWith('.csv')){
-  html+=`<a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank"><button class="action-btn">Télécharger</button></a>`;
-  html+=`<button class="action-btn" onclick="openViewer('viewer.html','${f.id}','${f.name}')">Tableau</button>`;
-
-  // 👇 bouton Courbes seulement si on n'est PAS dans Historique
-  if (!folderName.toLowerCase().includes("historique")) {
-    html+=`<button class="action-btn" onclick="openViewer('viewer02.html','${f.id}','${f.name}')">Courbes</button>`;
-  }
-
-  // 👇 bouton Sondes uniquement si on est dans Traça_Temp
-  if (folderName.toLowerCase().includes("traça_temp") || folderName.toLowerCase().includes("traca_temp")) {
-    html+=`<button class="action-btn" onclick="openViewer('index03.html','${f.id}','${f.name}')">Sondes</button>`;
-  }
-}
-
-
-
-    if(/\.(jpg|jpeg)$/i.test(f.name)){
-      html+=`<img src="https://drive.google.com/thumbnail?id=${f.id}" onclick="openModal('${f.id}')" alt="aperçu">`;
-      html+=`<a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank"><button class="action-btn">Télécharger</button></a>`;
-    }
-    tdAction.innerHTML=html;
-
-    tr.appendChild(tdDate); tr.appendChild(tdName); tr.appendChild(tdFolder); tr.appendChild(tdSize); tr.appendChild(tdAction);
-    tbody.appendChild(tr);
-  }
-}
-
-/* ----------- Open viewer (CSV list + index) ----------- */
-async function openViewer(viewer, id, name){
-  cancelScan = true; // 🛑 stoppe immédiatement tous les scans
-
-  const active = document.querySelector('#folderTree .active-folder');
-  if (!active) { alert("Sélectionnez un dossier !"); return; }
-
-  const folderId = localStorage.getItem('lastFolderId');
-
-  // SA du dossier courant
-  const files = await fetchFolderContents(folderId);
-  const saFiles = files.filter(f => f.name.toUpperCase().startsWith("SA") && f.name.toLowerCase().endsWith('.csv'));
-
-  // 🔗 Récupérer les Z3 préchargés
-  const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
-  const allCsv = [...saFiles, ...z3Files];
-
-  function addFolderHierarchy(li, acc){
-    if (!li) return;
-    const nameSpan = li.querySelector('.folder-name');
-    const folderObj = { id: li.dataset.id, name: nameSpan ? nameSpan.textContent : '', parents: [] };
-    const parentLi = li.parentElement.closest('li');
-    if (parentLi) {
-      folderObj.parents.push(parentLi.dataset.id);
-      addFolderHierarchy(parentLi, acc);
-    }
-    if (!acc.find(x => x.id === folderObj.id)) {
-      acc.push(folderObj);
-    }
-  }
-  const activeLi = active.closest('li');
-  addFolderHierarchy(activeLi, allCsv);
-  allCsv.forEach(f => {
-    if (!f.parents) f.parents = [];
-    if (!f.parents.includes(activeLi.dataset.id)) {
-      f.parents.push(activeLi.dataset.id);
-    }
-  });
-
-  localStorage.setItem("csvFilesList", JSON.stringify(allCsv));
-  const index = allCsv.findIndex(f => f.id === id);
-  localStorage.setItem("csvFileIndex", index);
-
-  // 🔍 Vérifier plan_sondes.csv
-  const planFile = files.find(f => f.name.toLowerCase() === "plan_sondes.csv");
-  let url = `${viewer}?fileId=${id}&fileName=${encodeURIComponent(name)}`;
-
-  if (planFile) {
-    try {
-const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${planFile.id}&name=${encodeURIComponent(planFile.name)}`);
-
-
-      const textPlan = await respPlan.text();
-      localStorage.setItem("planSondes", textPlan);
-    } catch (e) {
-      console.error("❌ Erreur lors du chargement du plan_sondes.csv", e);
-    }
-  } else {
-    localStorage.removeItem("planSondes");
-  }
-
-  window.open(url,'_blank');
-
-  // 🔄 après un petit délai → réautoriser les scans
-  setTimeout(() => { cancelScan = false; }, 1000);
-}
-
-
-
-
-/* ----------- Filtres ----------- */
-function applyFilter(){
-  filterStartDate=document.getElementById('startDate').value;
-  filterEndDate=document.getElementById('endDate').value;
-  const active=document.querySelector('#folderTree .active-folder');
-  if(active) active.click();
-}
-function clearFilter(){
-  filterStartDate=''; filterEndDate='';
-  document.getElementById('startDate').value=''; document.getElementById('endDate').value='';
-  const active=document.querySelector('#folderTree .active-folder');
-  if(active) active.click();
-}
-
-/* ----------- Modale images + navigation clavier ----------- */
-function openModal(id){
-  const modal=document.getElementById('imageModal');
-  modal.style.display='block';
-  document.getElementById('modalFrame').src=`https://drive.google.com/file/d/${id}/preview`;
-  currentImageIndex=imageFiles.findIndex(f=>f.id===id);
-  document.getElementById('downloadBtn').onclick=()=>window.open(`https://drive.google.com/uc?export=download&id=${id}`,'_blank');
-}
-function closeModal(){document.getElementById('imageModal').style.display='none';}
-
-document.getElementById('prevBtn').onclick=()=>{if(currentImageIndex>0) openModal(imageFiles[--currentImageIndex].id);};
-document.getElementById('nextBtn').onclick=()=>{if(currentImageIndex<imageFiles.length-1) openModal(imageFiles[++currentImageIndex].id);};
-window.addEventListener('click',e=>{if(e.target===document.getElementById('imageModal')) closeModal();});
-
-// Navigation clavier quand la modale est ouverte
-window.addEventListener('keydown', e=>{
-  const modal=document.getElementById('imageModal');
-  if(modal.style.display==='block'){
-    if(e.key==='ArrowLeft' && currentImageIndex>0){ openModal(imageFiles[--currentImageIndex].id); }
-    if(e.key==='ArrowRight' && currentImageIndex<imageFiles.length-1){ openModal(imageFiles[++currentImageIndex].id); }
-    if(e.key==='Escape'){ closeModal(); }
-  }
 });
 
-/* ----------- ZIP overlay + progression + annulation ----------- */
-const zipOverlay=document.getElementById('zipOverlay');
-const zipProgress=document.getElementById('zipProgress');
-const zipCounter=document.getElementById('zipCounter');
-const zipFileName=document.getElementById('zipFileName');
-const zipTime=document.getElementById('zipTime');
-const zipClose=document.getElementById('zipClose');
-let zipCancelled=false, zipStartTime=0;
 
-function sanitizeFileName(name){ return name.replace(/[\/\:*?"<>|]/g,"_"); }
 
-function showZipOverlay(name){
-  zipCancelled=false;
-  zipOverlay.style.display='flex';
-  zipFileName.textContent=name;
-  zipProgress.style.width='0%';
-  zipProgress.textContent='0%';
-  zipCounter.textContent='0 / 0 fichiers';
-  zipTime.textContent='Temps restant : --';
-  zipStartTime=Date.now();
+
+console.log("Colonnes CSV détectées :", headers);
+console.log("Présence de T°C Ext :", hasExt);
+
+
+
+
+addSpecialsAfterCSV(); // 🧠 crée toutes les cases spéciales
+
+// Déplacer ce bloc ICI après la création
+const extEl = document.getElementById("TempExt");
+if (extEl) {
+  extEl.style.display = hasExt ? "flex" : "none";
 }
-function hideZipOverlay(){zipOverlay.style.display='none';}
-function updateZipProgress(pct,current,total,sizeAccum){
-  zipProgress.style.width=pct+'%';
-  zipProgress.textContent=pct+'%';
-  zipCounter.textContent=`${current} / ${total} fichiers`;
-  if(current>0){
-    const elapsed=(Date.now()-zipStartTime)/1000;
-    const speedFiles=current/elapsed;
-    const speedKB=(sizeAccum/1024)/elapsed;
-    const remainingFiles=total-current;
-    const remainingTime=remainingFiles/Math.max(speedFiles,0.0001);
-    const mins=Math.floor(remainingTime/60);
-    const secs=Math.round(remainingTime%60);
-    zipTime.textContent=`Temps restant : ${mins>0?mins+'m ':''}${secs}s (${speedFiles.toFixed(1)} fichiers/s, ${Math.max(0,speedKB).toFixed(0)} Ko/s)`;
-  }
+
+updateGrid(0); // et seulement ensuite on met à jour les valeurs
+
+
 }
-zipClose.onclick=()=>{zipCancelled=true;hideZipOverlay();alert("Préparation ZIP annulée.");};
 
-document.getElementById('downloadFolderBtn').onclick=async()=>{
-  const active=document.querySelector('#folderTree .active-folder');
-  if(!active){alert("Sélectionnez un dossier !"); return;}
-  const folderId=localStorage.getItem('lastFolderId');
-  const folderName=active.textContent.trim();
-  showZipOverlay(folderName+".zip");
-  const files=await fetchFolderContents(folderId);
-  if(!files||files.length===0){hideZipOverlay();alert("Aucun fichier dans ce dossier."); return;}
-  const zip=new JSZip(); let count=0; let doneSize=0;
-  for(const f of files){
-    if(zipCancelled) return;
-    try{
-const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}`;
+/* =================== Helpers date & couleurs =================== */
+function getScale(){
+  let min=parseFloat(document.getElementById("minInput").value);
+  let max=parseFloat(document.getElementById("maxInput").value);
+  if(!isFinite(min)) min=30;
+  if(!isFinite(max)) max=60;
+  if(max<=min) max=min+1;
+  return {min,max};
+}
+function getColor(v){
+  const {min,max}=getScale();
+  let t=(v-min)/(max-min); t=Math.max(0,Math.min(1,t));
+  if(t<0.5){const r=t/0.5;return `rgb(0,${Math.round(150+105*r)},${Math.round(255-255*r)})`;}
+  else if(t<0.75){const r=(t-0.5)/0.25;return `rgb(${Math.round(255*r)},255,0)`;}
+  else if(t<0.9){const r=(t-0.75)/0.15;return `rgb(255,${Math.round(255-90*r)},0)`;}
+  else{const r=(t-0.9)/0.1;return `rgb(255,${Math.round(165-165*r)},0)`;}
+}
 
-const res = await fetch(url);
+/* =================== Actualisation d’une ligne =================== */
+/* =================== Actualisation d’une ligne =================== */
+function updateGrid(idx){
+  if(!csvData[idx]) return;
+  const row = csvData[idx];
 
-      if(!res.ok) throw new Error('Fetch media failed: '+res.status);
-      const blob=await res.blob();
-      zip.file(sanitizeFileName(f.name), blob);
-      count++; doneSize += f.size ? parseInt(f.size) : 0;
-      updateZipProgress(Math.round((count/files.length)*100), count, files.length, doneSize);
-    }catch(e){console.error("Erreur sur",f.name,e);}
-  }
-  if(zipCancelled) return;
-  const content=await zip.generateAsync({type:"blob"});
-  saveAs(content, folderName+".zip");
-  hideZipOverlay();
-};
+  // Date/Heure
+  const dateKey=headers.find(h=>(h||"").toLowerCase().includes("date"));
+  const timeKey=headers.find(h=>{
+    const a=(h||"").toLowerCase();
+    return a.includes("heure")||a.includes("time")||a==="h";
+  });
+  let dt=""; 
+  if(dateKey&&row[dateKey]) dt+=String(row[dateKey]); 
+  if(timeKey&&row[timeKey]) dt+=(dt?" — ":"")+String(row[timeKey]);
+  document.getElementById("datetimeLabel").textContent = dt||"";
 
-/* ----------- Tri tableau + recolorisation ----------- */
-let currentSort = { col: null, asc: true };
-
-function sortTable(colIndex, type) {
-  const table = document.getElementById("csvTable");
-  const tbody = table.tBodies[0];
-  const rows = Array.from(tbody.querySelectorAll("tr"));
-
-  if (currentSort.col === colIndex) {
-    currentSort.asc = !currentSort.asc;
-  } else {
-    currentSort.col = colIndex;
-    currentSort.asc = true;
-  }
-
-  rows.sort((a, b) => {
-    let aText = a.cells[colIndex]?.textContent.trim() || "";
-    let bText = b.cells[colIndex]?.textContent.trim() || "";
-    if (type === "number") {
-      aText = parseFloat(aText) || 0;
-      bText = parseFloat(bText) || 0;
-    } else if (type === "date") {
-      aText = new Date(aText).getTime() || 0;
-      bText = new Date(bText).getTime() || 0;
+  // === Sondes normales ===
+  const allCells = document.querySelectorAll('.sonde:not(.special)');
+  allCells.forEach(div=>{
+    const n = div.id.replace("sonde","").padStart(2,"0");
+    const consCol = "Sonde"+n+"_1";
+    const valCol  = "Sonde"+n+"_2";
+    const cons = parseFloat(row[consCol]);
+    const val  = parseFloat(row[valCol]);
+    div.querySelector(".consigne").textContent = isNaN(cons) ? "-- °C" : cons.toFixed(1)+" °C";
+    const vdiv = div.querySelector(".val");
+    if(!isNaN(val)){
+      vdiv.textContent=val.toFixed(1)+" °C"; 
+      div.style.background=getColor(val);
+    } else {
+      vdiv.textContent="-- °C"; 
+      div.style.background="#eee";
     }
-    if (aText < bText) return currentSort.asc ? -1 : 1;
-    if (aText > bText) return currentSort.asc ? 1 : -1;
-    return 0;
   });
 
-  tbody.innerHTML = "";
-  rows.forEach(r => tbody.appendChild(r));
+// 🔸 Fonction générique pour les cases spéciales
+function updateSpecial(label, id, opts = {}) {
+  const { altLabels = [], prefer = [] } = opts;
+  const el = document.getElementById(id);
+  if (!el) return;
 
-  // mise à jour des flèches
-  document.querySelectorAll("thead th .sort-arrow").forEach(span => span.textContent = "");
-  const arrow = table.tHead.rows[0].cells[colIndex].querySelector(".sort-arrow");
-  if (arrow) arrow.textContent = currentSort.asc ? "▲" : "▼";
-}
+  const norm = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
+  const wanted  = [label, ...altLabels].map(norm);
+  const prefers = (prefer || []).map(norm);
 
-/* ----------- Icônes calendrier cliquables ----------- */
-document.getElementById("iconStart").onclick=()=>document.getElementById("startDate").showPicker?.()||document.getElementById("startDate").focus();
-document.getElementById("iconEnd").onclick=()=>document.getElementById("endDate").showPicker?.()||document.getElementById("endDate").focus();
-
-/* ----------- Menu secret (thèmes) ----------- */
-document.getElementById("secretBtn").onclick=()=>{
-  const menu=document.getElementById("themeMenu");
-  if(menu.style.display==="block"){ closeThemeMenu(); }
-  else { menu.style.display="block"; resetThemeMenuTimer(); }
-};
-function resetThemeMenuTimer(){ clearTimeout(themeMenuTimer); themeMenuTimer=setTimeout(closeThemeMenu,10000); }
-function closeThemeMenu(){ document.getElementById("themeMenu").style.display="none"; clearTimeout(themeMenuTimer); }
-
-/* ----------- Thèmes + persistance (+ lignes du tableau) ----------- */
-function setTheme(theme){
-  const r=document.documentElement;
-  const logo=document.getElementById("mainLogo");
-  logo.style.display=(theme==="orange")?"block":"none";
-  localStorage.setItem("selectedTheme",theme);
-
-  if(theme==="orange"){
-    r.style.setProperty("--accent","#ff7043");
-    r.style.setProperty("--accent-darker","#e64a19");
-    r.style.setProperty("--accent-muted","#ffccbc");
-    r.style.setProperty("--bg","#fff5f5");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#ffe5d9");
-    r.style.setProperty("--danger","#d84315");
-    r.style.setProperty("--text","#333");
-    r.style.setProperty("--row-even","#ffe5d9");
-    r.style.setProperty("--row-odd","#fff5f5");
+  // --- Recherche colonne exacte ---
+  let valCol = null;
+  for (const h of headers) {
+    const n = norm(h);
+    if (prefers.some(p => n === p || n.includes(p))) { valCol = h; break; }
   }
-  if(theme==="blue"){
-    r.style.setProperty("--accent","#2196f3");
-    r.style.setProperty("--accent-darker","#1976d2");
-    r.style.setProperty("--accent-muted","#bbdefb");
-    r.style.setProperty("--bg","#e3f2fd");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#bbdefb");
-    r.style.setProperty("--danger","#0d47a1");
-    r.style.setProperty("--text","#0d47a1");
-    r.style.setProperty("--row-even","#bbdefb");
-    r.style.setProperty("--row-odd","#e3f2fd");
-  }
-  if(theme==="green"){
-    r.style.setProperty("--accent","#4caf50");
-    r.style.setProperty("--accent-darker","#2e7d32");
-    r.style.setProperty("--accent-muted","#c8e6c9");
-    r.style.setProperty("--bg","#f1f8e9");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#c8e6c9");
-    r.style.setProperty("--danger","#1b5e20");
-    r.style.setProperty("--text","#1b5e20");
-    r.style.setProperty("--row-even","#c8e6c9");
-    r.style.setProperty("--row-odd","#f1f8e9");
-  }
-  if(theme==="purple"){
-    r.style.setProperty("--accent","#9c27b0");
-    r.style.setProperty("--accent-darker","#6a1b9a");
-    r.style.setProperty("--accent-muted","#e1bee7");
-    r.style.setProperty("--bg","#f3e5f5");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#e1bee7");
-    r.style.setProperty("--danger","#4a148c");
-    r.style.setProperty("--text","#4a148c");
-    r.style.setProperty("--row-even","#e1bee7");
-    r.style.setProperty("--row-odd","#f3e5f5");
-  }
-  if(theme==="bordeaux"){
-    r.style.setProperty("--accent","#800020");
-    r.style.setProperty("--accent-darker","#4b0014");
-    r.style.setProperty("--accent-muted","#d7a1a9");
-    r.style.setProperty("--bg","#fff0f2");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#f3cdd3");
-    r.style.setProperty("--danger","#600018");
-    r.style.setProperty("--text","#4b0014");
-    r.style.setProperty("--row-even","#f3cdd3");
-    r.style.setProperty("--row-odd","#fff0f2");
-  }
-}
-
-/* ----------- 🔥 Vérif CSV du jour pour "Temp" ----------- */
-async function checkTraçaTempToday(parentLi, tracatempId) {
-  const today = new Date();
-  const yyyymmdd =
-    today.getFullYear().toString() +
-    String(today.getMonth() + 1).padStart(2, "0") +
-    String(today.getDate()).padStart(2, "0");
-
-  const files = await fetchFolderContents(tracatempId);
-  // accepter tout CSV contenant la date du jour
-  const todayFile = files.find(f => f.name.includes(yyyymmdd) && f.name.endsWith(".csv"));
-  if (!todayFile) return;
-
-  try {
-const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${todayFile.id}&name=${encodeURIComponent(todayFile.name)}&t=${Date.now()}`;
-
-const res = await fetch(url);
-
-    const text = await res.text();
-
-    // lire les dernières lignes
-    const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-    const lastLine = lines[lines.length - 1];
-    if (!lastLine) return;
-
-    // Nettoyage : enlever guillemets et espaces
-    const headers = lines[0].split(",").map(h => h.replace(/"/g, "").trim());
-    const cols = lastLine.split(",").map(c => c.replace(/"/g, "").trim());
-
-    // Trouver la 2ème occurrence de "Sonde AC Sup"
-    let supIndices = headers
-      .map((h, i) => ({ h, i }))
-      .filter(o => o.h.toLowerCase().includes("sonde ac sup"));
-    let idxSup = supIndices.length >= 2 ? supIndices[1].i : supIndices[0]?.i;
-
-    // Trouver la 2ème occurrence de "Sonde AC Inf"
-    let infIndices = headers
-      .map((h, i) => ({ h, i }))
-      .filter(o => o.h.toLowerCase().includes("sonde ac inf"));
-    let idxInf = infIndices.length >= 2 ? infIndices[1].i : infIndices[0]?.i;
-
-    // Valeurs
-    const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
-    const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
-
-    // 🔥 seuil
-    if ((vSup && vSup > FLAME_THRESHOLD) || (vInf && vInf > FLAME_THRESHOLD)) {
-      markFolderWithFlame(parentLi);
+  if (!valCol) {
+    for (const h of headers) {
+      const n = norm(h);
+      if (wanted.some(w => n.includes(w))) { valCol = h; break; }
     }
-
-
-  } catch (e) {
-    console.error("Erreur lecture CSV dans Temp", e);
   }
+
+  const val = valCol ? parseFloat(row[valCol]) : NaN;
+
+  // --- Unités auto ---
+  let unit = "°C";
+  const L = norm(label);
+  if (L.includes("debit")) unit = "t/h";
+  else if (L.includes("gaz") && !L.includes("normal")) unit = "m³/h";
+  else if (L.includes("normal")) unit = "Nm³/h";
+  else if (L.includes("ip")) unit = "kWh/tee";
+
+  // --- Style valeur ---
+  const vdiv = el.querySelector(".val");
+  vdiv.style.fontSize = "clamp(11px, calc(var(--tile-size)*0.13), 17px)";
+  vdiv.textContent = isNaN(val) ? `-- ${unit}` : `${val.toFixed(1)} ${unit}`;
+
+// --- Couleur fixe (on garde la couleur d'origine) ---
+if (!el.hasAttribute("data-bg-fixed")) {
+  el.setAttribute("data-bg-fixed", "1");
 }
 
-function markFolderWithFlame(li) {
-  const span = li.querySelector(".folder-name");
-  if (span && !span.classList.contains("has-flame")) {
-    span.classList.add("has-flame");
-    span.innerHTML = `<span class="flame" title="Brûleur(s) actuellement en fonctionnement">🔥</span> ` + span.innerHTML;
+// --- Gestion de la consigne ---
+const consEl = el.querySelector(".consigne");
+
+// Affiche la consigne seulement pour ACsup / ACinf / TempGrain
+if (L.includes("acsup") || L.includes("acinf") || L.includes("grain")) {
+  // 🔹 Cherche la 1re occurrence pour consigne et la 2e pour valeur
+  let base = null;
+  let consCol = null, valCol = null;
+  let count = 0;
+
+  for (const h of headers) {
+    const n = norm(h);
+    if (n.includes(norm(label))) {
+      count++;
+      if (count === 1) consCol = h;
+      if (count === 2) valCol = h;
+    }
   }
-  if (li.parentElement && li.parentElement.closest("li")) {
-    markFolderWithFlame(li.parentElement.closest("li"));
-  }
+
+  const consVal = consCol ? parseFloat(row[consCol]) : NaN;
+  const valVal  = valCol ? parseFloat(row[valCol])  : NaN;
+
+  // --- Affiche consigne + valeur ---
+  consEl.style.display = "block";
+  consEl.textContent = isNaN(consVal) ? "-- °C" : `${consVal.toFixed(1)} °C`;
+
+  const vdiv = el.querySelector(".val");
+  vdiv.textContent = isNaN(valVal) ? "-- °C" : `${valVal.toFixed(1)} °C`;
+  if (!isNaN(valVal)) el.style.background = getColor(valVal);
+
+} else {
+  consEl.style.display = "none";
 }
 
 
 
+}
 
-/* ----------- Init ----------- */
-window.onload=()=>{
-  updateNetworkStatus();
-  const savedTheme=localStorage.getItem("selectedTheme")||"orange";
-  setTheme(savedTheme);
+// 🔹 Appels
+updateSpecial("Sonde AC sup", "SondeACsup");
+updateSpecial("Sonde AC inf", "SondeACinf");
+updateSpecial("Temp Grain",    "TempGrain");
+updateSpecial("T°C Ext",       "TempExt", {
+  altLabels: ["Temperature Exterieure", "Temp Ext", "TC Ext", "T C Ext"]
+});
 
-  // bouton "Télécharger le dossier" caché par défaut tant qu'aucun contenu
-  document.getElementById("downloadFolderBtn").style.display="none";
+// 🔹 Suivis (1 seule colonne)
+updateSpecial("Débit", "DebitTH", {
+  altLabels: ["D bit t/h", "Débit T/H", "Débit (Tonnes / Heure)"],
+  prefer: ["dbitth"]
+});
+updateSpecial("Gaz", "GazM3H", {
+  altLabels: ["Gaz m3/h", "GAZ M3/H", "Consommation (m3 / Heure)"],
+  prefer: ["gazm3h"]
+});
+updateSpecial("Normalisé", "Normalise", {
+  altLabels: ["Normalis", "Normalisé", "Consommation (Nm3 / Heure)"],
+  prefer: ["normalis"]
+});
+updateSpecial("Ipé", "IPE", {
+  altLabels: ["Ip", "Ipe", "Ipé (kWh/tee)", "IPE"],
+  prefer: ["ip"]
+});
+}
 
-  loadRootFolders();
-  const last=localStorage.getItem('lastFolderId');
-  if(last){
-    const temp={dataset:{id:last}, querySelector:()=>({classList:{add:()=>{}}})};
-    loadFolderFilesOnClick(temp);
-  }
-};
+/* =================== Listeners =================== */
+window.addEventListener("resize", updateTileSize);
+document.getElementById("slider").addEventListener("input", e => updateGrid(parseInt(e.target.value)||0));
+document.getElementById("minInput").addEventListener("change", ()=>{
+  const v=parseFloat(document.getElementById("minInput").value);
+  localStorage.setItem("scaleMin", isFinite(v)?String(v):"30");
+  if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
+});
+document.getElementById("maxInput").addEventListener("change", ()=>{
+  const v=parseFloat(document.getElementById("maxInput").value);
+  localStorage.setItem("scaleMax", isFinite(v)?String(v):"60");
+  if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
+});
+
+/* =================== INIT =================== */
+(function init(){
+  setTheme(localStorage.getItem("selectedTheme")||"orange");
+  loadPlan();
+  buildGrid();
+  updateTileSize();
+  loadCSV();
+})();
+
 </script>
 </body>
 </html>
-
