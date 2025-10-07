@@ -302,8 +302,7 @@
 
   <script>
   /* ===================== CONFIG / STATE ===================== */
-  const API_KEY='AIzaSyCbEV3CS9bOcxq5eK-QXbjczGHjvzyXS6M';
-  let csvData=[], chart, currentX="", currentY=[];
+    let csvData=[], chart, currentX="", currentY=[];
   let baseFileName="", baseFileId="", headers=[], timeField="", baseDateYYYYMMDD="";
   let colors=[]; let themeMenuTimer;
   let loadedDays=new Set(); let saMeta=null;
@@ -389,17 +388,24 @@ function applyThemeVars(vars){
   }
 
   /* ===================== FETCH CSV ===================== */
-  async function loadCSVByFileId(fileId){
-    try{
-      showSpinner();
-      const url=`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
-      const res=await fetch(url);
-      if(!res.ok) throw new Error("HTTP "+res.status);
-      const text=new TextDecoder('windows-1252').decode(await res.arrayBuffer());
-      hideSpinner();
-      return Papa.parse(text,{header:false,dynamicTyping:true,skipEmptyLines:true});
-    }catch(e){console.error(e);showError();return null;}
+// 🔒 Version sécurisée — plus de clé API exposée
+async function loadCSVByFileId(fileId){
+  try{
+    showSpinner();
+    // ✅ Utilisation du proxy Netlify sécurisé
+    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = new TextDecoder('windows-1252').decode(await res.arrayBuffer());
+    hideSpinner();
+    return Papa.parse(text, { header: false, dynamicTyping: true, skipEmptyLines: true });
+  } catch (e) {
+    console.error(e);
+    showError();
+    return null;
   }
+}
+
   function buildObjectsFromParsedResults(results,hdrs){
     return results.data.slice(1).map(row=>{const o={};row.forEach((v,i)=>o[hdrs[i]]=v);return o;});
   }
