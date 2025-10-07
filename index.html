@@ -318,8 +318,7 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 
 <script>
 /* ----------- Config Drive ----------- */
-const API_KEY="AIzaSyCbEV3CS9bOcxq5eK-QXbjczGHjvzyXS6M";
-const ROOT_FOLDER_ID="1KsgiC3ZFg_1XKOTulcZT8nkxPvG-xxjM";
+const ROOT_FOLDER_ID="18QkQPyCZxTCAaoz_qd1wAelmQbSE4ex8";
 
 /* ----------- Config personnalisée ----------- */
 const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
@@ -362,20 +361,26 @@ async function fetchFolderContents(folderId){
   if(!navigator.onLine){updateNetworkStatus();return [];}
   showSpinner();
   try{
-    const res=await fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&key=${API_KEY}&fields=files(id,name,mimeType,size,createdTime,modifiedTime)`);
-    const data=await res.json();
-    if(data.error){
-      alert("Erreur Drive: "+data.error.message);
-      console.error("Drive error:", data.error);
+    // 🔄 Appel au proxy Netlify (plus de clé API côté navigateur)
+    const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?list=true&id=${folderId}`);
+    const data = await res.json();
+
+    if(!res.ok || data.error){
+      console.error("Erreur proxy Drive:", data.error || res.statusText);
+      alert("Erreur Drive (proxy). Ouvre la console pour le détail.");
       return [];
     }
-    return data.files||[];
+
+    return data.files || [];
   }catch(e){
-    console.error("Erreur Drive:",e);
-    alert("Impossible de charger le dossier (réseau/API). Ouvre la console pour le détail.");
+    console.error("Erreur Drive:", e);
+    alert("Impossible de charger le dossier (réseau/proxy).");
     return [];
-  }finally{hideSpinner();}
+  }finally{
+    hideSpinner();
+  }
 }
+
 
 async function loadRootFolders(){
   const files = await fetchFolderContents(ROOT_FOLDER_ID);
@@ -598,7 +603,8 @@ if (f.name.toLowerCase().endsWith(".csv") &&
     try {
       if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop si demandé
 
-      const url = `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${API_KEY}`;
+      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}`;
+
       const res = await fetch(url);
       if (!res.ok) { tdName.innerHTML = f.name; return; }
 
@@ -735,8 +741,9 @@ async function openViewer(viewer, id, name){
 
   if (planFile) {
     try {
-      const urlPlan = `https://www.googleapis.com/drive/v3/files/${planFile.id}?alt=media&key=${API_KEY}`;
-      const respPlan = await fetch(urlPlan);
+const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${planFile.id}&name=${encodeURIComponent(planFile.name)}`);
+
+
       const textPlan = await respPlan.text();
       localStorage.setItem("planSondes", textPlan);
     } catch (e) {
@@ -844,8 +851,10 @@ document.getElementById('downloadFolderBtn').onclick=async()=>{
   for(const f of files){
     if(zipCancelled) return;
     try{
-      const url=`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${API_KEY}`;
-      const res=await fetch(url);
+const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}`;
+
+const res = await fetch(url);
+
       if(!res.ok) throw new Error('Fetch media failed: '+res.status);
       const blob=await res.blob();
       zip.file(sanitizeFileName(f.name), blob);
@@ -994,8 +1003,10 @@ async function checkTraçaTempToday(parentLi, tracatempId) {
   if (!todayFile) return;
 
   try {
-    const url = `https://www.googleapis.com/drive/v3/files/${todayFile.id}?alt=media&key=${API_KEY}`;
-    const res = await fetch(url);
+const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${todayFile.id}&name=${encodeURIComponent(todayFile.name)}&t=${Date.now()}`;
+
+const res = await fetch(url);
+
     const text = await res.text();
 
     // lire les dernières lignes
@@ -1067,3 +1078,4 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
