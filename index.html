@@ -361,31 +361,43 @@ async function fetchFolderContents(folderId){
   if(!navigator.onLine){updateNetworkStatus();return [];}
   showSpinner();
   try{
-    // 🔄 Appel au proxy Netlify (plus de clé API côté navigateur)
     const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?list=true&id=${folderId}&site=Smes_Accès`);
+
+    // 🚫 Blocage abonnement
+    if (res.status === 403) {
+      alert("⛔ Accès suspendu : merci de régulariser votre abonnement.");
+      hideSpinner();
+      return [];
+    }
+
+    // 🔎 Autre erreur HTTP
+    if (!res.ok) {
+      console.error("Erreur proxy Drive:", res.status, res.statusText);
+      alert("Erreur réseau ou proxy. Vérifie ta connexion ou ton accès.");
+      hideSpinner();
+      return [];
+    }
+
+    // ✅ Lecture JSON si tout va bien
     const data = await res.json();
-
-if (res.status === 403) {
-  alert("⛔ Accès suspendu : merci de régulariser votre abonnement.");
-  return [];
-}
-
-if(!res.ok || data.error){
-  console.error("Erreur proxy Drive:", data.error || res.statusText);
-  alert("Erreur réseau ou proxy. Vérifie ta connexion ou ton accès.");
-  return [];
-}
-
+    if (data.error) {
+      console.error("Erreur Google Drive API:", data.error);
+      alert("Erreur Drive (proxy). Ouvre la console pour le détail.");
+      hideSpinner();
+      return [];
+    }
 
     return data.files || [];
-  }catch(e){
+
+  } catch(e){
     console.error("Erreur Drive:", e);
-    alert("Impossible de charger le dossier (réseau/proxy).");
+    alert("Erreur interne ou blocage d’accès (proxy).");
     return [];
-  }finally{
+  } finally{
     hideSpinner();
   }
 }
+
 
 
 async function loadRootFolders(){
