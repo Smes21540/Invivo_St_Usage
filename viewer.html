@@ -155,7 +155,6 @@ thead th.sorted-desc::after{content:" ▼"; font-size:10px;}
 <script src="libs/jspdf.plugin.autotable.min.js"></script>
 <script>
 // === Variables globales ===
-const API_KEY='AIzaSyCbEV3CS9bOcxq5eK-QXbjczGHjvzyXS6M';
 const VIS_MEM_KEY = 'columnVisibilityMemory';
 let currentData=[], sortAsc=true, sortColIndex=null, visibleColumns={},
     columnVisibilityMemory = JSON.parse(localStorage.getItem(VIS_MEM_KEY) || '{}'),
@@ -197,33 +196,38 @@ function hideLoading(){ document.getElementById('loadingOverlay').style.display=
 
 // === Charger CSV ===
 async function loadCSV(){
-  const fileId=new URLSearchParams(window.location.search).get('fileId');
-  const fileName=new URLSearchParams(window.location.search).get('fileName');
-  const fileNameDiv=document.getElementById('fileName');
-  const lineCountDiv=document.getElementById('lineCount');
-  const container=document.getElementById('tableContainer');
-  if(!fileId) return;
+  const fileId = new URLSearchParams(window.location.search).get('fileId');
+  const fileName = new URLSearchParams(window.location.search).get('fileName');
+  const fileNameDiv = document.getElementById('fileName');
+  const lineCountDiv = document.getElementById('lineCount');
+  const container = document.getElementById('tableContainer');
+  if (!fileId) return;
 
-  fileNameDiv.textContent=fileName||''; 
-  fileNameDiv.style.display='block'; 
-  lineCountDiv.style.display='block';
+  fileNameDiv.textContent = fileName || '';
+  fileNameDiv.style.display = 'block';
+  lineCountDiv.style.display = 'block';
 
-  const url=`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
+  // ✅ Utilisation du proxy Netlify sécurisé
+  const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}&name=${encodeURIComponent(fileName || "")}`;
+
   showLoading();
   try {
-    const response=await fetch(url);
-    if(!response.ok) throw new Error("HTTP " + response.status);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
 
-    const blob=await response.blob();
-    const arrayBuffer=await blob.arrayBuffer();
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
     let text;
-    try{ text=new TextDecoder('windows-1252').decode(arrayBuffer); }
-    catch{ text=new TextDecoder('utf-8').decode(arrayBuffer); }
+    try { 
+      text = new TextDecoder('windows-1252').decode(arrayBuffer); 
+    } catch { 
+      text = new TextDecoder('utf-8').decode(arrayBuffer); 
+    }
 
-    const results=Papa.parse(text,{header:false,skipEmptyLines:true});
-    currentData=results.data;
-    const rowCount=currentData.length>1?currentData.length-1:0;
-    lineCountDiv.textContent=rowCount+" ligne"+(rowCount!==1?"s":"");
+    const results = Papa.parse(text, { header: false, skipEmptyLines: true });
+    currentData = results.data;
+    const rowCount = currentData.length > 1 ? currentData.length - 1 : 0;
+    lineCountDiv.textContent = rowCount + " ligne" + (rowCount !== 1 ? "s" : "");
     renderTable(currentData);
 
     // === Tri automatique sur la colonne TIME (descendant) ===
@@ -234,13 +238,13 @@ async function loadCSV(){
 
     const timeColIndex = header.findIndex(h => h.includes("TIME"));
     if (timeColIndex >= 0) {
-      sortAsc = false;         // forcer premier tri en décroissant
-      sortTable(timeColIndex); // affiche 23:59 → 00:00
+      sortAsc = false;
+      sortTable(timeColIndex);
     }
 
-  } catch(err){
-    console.error("Erreur:",err);
-    container.innerHTML=`
+  } catch (err) {
+    console.error("Erreur:", err);
+    container.innerHTML = `
       <div style="padding:20px; background:#ffccbc; color:#d84315; border-radius:8px; font-weight:bold;">
         ⚠️ Impossible de charger le fichier CSV.<br>
         Restriction Google Drive: Réessayer plus tard<br>
@@ -248,13 +252,14 @@ async function loadCSV(){
           🔄 Réessayer
         </button>
       </div>`;
-    const retry=document.getElementById("retryBtn");
-    if(retry){ retry.onclick=()=>{container.innerHTML="⏳ Nouvelle tentative...";loadCSV();}; }
+    const retry = document.getElementById("retryBtn");
+    if (retry) retry.onclick = () => { container.innerHTML = "⏳ Nouvelle tentative..."; loadCSV(); };
   } finally {
     hideLoading();
     updateNavButtons();
   }
 }
+
 
 // === Utils ===
 function escapeHtml(str){ return (str==null?'':String(str)).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
@@ -669,6 +674,7 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
 
 
 
