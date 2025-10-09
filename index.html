@@ -318,7 +318,7 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 
 <script>
 /* ----------- Config Drive ----------- */
-const ROOT_FOLDER_ID="18QkQPyCZxTCAaoz_qd1wAelmQbSE4ex8";
+const ROOT_FOLDER_ID="1KsgiC3ZFg_1XKOTulcZT8nkxPvG-xxjM";
 
 /* ----------- Config personnalisée ----------- */
 const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
@@ -365,7 +365,7 @@ async function fetchFolderContents(folderId){
 
     // 🚫 Blocage abonnement
     if (res.status === 403) {
-      alert("⛔ Accès suspendu : merci de régulariser votre abonnement.");
+      alert("⛔ s suspendu : merci de régulariser votre abonnement.");
       hideSpinner();
       return [];
     }
@@ -373,7 +373,7 @@ async function fetchFolderContents(folderId){
     // 🔎 Autre erreur HTTP
     if (!res.ok) {
       console.error("Erreur proxy Drive:", res.status, res.statusText);
-      alert("Erreur réseau ou proxy. Vérifie ta connexion ou ton accès.");
+      alert("Erreur réseau ou proxy. Vérifie ta connexion ou ton s.");
       hideSpinner();
       return [];
     }
@@ -391,7 +391,7 @@ async function fetchFolderContents(folderId){
 
   } catch(e){
     console.error("Erreur Drive:", e);
-    alert("Erreur interne ou blocage d’accès (proxy).");
+    alert("Erreur interne ou blocage d’s (proxy).");
     return [];
   } finally{
     hideSpinner();
