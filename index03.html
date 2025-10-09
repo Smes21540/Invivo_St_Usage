@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Plan des sondes</title>
+<title>Plan des sondes + Z3</title>
 
 <style>
 :root{
@@ -54,9 +54,22 @@ body{
   margin:8px auto 6px;
 }
 
+/* ===== PAGE LAYOUT : main (3/4) + side (1/4) ===== */
+#pageWrap{
+  flex:1; display:flex; gap:10px; padding:10px 12px; overflow:hidden;
+}
+
 /* ===== Zone centrale : deux sous-grilles 22×6 centrées ===== */
+#mainCol{
+  flex:3; min-width:0;
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  background: transparent;
+  min-height:70vh; /* ✅ assure un espace suffisant pour la grille */
+}
+
 #gridWrap{
-  flex:1; display:flex; align-items:center; justify-content:center; padding:10px 12px;
+  flex:1; display:flex; align-items:center; justify-content:center;
   overflow:auto;
 }
 #grid{
@@ -90,15 +103,15 @@ body{
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;   /* ✅ centre verticalement */
-  text-align: center;        /* ✅ centre horizontalement */
-  padding: 0;                /* ✅ enlève les décalages internes */
+  justify-content: center;   /* centre verticalement */
+  text-align: center;        /* centre horizontalement */
+  padding: 0;                /* enlève les décalages internes */
 }
 
 /* ===== Sidebar temporelle (en dessous de la grille) ===== */
 #bottomBar{
   display:flex; align-items:center; justify-content:center; gap:16px;
-  padding:10px 16px 14px;
+  padding:10px 0 14px;
 }
 #timeBar{
   width: calc(var(--timebar-cols) * var(--tile-size) + (var(--timebar-cols) - 1) * var(--cell-gap));
@@ -117,6 +130,133 @@ body{
 #gridWrap::-webkit-scrollbar{height:10px;width:10px;}
 #gridWrap::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;}
 #gridWrap::-webkit-scrollbar-track{background:#eee;}
+
+/* ====== RIGHT PANEL (Z3 EVENTS) — version fixe ====== */
+#sideCol{
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 28%;
+  height: 100%;
+  background: #fafafa;
+  border-left: 2px solid #ddd;
+  box-shadow: -4px 0 10px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+/* Titre */
+#sideHeader {
+  flex-shrink: 0;
+  background: #ffccbc;
+  padding: 10px 14px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 18px;
+  color: #e64a19;
+  border-bottom: 1px solid #eee;
+}
+
+/* Liste */
+#z3List {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.z3Item {
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  transition: background 0.3s, color 0.3s;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.z3Item .t { font-family: monospace; font-size: 12px; color: #555; }
+.z3Item .d { font-size: 13px; color: #222; }
+
+/* Intensité progressive selon la proximité (gérée par JS) */
+.event-fade-0 { background-color: rgba(255,120,120,0.15); }
+.event-fade-1 { background-color: rgba(255,120,120,0.25); }
+.event-fade-2 { background-color: rgba(255,120,120,0.35); }
+.event-fade-3 { background-color: rgba(255,120,120,0.45); }
+.event-fade-4 { background-color: rgba(255,120,120,0.55); }
+.event-fade-5 { background-color: rgba(255,120,120,0.65); }
+.event-fade-6 { background-color: rgba(255,80,80,0.8); color: #fff; }
+
+.z3Item:hover {
+  background: #ffb3a1;
+  color: #700;
+}
+
+
+/* header + toggle */
+#sideHeader{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 12px; border-bottom:1px solid #eee; background:var(--accent-muted);
+}
+#sideHeader h3{
+  font-size:14px; color:var(--accent-darker); margin:0; display:flex; align-items:center; gap:8px;
+}
+#toggleSide{
+  border:none; background:var(--accent); color:#fff; font-weight:bold;
+  padding:6px 10px; border-radius:6px; cursor:pointer;
+}
+#toggleSide:hover{ background:var(--accent-darker); }
+
+/* inner sections (volets coulissants) */
+.sideSection{ border-bottom:1px solid #f0f0f0; }
+.sideSection summary{
+  list-style:none; cursor:pointer; padding:10px 12px; font-weight:bold; color:var(--text);
+  background:#fafafa; border-top:1px solid #f3f3f3;
+}
+.sideSection summary::-webkit-details-marker{display:none;}
+.sideSection .sectionBody{ padding:8px 10px; }
+
+/* Z3 list */
+#z3List{
+  display:block;
+  overflow-y:auto;
+  border-radius:8px;
+  border:1px solid #eee;
+  background:#fff;
+  max-height:calc(100vh - 90px); /* remplit toute la hauteur visible */
+}
+
+.z3Item{
+  display:flex; align-items:center; gap:8px;
+  padding:6px 8px; border-bottom:1px solid #f6f6f6; cursor:pointer;
+}
+.z3Item:hover{ background:var(--accent-muted); }
+.z3Item .t{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px; color:#555; min-width:56px; }
+.z3Item .d{ flex:1; font-size:13px; color:#222; }
+.z3Item.active{
+  background: #ffe6cf; /* proche du thème orange */
+  outline: 2px solid var(--accent);
+}
+
+/* collapsed state (rail) */
+#sideCol.collapsed{
+  min-width: 46px; max-width: 46px;
+}
+#sideCol.collapsed #sideHeader h3,
+#sideCol.collapsed .sideSection { display:none; }
+#sideCol.collapsed #toggleSide{ width:100%; border-radius:8px; }
+
+/* small hint button floating (optional, not needed since header has toggle) */
+#floatOpen{
+  position:absolute; left:-8px; top:12px;
+  transform: translateX(-100%);
+  background: var(--accent); color:#fff; border:none; border-radius:14px;
+  padding:6px 8px; cursor:pointer; display:none;
+}
+#floatOpen:hover{ background: var(--accent-darker); }
 </style>
 </head>
 <body>
@@ -133,23 +273,40 @@ body{
 
 <div id="datetimeLabel">-- / -- / ---- — --:--</div>
 
-<!-- ===== Grille centrale (22×12 en 2× 22×6) ===== -->
-<div id="gridWrap">
-  <div id="grid">
-    <div id="gridTop" class="grid-part"></div>
-    <div id="gridBottom" class="grid-part"></div>
-  </div>
-</div>
+<!-- ===== PAGE WRAP (main + side) ===== -->
+<div id="pageWrap">
 
-<!-- ===== Sidebar temporelle + min/max ===== -->
-<div id="bottomBar">
-  <div id="timeBar">
-    <input type="range" id="slider" min="0" max="0" value="0"/>
+  <!-- ===== MAIN (inchangé dans l’esprit) ===== -->
+  <div id="mainCol">
+    <div id="gridWrap">
+      <div id="grid">
+        <div id="gridTop" class="grid-part"></div>
+        <div id="gridBottom" class="grid-part"></div>
+      </div>
+    </div>
+
+    <!-- ===== Sidebar temporelle + min/max ===== -->
+    <div id="bottomBar">
+      <div id="timeBar">
+        <input type="range" id="slider" min="0" max="0" value="0"/>
+      </div>
+      <div id="scaleBox" title="Réglage des bornes couleurs">
+        <label>Min</label><input type="number" id="minInput" step="0.1" value="30"/>
+        <label style="margin-left:10px;">Max</label><input type="number" id="maxInput" step="0.1" value="60"/>
+      </div>
+      <!-- Bouton optionnel plus tard : Fusion jours (désactivé par défaut) -->
+      <!-- <button id="mergeDaysBtn" style="margin-left:12px;">Fusionner jours</button> -->
+    </div>
   </div>
-  <div id="scaleBox" title="Réglage des bornes couleurs">
-    <label>Min</label><input type="number" id="minInput" step="0.1" value="30"/>
-    <label style="margin-left:10px;">Max</label><input type="number" id="maxInput" step="0.1" value="60"/>
-  </div>
+
+  <!-- ===== SIDE (Z3 EVENTS) ===== -->
+<aside id="sideCol">
+  <div id="sideHeader">🧰 Evenements</div>
+  <div id="z3List"></div>
+</aside>
+
+
+    
 </div>
 
 <script src="libs/papaparse.min.js"></script>
@@ -163,6 +320,9 @@ function setTheme(theme){
 
 /* =================== Globals =================== */
 let csvData=[], headers=[], planTop=[], planBottom=[];
+let z3Events = [];         // {timeText, minutes, desc, fileId, fileName}
+let lastSliderIndex = 0;
+const Z3_HILITE_TOL_MIN = 5;  // tolérance (minutes) pour surlignage
 const params=new URLSearchParams(window.location.search);
 const fileId=params.get("fileId");
 const fileName=params.get("fileName");
@@ -252,33 +412,221 @@ function buildGrid(){
   placeRows(gridBottom, planBottom);
 } // 🔹 Fin de buildGrid()
 
+/* ============ RIGHT PANEL: load + render Z3 (auto-fetch if missing content) ============ */
+function yyyymmddFromName(name){
+  const m = (name||"").match(/(\d{8})/);
+  return m ? m[1] : null;
+}
 
-// === Ajout différé des cases spéciales après lecture du CSV ===
+function toMinutes(t){
+  if(!t) return NaN;
+  const m = String(t).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(!m) return NaN;
+  const hh = parseInt(m[1],10), mm = parseInt(m[2],10), ss = parseInt(m[3]||"0",10);
+  return hh*60 + mm + (ss>=30? 0.5:0);
+}
+
+function minutesFromRowTime(row){
+  const timeKey=headers.find(h=>{
+    const a=(h||"").toLowerCase();
+    return a.includes("heure")||a.includes("time")||a==="h";
+  });
+  const t = timeKey ? String(row[timeKey]||"").trim() : "";
+  return toMinutes(t);
+}
+
+function currentRowMinutes(idx){
+  if(!csvData[idx]) return NaN;
+  return minutesFromRowTime(csvData[idx]);
+}
+
+// =====================================================
+// ✅ Version simplifiée : utilise les Z3 déjà préchargés
+// =====================================================
+async function loadZ3ForSameDay() {
+  z3Events = [];
+
+  // Extraire la date du CSV courant (ex : 20241005)
+  const dayMatch = (fileName || "").match(/(\d{8})/);
+  const day = dayMatch ? dayMatch[1] : null;
+  if (!day) {
+    console.warn("⚠️ Impossible de détecter la date du fichier principal :", fileName);
+    renderZ3List();
+    return;
+  }
+
+  // Lire la liste des Z3 préchargés depuis index.html
+  const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
+
+  // Filtrer ceux du même jour (même date dans le nom)
+  const sameDay = z3Files.filter(f => f.name.includes(day));
+
+  console.log(`🔍 Recherche Z3 du ${day} → ${sameDay.length} fichier(s) trouvé(s)`);
+
+  for (const f of sameDay) {
+    if (!f.content) {
+      console.warn("⏭️ Z3 sans contenu ignoré :", f.name);
+      continue;
+    }
+
+    // Nettoyage et parsing
+    const lines = f.content.split(/\r?\n/).filter(l => l.trim() !== "");
+    let startIndex = lines.findIndex(l => /trigger.?time/i.test(l));
+    if (startIndex === -1) startIndex = 0;
+    const csvClean = lines.slice(startIndex).join("\n");
+
+    const parsed = Papa.parse(csvClean, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false,
+      delimitersToGuess: [",", ";", "\t"],
+    });
+
+// --- Correction des caractères accentués mal encodés ---
+function fixEncoding(str) {
+  try {
+    return decodeURIComponent(escape(str));
+  } catch {
+    return str;
+  }
+}
+parsed.data = parsed.data.map(row => {
+  const fixed = {};
+  for (const k in row) fixed[k] = fixEncoding(row[k]);
+  return fixed;
+});
+
+
+    const H = parsed.meta.fields || [];
+    const rows = parsed.data || [];
+
+    const timeCol = H.find(h => /trigger.?time|heure/i.test(h)) || H[1];
+    const msgCol  = H.find(h => /message/i.test(h)) || H[2];
+    const addrCol = H.find(h => /address ?1/i.test(h));
+
+    for (const r of rows) {
+      const t = String(r[timeCol] || "").trim();
+      const msg = String(r[msgCol] || "").trim();
+      const addr = String(r[addrCol] || "").trim();
+      const mins = toMinutes(t);
+      if (!isNaN(mins) && msg) {
+        z3Events.push({
+          timeText: t,
+          minutes: mins,
+          desc: addr ? `${msg} (${addr})` : msg,
+          fileId: f.id,
+          fileName: f.name,
+        });
+      }
+    }
+  }
+
+  console.log("✅ Total événements Z3 chargés :", z3Events.length);
+  renderZ3List();
+  highlightZ3Near(currentRowMinutes(0));
+}
+
+
+function renderZ3List(){
+  const box = document.getElementById("z3List");
+  box.innerHTML = "";
+  if(!z3Events.length){
+    box.innerHTML = `<div class="z3Item" style="opacity:.7;cursor:default;">
+      <span class="t">--:--</span><span class="d">Aucun evenement Z3</span>
+    </div>`;
+    return;
+  }
+
+  const now = Date.now();
+
+  for (const ev of z3Events) {
+    const div = document.createElement("div");
+    const evTime = new Date(); // on part de la date du jour
+    const [hh, mm] = ev.timeText.split(":").map(v=>parseInt(v)||0);
+    evTime.setHours(hh, mm, 0, 0);
+    const diffMin = Math.abs((evTime - now) / 60000);
+
+    let intensity = 0;
+    if (diffMin < 2) intensity = 6;
+    else if (diffMin < 5) intensity = 5;
+    else if (diffMin < 10) intensity = 4;
+    else if (diffMin < 20) intensity = 3;
+    else if (diffMin < 40) intensity = 2;
+    else if (diffMin < 80) intensity = 1;
+
+    div.className = `z3Item event-fade-${intensity}`;
+    div.innerHTML = `<span class="t">${ev.timeText || "--:--"}</span><span class="d">${ev.desc || ""}</span>`;
+    div.onclick = ()=> jumpSliderToClosest(ev.minutes);
+    box.appendChild(div);
+  }
+}
+
+
+function highlightZ3Near(targetMinutes){
+  const list = document.querySelectorAll("#z3List .z3Item");
+  list.forEach(el => el.classList.remove("active"));
+  if(isNaN(targetMinutes)) return;
+
+  let best = null, bestDiff = Infinity;
+  z3Events.forEach((ev, idx) => {
+    const diff = Math.abs(ev.minutes - targetMinutes);
+    if(diff < bestDiff){ bestDiff = diff; best = { idx, ev }; }
+  });
+  if(best && bestDiff <= Z3_HILITE_TOL_MIN){
+    const items = document.querySelectorAll("#z3List .z3Item");
+    const el = items[best.idx];
+    if(el){
+      el.classList.add("active");
+      // scroll dans la vue si besoin
+      const box = document.getElementById("z3List");
+      const boxRect = box.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      if(elRect.top < boxRect.top || elRect.bottom > boxRect.bottom){
+        box.scrollTop = el.offsetTop - box.clientHeight/2 + el.clientHeight/2;
+      }
+    }
+  }
+}
+
+function jumpSliderToClosest(targetMinutes){
+  if(!csvData.length) return;
+  let bestIdx = 0, bestDiff = Infinity;
+  for(let i=0;i<csvData.length;i++){
+    const mins = minutesFromRowTime(csvData[i]);
+    if(isNaN(mins)) continue;
+    const diff = Math.abs(mins - targetMinutes);
+    if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+  }
+  const slider = document.getElementById("slider");
+  slider.value = String(bestIdx);
+  lastSliderIndex = bestIdx;
+  updateGrid(bestIdx);
+  highlightZ3Near(currentRowMinutes(bestIdx));
+}
+
+/* ============ Ajout différé des cases spéciales (inchangé sauf position) ============ */
 function addSpecialsAfterCSV() {
   const normalize = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
 
-  // ✅ Détection ultra tolérante sur les intitulés du CSV
+  // Détection ultra tolérante
   const hasExt   = headers.some(h => normalize(h).includes("tcext") || normalize(h).includes("temperatureexterieure") || normalize(h).includes("tempext"));
   const hasDebit = headers.some(h => normalize(h).includes("debit") || normalize(h).includes("debitth") || normalize(h).includes("dbit") || normalize(h).includes("tonne"));
   const hasGaz   = headers.some(h => normalize(h).includes("gaz"));
   const hasNorm  = headers.some(h => normalize(h).includes("normalis"));
   const hasIpe   = headers.some(h => normalize(h).includes("ipe") || normalize(h).includes("ip") || normalize(h).includes("ipekwh"));
 
-  console.log("Colonnes détectées →", { hasExt, hasDebit, hasGaz, hasNorm, hasIpe });
-
   const specials = [
-// 🔸 Sondes internes
-{ id: "SondeACsup", label: "Air chaud Supérieur", col: "G", row: 4 },
-{ id: "SondeACinf", label: "Air chaud Inférieur", col: "G", row: 10 },
-{ id: "TempGrain",  label: "Température Grain",   col: "P", row: 7 },
-{ id: "TempExt",    label: "Température Extérieure 🌡️", col: "E", row: 10, optional: true, active: hasExt },
-
+    // 🔸 Sondes internes
+    { id: "SondeACsup", label: "Air chaud Supérieur", col: "G", row: 4 },
+    { id: "SondeACinf", label: "Air chaud Inférieur", col: "G", row: 10 },
+    { id: "TempGrain",  label: "Température Grain",   col: "P", row: 7 },
+    { id: "TempExt",    label: "Température Extérieure 🌡️", col: "E", row: 10, optional: true, active: hasExt },
 
     // 🔸 Nouvelles cases de suivi
     { id: "DebitTH",   label: "Débit Séchage", col: "D", row: 7, optional: true, bg: "#00CCFF", active: hasDebit },
-    { id: "GazM3H",    label: "🔥 GAZ", col: "D", row: 8, optional: true, bg: "#FFCC33", active: hasGaz },
-    { id: "Normalise", label: "🔥 GAZ", col: "D", row: 9, optional: true, bg: "#FFCC33", active: hasNorm },
-    { id: "IPE",       label: "🔥 Ipé", col: "D", row: 10, optional: true, bg: "#33FF00", active: hasIpe }
+    { id: "GazM3H",    label: "🔥 GAZ",        col: "D", row: 8, optional: true, bg: "#FFCC33", active: hasGaz },
+    { id: "Normalise", label: "🔥 GAZ",        col: "D", row: 9, optional: true, bg: "#FFCC33", active: hasNorm },
+    { id: "IPE",       label: "🔥 Ipé",        col: "D", row:10, optional: true, bg: "#33FF00", active: hasIpe }
   ];
 
   function colIdx(letter){ return letter.toUpperCase().charCodeAt(0) - 64; }
@@ -300,15 +648,8 @@ function addSpecialsAfterCSV() {
     target.appendChild(d);
   }
 
-  // Ajout conditionnel
-  specials.forEach(s => {
-    if (!s.optional || s.active) placeSpecial(s);
-  });
+  specials.forEach(s => { if (!s.optional || s.active) placeSpecial(s); });
 }
-
-
-
-
 
 /* =================== Responsive : calcule la taille de case =================== */
 function updateTileSize(){
@@ -321,86 +662,96 @@ function updateTileSize(){
   const availW = wrap.clientWidth - 32;   // marges internes
   const availH = wrap.clientHeight - 16;
 
-  // largeur = cols * s + (cols -1)*gap
-  // hauteur = (rows * s) + ( (rows-2*1) gaps inter-cellules ) + (split-gap*s)
-  // On a 2 blocs de 6 lignes => total gaps verticaux = (6-1)+(6-1) = 10 gaps entre cellules
   const totalVCellGaps = (6-1) + (6-1); // 10
   const hByW = (availW - (cols-1)*gap) / cols;
-  const hByH = (availH - totalVCellGaps*gap) / (rows + splitGapRatio); // on ajoute l’espace central en “s”
+  const hByH = (availH - totalVCellGaps*gap) / (rows + splitGapRatio); 
   const s = Math.max(60, Math.floor(Math.min(hByW, hByH))); // taille min 60px
 
   document.documentElement.style.setProperty('--tile-size', s + 'px');
 }
 
-/* =================== CSV (Drive) =================== */
+/* =================== CSV (Drive ou LocalStorage) =================== */
 async function loadCSV(){
-  if(!fileId) return;
-
-  // 🔄 Passe maintenant par ton proxy Netlify sécurisé
-  const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}&name=${encodeURIComponent(fileName || "")}`;
-
+  const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+  const idx = parseInt(localStorage.getItem("csvFileIndex") || "0");
+  let file = list.find(f => f.id === fileId) || list[idx] || null;
   let text = "";
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Erreur proxy Drive");
-    text = await res.text();
-  } catch (e) {
-    console.error("Erreur chargement CSV :", e);
+
+  // 1️⃣ Si le CSV est déjà présent en mémoire → on l'utilise
+  if (file && file.content) {
+    console.log("📦 CSV trouvé dans localStorage :", file.name);
+    text = file.content;
+  } 
+  // 2️⃣ Sinon, on le télécharge depuis le proxy Netlify (comme avant)
+  else if (file && file.id) {
+    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${file.id}&name=${encodeURIComponent(file.name || "")}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Erreur proxy Drive");
+      text = await res.text();
+      console.log("🌐 CSV téléchargé depuis Drive :", file.name);
+
+      // On le sauvegarde dans le localStorage pour la prochaine fois
+      const updated = list.map(f => f.id === file.id ? { ...f, content: text } : f);
+      localStorage.setItem("csvFilesList", JSON.stringify(updated));
+    } catch (err) {
+      console.error("❌ Erreur chargement CSV :", err);
+      document.getElementById("gridTop").innerHTML = `<b style='color:red'>❌ Impossible de charger le CSV</b>`;
+      return;
+    }
+  } else {
+    console.error("⚠️ Aucun fichier CSV valide trouvé.");
+    document.getElementById("gridTop").innerHTML = `<b style='color:red'>❌ Aucun CSV valide trouvé</b>`;
     return;
   }
 
-
-  const seen={};
-  const results=Papa.parse(text,{header:true,skipEmptyLines:true,
-    transformHeader:(h)=>{h=(h||"").replace(/"/g,"").trim(); if(seen[h]){seen[h]++; return h+"_"+seen[h];} else {seen[h]=1; return h+"_1";}}
+  // 3️⃣ Parsing du CSV
+  const seen = {};
+  const results = Papa.parse(text, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (h) => {
+      h = (h || "").replace(/"/g, "").trim();
+      if (seen[h]) {
+        seen[h]++;
+        return h + "_" + seen[h];
+      } else {
+        seen[h] = 1;
+        return h + "_1";
+      }
+    },
   });
-  headers=results.meta.fields||[]; csvData=results.data||[];
-  const lc=document.getElementById("lineCount");
-  if(lc) lc.textContent = (csvData?.length||0)+" ligne"+((csvData?.length||0)>1?"s":"");
-  document.getElementById("slider").max=Math.max(0,(csvData.length||1)-1);
 
-  // min/max défaut (30/60)
-  const minInit=parseFloat(localStorage.getItem("scaleMin")||"30");
-  const maxInit=parseFloat(localStorage.getItem("scaleMax")||"60");
-  document.getElementById("minInput").value=isNaN(minInit)?30:minInit;
-  document.getElementById("maxInput").value=isNaN(maxInit)?60:maxInit;
+  headers = results.meta.fields || [];
+  csvData = results.data || [];
 
-// === T°C Ext présent ? (gestion de variantes possibles) ===
-const hasExt = headers.some(h => {
-  const norm = (h || "")
-    .normalize("NFD")                  // enlève les accents
-    .replace(/[^\w]/g, "")             // retire °, espaces, tirets, etc.
-    .toLowerCase();
-  return (
-    norm.includes("tcext") ||
-    norm.includes("temperatureexterieure") ||
-    norm.includes("tempext")           // tolère d'autres variantes
+  const lc = document.getElementById("lineCount");
+  if (lc)
+    lc.textContent =
+      (csvData?.length || 0) +
+      " ligne" +
+      ((csvData?.length || 0) > 1 ? "s" : "");
+  document.getElementById("slider").max = Math.max(
+    0,
+    (csvData.length || 1) - 1
   );
-});
 
+  const minInit = parseFloat(localStorage.getItem("scaleMin") || "30");
+  const maxInit = parseFloat(localStorage.getItem("scaleMax") || "60");
+  document.getElementById("minInput").value = isNaN(minInit) ? 30 : minInit;
+  document.getElementById("maxInput").value = isNaN(maxInit) ? 60 : maxInit;
 
+  // 4️⃣ Ajout des cases spéciales et affichage initial
+  addSpecialsAfterCSV();
+  updateGrid(0);
 
-
-console.log("Colonnes CSV détectées :", headers);
-console.log("Présence de T°C Ext :", hasExt);
-
-
-
-
-addSpecialsAfterCSV(); // 🧠 crée toutes les cases spéciales
-
-// Déplacer ce bloc ICI après la création
-const extEl = document.getElementById("TempExt");
-if (extEl) {
-  extEl.style.display = hasExt ? "flex" : "none";
+  // 5️⃣ Les fichiers Z3 → uniquement depuis localStorage
+  loadZ3ForSameDay();
 }
 
-updateGrid(0); // et seulement ensuite on met à jour les valeurs
 
 
-}
-
-/* =================== Helpers date & couleurs =================== */
+/* =================== Couleurs =================== */
 function getScale(){
   let min=parseFloat(document.getElementById("minInput").value);
   let max=parseFloat(document.getElementById("maxInput").value);
@@ -419,9 +770,9 @@ function getColor(v){
 }
 
 /* =================== Actualisation d’une ligne =================== */
-/* =================== Actualisation d’une ligne =================== */
 function updateGrid(idx){
   if(!csvData[idx]) return;
+  lastSliderIndex = idx;
   const row = csvData[idx];
 
   // Date/Heure
@@ -454,117 +805,104 @@ function updateGrid(idx){
     }
   });
 
-// 🔸 Fonction générique pour les cases spéciales
-function updateSpecial(label, id, opts = {}) {
-  const { altLabels = [], prefer = [] } = opts;
-  const el = document.getElementById(id);
-  if (!el) return;
+  // 🔸 Fonction générique pour les cases spéciales
+  function updateSpecial(label, id, opts = {}) {
+    const { altLabels = [], prefer = [] } = opts;
+    const el = document.getElementById(id);
+    if (!el) return;
 
-  const norm = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
-  const wanted  = [label, ...altLabels].map(norm);
-  const prefers = (prefer || []).map(norm);
+    const norm = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
+    const wanted  = [label, ...altLabels].map(norm);
+    const prefers = (prefer || []).map(norm);
 
-  // --- Recherche colonne exacte ---
-  let valCol = null;
-  for (const h of headers) {
-    const n = norm(h);
-    if (prefers.some(p => n === p || n.includes(p))) { valCol = h; break; }
-  }
-  if (!valCol) {
+    // --- Recherche colonne exacte ---
+    let valCol = null;
     for (const h of headers) {
       const n = norm(h);
-      if (wanted.some(w => n.includes(w))) { valCol = h; break; }
+      if (prefers.some(p => n === p || n.includes(p))) { valCol = h; break; }
+    }
+    if (!valCol) {
+      for (const h of headers) {
+        const n = norm(h);
+        if (wanted.some(w => n.includes(w))) { valCol = h; break; }
+      }
+    }
+
+    const val = valCol ? parseFloat(row[valCol]) : NaN;
+
+    // --- Unités auto ---
+    let unit = "°C";
+    const L = norm(label);
+    if (L.includes("debit")) unit = "t/h";
+    else if (L.includes("gaz") && !L.includes("normal")) unit = "m³/h";
+    else if (L.includes("normal")) unit = "Nm³/h";
+    else if (L.includes("ip")) unit = "kWh/tee";
+
+    // --- Style valeur ---
+    const vdiv = el.querySelector(".val");
+    vdiv.style.fontSize = "clamp(11px, calc(var(--tile-size)*0.13), 17px)";
+    vdiv.textContent = isNaN(val) ? `-- ${unit}` : `${val.toFixed(1)} ${unit}`;
+
+    // --- Consignes ACsup/ACinf/Grain (comme avant) ---
+    const consEl = el.querySelector(".consigne");
+    if (L.includes("acsup") || L.includes("acinf") || L.includes("grain")) {
+      let consCol = null, valCol2 = null, count = 0;
+      for (const h of headers) {
+        const n = norm(h);
+        if (n.includes(norm(label))) {
+          count++;
+          if (count === 1) consCol = h;
+          if (count === 2) valCol2 = h;
+        }
+      }
+      const consVal = consCol ? parseFloat(row[consCol]) : NaN;
+      const valVal  = valCol2 ? parseFloat(row[valCol2]) : NaN;
+      consEl.style.display = "block";
+      consEl.textContent = isNaN(consVal) ? "-- °C" : `${consVal.toFixed(1)} °C`;
+      vdiv.textContent = isNaN(valVal) ? "-- °C" : `${valVal.toFixed(1)} °C`;
+      if (!isNaN(valVal)) el.style.background = getColor(valVal);
+    } else {
+      consEl.style.display = "none";
     }
   }
 
-  const val = valCol ? parseFloat(row[valCol]) : NaN;
+  // 🔹 Appels
+  updateSpecial("Sonde AC sup", "SondeACsup");
+  updateSpecial("Sonde AC inf", "SondeACinf");
+  updateSpecial("Temp Grain",    "TempGrain");
+  updateSpecial("T°C Ext",       "TempExt", {
+    altLabels: ["Temperature Exterieure", "Temp Ext", "TC Ext", "T C Ext"]
+  });
 
-  // --- Unités auto ---
-  let unit = "°C";
-  const L = norm(label);
-  if (L.includes("debit")) unit = "t/h";
-  else if (L.includes("gaz") && !L.includes("normal")) unit = "m³/h";
-  else if (L.includes("normal")) unit = "Nm³/h";
-  else if (L.includes("ip")) unit = "kWh/tee";
+  // 🔹 Suivis (1 seule colonne)
+  updateSpecial("Débit", "DebitTH", {
+    altLabels: ["D bit t/h", "Débit T/H", "Débit (Tonnes / Heure)"],
+    prefer: ["dbitth"]
+  });
+  updateSpecial("Gaz", "GazM3H", {
+    altLabels: ["Gaz m3/h", "GAZ M3/H", "Consommation (m3 / Heure)"],
+    prefer: ["gazm3h"]
+  });
+  updateSpecial("Normalisé", "Normalise", {
+    altLabels: ["Normalis", "Normalisé", "Consommation (Nm3 / Heure)"],
+    prefer: ["normalis"]
+  });
+  updateSpecial("Ipé", "IPE", {
+    altLabels: ["Ip", "Ipe", "Ipé (kWh/tee)", "IPE"],
+    prefer: ["ip"]
+  });
 
-  // --- Style valeur ---
-  const vdiv = el.querySelector(".val");
-  vdiv.style.fontSize = "clamp(11px, calc(var(--tile-size)*0.13), 17px)";
-  vdiv.textContent = isNaN(val) ? `-- ${unit}` : `${val.toFixed(1)} ${unit}`;
-
-// --- Couleur fixe (on garde la couleur d'origine) ---
-if (!el.hasAttribute("data-bg-fixed")) {
-  el.setAttribute("data-bg-fixed", "1");
-}
-
-// --- Gestion de la consigne ---
-const consEl = el.querySelector(".consigne");
-
-// Affiche la consigne seulement pour ACsup / ACinf / TempGrain
-if (L.includes("acsup") || L.includes("acinf") || L.includes("grain")) {
-  // 🔹 Cherche la 1re occurrence pour consigne et la 2e pour valeur
-  let base = null;
-  let consCol = null, valCol = null;
-  let count = 0;
-
-  for (const h of headers) {
-    const n = norm(h);
-    if (n.includes(norm(label))) {
-      count++;
-      if (count === 1) consCol = h;
-      if (count === 2) valCol = h;
-    }
-  }
-
-  const consVal = consCol ? parseFloat(row[consCol]) : NaN;
-  const valVal  = valCol ? parseFloat(row[valCol])  : NaN;
-
-  // --- Affiche consigne + valeur ---
-  consEl.style.display = "block";
-  consEl.textContent = isNaN(consVal) ? "-- °C" : `${consVal.toFixed(1)} °C`;
-
-  const vdiv = el.querySelector(".val");
-  vdiv.textContent = isNaN(valVal) ? "-- °C" : `${valVal.toFixed(1)} °C`;
-  if (!isNaN(valVal)) el.style.background = getColor(valVal);
-
-} else {
-  consEl.style.display = "none";
-}
-
-
-
-}
-
-// 🔹 Appels
-updateSpecial("Sonde AC sup", "SondeACsup");
-updateSpecial("Sonde AC inf", "SondeACinf");
-updateSpecial("Temp Grain",    "TempGrain");
-updateSpecial("T°C Ext",       "TempExt", {
-  altLabels: ["Temperature Exterieure", "Temp Ext", "TC Ext", "T C Ext"]
-});
-
-// 🔹 Suivis (1 seule colonne)
-updateSpecial("Débit", "DebitTH", {
-  altLabels: ["D bit t/h", "Débit T/H", "Débit (Tonnes / Heure)"],
-  prefer: ["dbitth"]
-});
-updateSpecial("Gaz", "GazM3H", {
-  altLabels: ["Gaz m3/h", "GAZ M3/H", "Consommation (m3 / Heure)"],
-  prefer: ["gazm3h"]
-});
-updateSpecial("Normalisé", "Normalise", {
-  altLabels: ["Normalis", "Normalisé", "Consommation (Nm3 / Heure)"],
-  prefer: ["normalis"]
-});
-updateSpecial("Ipé", "IPE", {
-  altLabels: ["Ip", "Ipe", "Ipé (kWh/tee)", "IPE"],
-  prefer: ["ip"]
-});
+  // ➕ Surligne l'event Z3 le plus proche de l'heure courante
+  const mins = minutesFromRowTime(row);
+  highlightZ3Near(mins);
 }
 
 /* =================== Listeners =================== */
 window.addEventListener("resize", updateTileSize);
-document.getElementById("slider").addEventListener("input", e => updateGrid(parseInt(e.target.value)||0));
+document.getElementById("slider").addEventListener("input", e => {
+  const idx = parseInt(e.target.value)||0;
+  updateGrid(idx);
+});
 document.getElementById("minInput").addEventListener("change", ()=>{
   const v=parseFloat(document.getElementById("minInput").value);
   localStorage.setItem("scaleMin", isFinite(v)?String(v):"30");
@@ -576,15 +914,16 @@ document.getElementById("maxInput").addEventListener("change", ()=>{
   if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
 });
 
-/* =================== INIT =================== */
-(function init(){
-  setTheme(localStorage.getItem("selectedTheme")||"orange");
-  loadPlan();
-  buildGrid();
-  updateTileSize();
-  loadCSV();
-})();
 
+
+/* =================== INIT =================== */
+document.addEventListener("DOMContentLoaded", () => {
+  setTheme(localStorage.getItem("selectedTheme") || "orange");
+  loadPlan();
+  requestAnimationFrame(updateTileSize);
+  loadCSV();
+  window.addEventListener("load", updateTileSize);
+});
 </script>
 </body>
 </html>
