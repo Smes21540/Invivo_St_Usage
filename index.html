@@ -318,7 +318,7 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 
 <script>
 /* ----------- Config Drive ----------- */
-const ROOT_FOLDER_ID="1KsgiC3ZFg_1XKOTulcZT8nkxPvG-xxjM";
+const ROOT_FOLDER_ID="18QkQPyCZxTCAaoz_qd1wAelmQbSE4ex8";
 
 /* ----------- Config personnalisée ----------- */
 const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
@@ -361,11 +361,11 @@ async function fetchFolderContents(folderId){
   if(!navigator.onLine){updateNetworkStatus();return [];}
   showSpinner();
   try{
-    const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?list=true&id=${folderId}&site=Smes_Acce`);
+    const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?list=true&id=${folderId}&site=Smes_Acces`);
 
     // 🚫 Blocage abonnement
     if (res.status === 403) {
-      alert("⛔ s suspendu : merci de régulariser votre abonnement.");
+      alert("⛔ Accès suspendu : merci de régulariser votre abonnement.");
       hideSpinner();
       return [];
     }
@@ -373,7 +373,7 @@ async function fetchFolderContents(folderId){
     // 🔎 Autre erreur HTTP
     if (!res.ok) {
       console.error("Erreur proxy Drive:", res.status, res.statusText);
-      alert("Erreur réseau ou proxy. Vérifie ta connexion ou ton s.");
+      alert("Erreur réseau ou proxy. Vérifie ta connexion ou ton accès.");
       hideSpinner();
       return [];
     }
@@ -391,7 +391,7 @@ async function fetchFolderContents(folderId){
 
   } catch(e){
     console.error("Erreur Drive:", e);
-    alert("Erreur interne ou blocage d’s (proxy).");
+    alert("Erreur interne ou blocage d’accès (proxy).");
     return [];
   } finally{
     hideSpinner();
@@ -473,22 +473,11 @@ async function toggleFolder(li){
       const hist = siblings.find(s => s.mimeType === 'application/vnd.google-apps.folder' && s.name.toLowerCase().includes("historique"));
       if (hist) {
         const histFiles = await fetchFolderContents(hist.id);
-
-        // 🔸 Précharge aussi le contenu complet des Z3 (Historique)
         const z3Files = histFiles.filter(ff => ff.name.toUpperCase().startsWith("Z3") && ff.name.toLowerCase().endsWith(".csv"));
-        if (z3Files.length) {
-          for (const z3 of z3Files) {
-            try {
-              const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${z3.id}&name=${encodeURIComponent(z3.name)}`);
-              if (res.ok) z3.content = await res.text();
-            } catch (err) {
-              console.warn("⚠️ Échec fetch Z3:", z3.name, err);
-            }
-          }
-        }
-        localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-        console.log("[Z3] Préchargés depuis Historique (avec contenu):", z3Files.length);
-        showEventAlert();
+localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
+console.log("[Z3] Préchargés depuis Historique:", z3Files.length);
+showEventAlert();
+
       }
     }
 
@@ -533,42 +522,27 @@ async function loadFolderFilesOnClick(li){
 
       if (hist) {
         const histFiles = await fetchFolderContents(hist.id);
-        const z3Files = histFiles.filter(ff =>
-          ff.name.toUpperCase().startsWith("Z3") && ff.name.toLowerCase().endsWith(".csv")
+        const z3Files = histFiles.filter(ff => 
+          ff.name.toUpperCase().startsWith("Z3") && 
+          ff.name.toLowerCase().endsWith(".csv")
         );
-        if (z3Files.length) {
-          for (const z3 of z3Files) {
-            try {
-              const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${z3.id}&name=${encodeURIComponent(z3.name)}`);
-              if (res.ok) z3.content = await res.text();
-            } catch (err) {
-              console.warn("⚠️ Erreur préchargement Z3:", z3.name, err);
-            }
-          }
-        }
         localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-        console.log("[Z3] Préchargés depuis Historique voisin (avec contenu):", z3Files.length);
+        console.log("[Z3] Préchargés depuis Historique voisin:", z3Files.length);
+      } else {
+        localStorage.removeItem("csvZ3Files");
+        console.warn("[Z3] Aucun dossier Historique trouvé pour", nameSpan.textContent);
       }
     }
   } 
   else if (folderName.includes("historique")) {
     // directement charger les Z3 de ce dossier
     const histFiles = await fetchFolderContents(li.dataset.id);
-    const z3Files = histFiles.filter(ff =>
-      ff.name.toUpperCase().startsWith("Z3") && ff.name.toLowerCase().endsWith(".csv")
+    const z3Files = histFiles.filter(ff => 
+      ff.name.toUpperCase().startsWith("Z3") && 
+      ff.name.toLowerCase().endsWith(".csv")
     );
-    if (z3Files.length) {
-      for (const z3 of z3Files) {
-        try {
-          const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${z3.id}&name=${encodeURIComponent(z3.name)}`);
-          if (res.ok) z3.content = await res.text();
-        } catch (err) {
-          console.warn("⚠️ Erreur préchargement Z3:", z3.name, err);
-        }
-      }
-    }
     localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-    console.log("[Z3] Préchargés directement (Historique, avec contenu):", z3Files.length);
+    console.log("[Z3] Préchargés directement (Historique):", z3Files.length);
   } 
   else {
     // Sinon → effacer le cache Z3
@@ -647,7 +621,7 @@ if (f.name.toLowerCase().endsWith(".csv") &&
     try {
       if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop si demandé
 
-      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acce`;
+      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`;
 
       const res = await fetch(url);
       if (!res.ok) { tdName.innerHTML = f.name; return; }
@@ -785,7 +759,7 @@ async function openViewer(viewer, id, name){
 
   if (planFile) {
     try {
-const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${planFile.id}&name=${encodeURIComponent(planFile.name)}&site=Smes_Acce`);
+const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${planFile.id}&name=${encodeURIComponent(planFile.name)}&site=Smes_Acces`);
 
 
       const textPlan = await respPlan.text();
@@ -895,7 +869,7 @@ document.getElementById('downloadFolderBtn').onclick=async()=>{
   for(const f of files){
     if(zipCancelled) return;
     try{
-const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acce`;
+const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`;
 
 const res = await fetch(url);
 
@@ -1047,7 +1021,7 @@ async function checkTraçaTempToday(parentLi, tracatempId) {
   if (!todayFile) return;
 
   try {
-const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${todayFile.id}&name=${encodeURIComponent(todayFile.name)}&t=${Date.now()}&site=Smes_Acce`;
+const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${todayFile.id}&name=${encodeURIComponent(todayFile.name)}&t=${Date.now()}&site=Smes_Acces`;
 
 const res = await fetch(url);
 
@@ -1122,5 +1096,3 @@ window.onload=()=>{
 </script>
 </body>
 </html>
-
-
