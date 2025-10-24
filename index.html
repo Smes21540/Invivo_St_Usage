@@ -70,7 +70,17 @@ body{
 #folderTree li{cursor:pointer;margin:5px 0;}
 .folder-toggle{font-weight:bold;margin-right:5px;cursor:pointer;color:var(--accent);}
 .folder-name{cursor:pointer;}
-.active-folder{background:var(--accent-muted);border-radius:3px;padding:2px 4px;}
+.active-folder {
+  background: var(--accent-muted);
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-weight: 600;
+  color: var(--accent-darker);
+  box-shadow: none;
+}
+
+
 
 /* Main */
 #main{flex:1;padding:10px 20px;display:flex;flex-direction:column;overflow:hidden;}
@@ -194,16 +204,38 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 }
 #themeMenu button:hover {background: var(--accent-darker);}
 .flame {
-  display:inline-block;
-  animation:flicker 0.6s infinite alternate;
+  display: flex;                /* permet de centrer facilement */
+  justify-content: center;      /* horizontalement */
+  align-items: center;          /* verticalement */
+  font-size: 22px;              /* taille de la flamme */
+  line-height: 1;
+  animation: flicker 0.6s infinite alternate,
+             sway 1.2s infinite ease-in-out; /* mouvement latéral doux */
+  text-shadow:
+    0 0 4px rgba(255, 140, 0, 0.8),
+    0 0 8px rgba(255, 80, 0, 0.7),
+    0 0 12px rgba(255, 30, 0, 0.5);
 }
 
-@keyframes flicker {
-  0%   { transform: translateY(0) scale(1); color: #ff7043; }
-  30%  { transform: translateY(-1px) scale(1.05); color: #ff5722; }
-  60%  { transform: translateY(-2px) scale(1.1); color: #ff9800; }
-  100% { transform: translateY(0) scale(1); color: #ff7043; }
+/* Petite flamme pour les dossiers dans l’arborescence */
+.flame-folder {
+  display: inline;               
+  font-size: 14px;               
+  margin-right: 4px;             
+  line-height: 1;                
+  vertical-align: middle;
+  text-shadow: 
+    0 0 3px rgba(255, 140, 0, 0.8),
+    0 0 6px rgba(255, 80, 0, 0.7);
+  animation: flicker 1s infinite alternate;
 }
+  
+
+@keyframes sway {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px) rotate(3deg); }
+}
+
 
 #eventAlert {
   display:none;
@@ -259,15 +291,19 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
   <div id="tableWrapper">
     <div id="tableContainer">
       <table id="csvTable">
-        <thead>
-          <tr>
-            <th onclick="sortTable(0,'date')">Date <span class="sort-arrow"></span></th>
-            <th>Nom du fichier</th>
-            <th>Dossier</th>
-            <th onclick="sortTable(3,'number')">Taille <span class="sort-arrow"></span></th>
-            <th>Télécharger / Ouvrir</th>
-          </tr>
-        </thead>
+<thead>
+  <tr>
+    <th onclick="sortTable(0,'date')">Date <span class="sort-arrow"></span></th>
+    <th style="width:40px; text-align:center;"></th>
+
+    <th>Télécharger / Ouvrir</th>
+    <th>Nom du fichier</th>
+    <th>Dossier</th>
+    <th onclick="sortTable(5,'number')">Taille <span class="sort-arrow"></span></th>
+  </tr>
+</thead>
+
+
         <tbody>
           <tr>
             <td colspan="5" style="text-align:left;">
@@ -318,7 +354,7 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 
 <script>
 /* ----------- Config Drive ----------- */
-const ROOT_FOLDER_ID="1KsgiC3ZFg_1XKOTulcZT8nkxPvG-xxjM";
+const ROOT_FOLDER_ID="18QkQPyCZxTCAaoz_qd1wAelmQbSE4ex8";
 
 /* ----------- Config personnalisée ----------- */
 const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
@@ -400,12 +436,17 @@ async function fetchFolderContents(folderId){
 
 
 
+
 async function loadRootFolders(){
   const files = await fetchFolderContents(ROOT_FOLDER_ID);
   const rootUL = document.getElementById('folderTree');
   rootUL.innerHTML = '';
 
-  files.filter(f => f.mimeType === 'application/vnd.google-apps.folder').forEach(f => {
+  files
+  .filter(f => f.mimeType === 'application/vnd.google-apps.folder')
+  .sort((a,b) => a.name.localeCompare(b.name, 'fr', { sensitivity:'base' }))
+  .forEach(f => {
+
     const li = document.createElement('li'); 
     li.dataset.id = f.id;
 
@@ -414,10 +455,25 @@ async function loadRootFolders(){
     toggle.textContent = '+';
     toggle.onclick = () => toggleFolder(li);
 
-    const span = document.createElement('span'); 
-    span.className = 'folder-name'; 
-    span.textContent = f.name;
-    span.onclick = () => loadFolderFilesOnClick(li);
+const span = document.createElement('span');
+span.className = 'folder-name';
+
+const lowerName = f.name.toLowerCase();
+if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
+  span.innerHTML = `📈 ${f.name}`;
+} else if (lowerName.includes("echantillonnage")) {
+  span.innerHTML = `📊 ${f.name}`;
+} else if (lowerName.includes("historique")) {
+  span.innerHTML = `🗂️ ${f.name}`;
+} else {
+  span.textContent = f.name; // pas d’icône
+}
+
+
+span.onclick = () => loadFolderFilesOnClick(li);
+
+
+
 
     li.appendChild(toggle); 
     li.appendChild(span); 
@@ -449,7 +505,12 @@ async function toggleFolder(li){
   toggle.textContent='…';
   const files=await fetchFolderContents(li.dataset.id);
   const ul=document.createElement('ul');
-  for (const f of files.filter(f => f.mimeType === 'application/vnd.google-apps.folder')) {
+  const folders = files
+  .filter(f => f.mimeType === 'application/vnd.google-apps.folder')
+  .sort((a,b) => a.name.localeCompare(b.name, 'fr', { sensitivity:'base' }));
+
+for (const f of folders) {
+
     const childLi=document.createElement('li'); 
     childLi.dataset.id=f.id;
 
@@ -458,10 +519,22 @@ async function toggleFolder(li){
     childToggle.textContent='+';
     childToggle.onclick=()=>toggleFolder(childLi);
 
-    const span=document.createElement('span'); 
-    span.className='folder-name'; 
-    span.textContent=f.name;
-    span.onclick=()=>loadFolderFilesOnClick(childLi);
+const span = document.createElement('span');
+span.className = 'folder-name';
+
+const lowerName = f.name.toLowerCase();
+if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
+  span.innerHTML = `📈 ${f.name}`;
+} else if (lowerName.includes("echantillonnage")) {
+  span.innerHTML = `📊 ${f.name}`;
+} else if (lowerName.includes("historique")) {
+  span.innerHTML = `🗂️ ${f.name}`;
+} else {
+  span.textContent = f.name;
+}
+
+span.onclick = () => loadFolderFilesOnClick(childLi);
+
 
     childLi.appendChild(childToggle); 
     childLi.appendChild(span); 
@@ -499,12 +572,21 @@ async function fetchChildren(folderId){
 async function loadFolderFilesOnClick(li){
   await toggleFolder(li);
 
-  // Réinitialiser la sélection visuelle
-  document.querySelectorAll('#folderTree li span.folder-name').forEach(s=>s.classList.remove('active-folder'));
-  const nameSpan = li.querySelector('span.folder-name');
-  if(nameSpan){ 
-    nameSpan.classList.add('active-folder'); 
-  }
+// 🔄 Réinitialiser la sélection visuelle
+document.querySelectorAll('#folderTree li span.folder-name').forEach(s => s.classList.remove('active-folder'));
+
+// ✅ Surligne le dossier cliqué
+const nameSpan = li.querySelector('span.folder-name');
+if (nameSpan) nameSpan.classList.add('active-folder');
+
+// ✅ Surligne aussi tous les parents (chemin hiérarchique)
+let parentLi = li.parentElement.closest('li');
+while (parentLi) {
+  const parentSpan = parentLi.querySelector('span.folder-name');
+  if (parentSpan) parentSpan.classList.add('active-folder');
+  parentLi = parentLi.parentElement.closest('li');
+}
+
   localStorage.setItem('lastFolderId', li.dataset.id);
 
   const folderName = nameSpan ? nameSpan.textContent.toLowerCase() : "";
@@ -557,8 +639,70 @@ async function loadFolderFilesOnClick(li){
     f.name.toLowerCase().endsWith('.jpg') || 
     f.name.toLowerCase().endsWith('.jpeg')
   );
-  imageFiles = filtered.filter(f => /\.(jpg|jpeg)$/i.test(f.name)); // pour la modale
-  displayFiles(filtered, nameSpan ? nameSpan.textContent : '');
+
+
+
+
+
+// 🧭 Détermination du site courant
+const siteLi = li.parentElement.closest("li");
+let siteId = siteLi?.dataset.id || null;
+
+if (siteId && siteId !== currentSiteId) {
+  clearSiteHotDays();
+  currentSiteId = siteId;
+  console.log(`[SITE] Changement de site → ${siteLi.querySelector(".folder-name")?.textContent}`);
+  
+// 🔥 Lancer le scan en arrière-plan sans bloquer l'affichage
+scanSiteHotDays(siteId).then(map => {
+  hotDaysMap = map;
+  console.log(`[CACHE] 🔥 ${Object.keys(hotDaysMap).length} jours chauds détectés et chargés pour ${siteLi.querySelector(".folder-name")?.textContent}`);
+
+  // 🪄 Rafraîchir seulement les flammes dans le tableau actuel
+  document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
+    const nameCell = tr.cells[3]; // colonne Nom du fichier
+    const flameCell = tr.cells[1]; // colonne flamme
+    if (!nameCell || !flameCell) return;
+
+    const fname = nameCell.textContent.trim();
+    const m = fname.match(/(\d{8})\.csv$/i);
+    if (m && hotDaysMap[m[1]]) {
+      flameCell.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
+    }
+  });
+});
+
+} else if (siteId && Object.keys(hotDaysMap).length === 0) {
+  hotDaysMap = loadSiteHotDays(siteId);
+  if (Object.keys(hotDaysMap).length === 0) {
+    console.log(`[CACHE] Aucun cache trouvé pour ${siteLi.querySelector(".folder-name")?.textContent}, relance du scan...`);
+    scanSiteHotDays(siteId).then(map => {
+      hotDaysMap = map;
+      console.log(`[CACHE] 🔥 ${Object.keys(hotDaysMap).length} jours chauds détectés et chargés pour ${siteLi.querySelector(".folder-name")?.textContent}`);
+      const active = document.querySelector('#folderTree .active-folder');
+      if (active) active.click();
+    });
+  } else {
+    console.log(`[CACHE] ${Object.keys(hotDaysMap).length} jours chauds chargés depuis cache`);
+  }
+}
+
+imageFiles = filtered.filter(f => /\.(jpg|jpeg)$/i.test(f.name)); 
+displayFiles(filtered, nameSpan ? nameSpan.textContent : '');
+
+
+// 🪄 Applique immédiatement les flammes du cache si déjà chargé pour ce site
+if (Object.keys(hotDaysMap).length > 0) {
+  document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
+    const nameCell = tr.cells[3]; // colonne Nom du fichier
+    const flameCell = tr.cells[1]; // colonne flamme
+    if (!nameCell || !flameCell) return;
+
+    const m = nameCell.textContent.match(/(\d{8})\.csv$/i);
+    if (m && hotDaysMap[m[1]]) {
+      flameCell.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
+    }
+  });
 }
 
 
@@ -589,6 +733,34 @@ function displayFiles(files, folderName){
     if((filterStartDate && date<filterStartDate) || (filterEndDate && date>filterEndDate)) continue;
 
 const tr=document.createElement('tr');
+
+    const tdFlame = document.createElement('td');
+tdFlame.style.textAlign = "center";
+tdFlame.style.width = "26px";
+tdFlame.textContent = "";
+
+    
+
+    // 🔥 Application flamme si le fichier correspond à un jour chaud
+const match = f.name.match(/(\d{8})\.csv$/i);
+if (match) {
+  const dateKey = match[1];
+
+  // 🔥 flamme si déjà détectée dans le cache
+  if (hotDaysMap[dateKey]) {
+    tdFlame.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
+  } else {
+    // 🕓 attente de la fin du scan → on vérifie à nouveau après 1 seconde
+    setTimeout(() => {
+      if (hotDaysMap[dateKey]) {
+        tdFlame.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
+      }
+    }, 1000);
+  }
+}
+
+
+
 
 // Bloc DATE avec affichage du jour
 const tdDate=document.createElement('td');
@@ -639,22 +811,34 @@ if (f.name.toLowerCase().endsWith(".csv") &&
       if (idxInf === undefined && idxSup === undefined) { tdName.innerHTML = f.name; return; }
 
       let countFlame = 0;
-      for (let i = 1; i < lines.length; i++) {
-        if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop en plein scan
-        const cols = lines[i].split(",").map(c => c.replace(/"/g,"").trim());
-        const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
-        const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
-        if ((isFinite(vInf) && vInf > FLAME_THRESHOLD) ||
-            (isFinite(vSup) && vSup > FLAME_THRESHOLD)) {
-          countFlame++;
-        }
-      }
+for (let i = 1; i < lines.length; i++) {
+  const cols = lines[i].split(",").map(c => c.replace(/"/g,"").trim());
 
-      if (countFlame >= 1) {
-        tdName.innerHTML = `${f.name}&nbsp;&nbsp;&nbsp;<span class="flame" title="Brûleur actif détecté">🔥</span>`;
-      } else {
-        tdName.innerHTML = f.name;
-      }
+  // 🕔 Vérifie l’heure (colonne 0 supposée être l’heure du point)
+  const timeStr = cols[0];
+  if (timeStr && /^(\d{2}):(\d{2})/.test(timeStr)) {
+    const [_, hh, mm] = timeStr.match(/^(\d{2}):(\d{2})/);
+    const hour = parseInt(hh, 10);
+
+    // ⏰ Ignore les valeurs avant 5h ou après 23h59
+    if (hour < 5 || hour >= 24) continue;
+  }
+
+  const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
+  const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
+
+  if ((isFinite(vInf) && vInf > FLAME_THRESHOLD) ||
+      (isFinite(vSup) && vSup > FLAME_THRESHOLD)) {
+    countFlame++;
+  }
+}
+
+
+if (countFlame >= 1) {
+  tdFlame.innerHTML = `<span class="flame" title="Brûleur actif détecté ce jour !">🔥</span>`;
+}
+tdName.textContent = f.name;
+
     } catch(e) {
       console.error("Erreur flamme fichier:", f.name, e);
       tdName.innerHTML = f.name;
@@ -705,9 +889,18 @@ if(f.name.toLowerCase().endsWith('.csv')){
     }
     tdAction.innerHTML=html;
 
-    tr.appendChild(tdDate); tr.appendChild(tdName); tr.appendChild(tdFolder); tr.appendChild(tdSize); tr.appendChild(tdAction);
+
+tr.appendChild(tdDate);
+    tr.appendChild(tdFlame);
+tr.appendChild(tdAction);
+tr.appendChild(tdName);
+tr.appendChild(tdFolder);
+tr.appendChild(tdSize);
+
+
     tbody.appendChild(tr);
   }
+}
 }
 
 /* ----------- Open viewer (CSV list + index) ----------- */
@@ -719,13 +912,33 @@ async function openViewer(viewer, id, name){
 
   const folderId = localStorage.getItem('lastFolderId');
 
-  // SA du dossier courant
-  const files = await fetchFolderContents(folderId);
-  const saFiles = files.filter(f => f.name.toUpperCase().startsWith("SA") && f.name.toLowerCase().endsWith('.csv'));
+// 📂 Charger tous les fichiers du dossier courant
+const files = await fetchFolderContents(folderId);
 
-  // 🔗 Récupérer les Z3 préchargés
-  const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
-  const allCsv = [...saFiles, ...z3Files];
+// 🧩 Séparer les fichiers CSV et JSON
+const saFiles = files.filter(f =>
+  f.name.toUpperCase().startsWith("SA") &&
+  f.name.toLowerCase().endsWith(".csv")
+);
+const jsonFiles = files.filter(f =>
+  f.name.toLowerCase().endsWith(".json")
+);
+
+// 🔗 Récupérer les Z3 préchargés
+const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
+
+// 🗒️ Ajouter les fichiers .json dans le cache
+if (jsonFiles.length > 0) {
+  console.log(`[Notes] ${jsonFiles.length} fichiers .json ajoutés au cache`);
+  jsonFiles.forEach(jf => {
+    if (!jf.parents) jf.parents = [folderId];
+    if (!jf.mimeType) jf.mimeType = "application/json";
+  });
+}
+
+// 🧠 Fusionner le tout
+const allCsv = [...saFiles, ...z3Files, ...jsonFiles];
+
 
   function addFolderHierarchy(li, acc){
     if (!li) return;
@@ -749,6 +962,9 @@ async function openViewer(viewer, id, name){
     }
   });
 
+
+
+  
   localStorage.setItem("csvFilesList", JSON.stringify(allCsv));
   const index = allCsv.findIndex(f => f.id === id);
   localStorage.setItem("csvFileIndex", index);
@@ -1007,6 +1223,110 @@ function setTheme(theme){
   }
 }
 
+/* ----------- 🔥 Gestion des jours chauds par site ----------- */
+const FLAME_MIN_LINES = 5;
+let currentSiteId = null;
+let hotDaysMap = {}; // { 'YYYYMMDD': true }
+
+async function scanSiteHotDays(siteId) {
+  const hotDays = {};
+  console.time(`[SCAN] Durée scanSiteHotDays (${siteId})`);
+  console.log(`[SCAN] Scan du site ${siteId} → dossier Traça_Temp`);
+
+  try {
+    const siblings = await fetchFolderContents(siteId);
+    const tracatemp = siblings.find(s => 
+      s.mimeType === 'application/vnd.google-apps.folder' &&
+      (s.name.toLowerCase().includes("traça_temp") || s.name.toLowerCase().includes("traca_temp"))
+    );
+    if (!tracatemp) {
+      console.warn(`[SCAN] Aucun dossier Traça_Temp trouvé pour le site ${siteId}`);
+      return hotDays;
+    }
+
+    const files = await fetchFolderContents(tracatemp.id);
+    const csvFiles = files.filter(f => f.name.toLowerCase().endsWith(".csv"));
+    console.log(`[SCAN] ${csvFiles.length} CSV trouvés dans ${tracatemp.name}`);
+
+    for (const f of csvFiles) {
+      try {
+        const res = await fetch(
+          `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
+        );
+        if (!res.ok) continue;
+
+        const text = await res.text();
+        const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+        if (lines.length < 2) continue;
+
+        const headers = lines[0].split(",").map(h => h.replace(/"/g, "").trim().toLowerCase());
+
+        // 🔍 2ème occurrence (comme ton ancien index)
+        let idxInf = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac inf"))[1]?.i;
+        let idxSup = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac sup"))[1]?.i;
+        if (idxInf === undefined && idxSup === undefined) continue;
+
+        let countFlame = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(",").map(c => c.replace(/"/g, "").trim());
+
+          // 🕔 ignore la nuit (<5h)
+          const timeStr = cols[0];
+          if (timeStr && /^(\d{2}):(\d{2})/.test(timeStr)) {
+            const [_, hh] = timeStr.match(/^(\d{2}):/);
+            const hour = parseInt(hh, 10);
+            if (hour < 5) continue;
+          }
+
+          const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
+          const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
+
+          if ((isFinite(vInf) && vInf > FLAME_THRESHOLD) ||
+              (isFinite(vSup) && vSup > FLAME_THRESHOLD)) {
+            countFlame++;
+          }
+        }
+
+        if (countFlame >= 1) {
+          const m = f.name.match(/(\d{8})\.csv$/i);
+          if (m) hotDays[m[1]] = true;
+        }
+
+      } catch (e) {
+        console.warn(`[SCAN] Erreur lecture fichier ${f.name}:`, e);
+      }
+    }
+
+    console.log(`[SCAN] 🔥 ${Object.keys(hotDays).length} jours chauds détectés pour le site`);
+    console.timeEnd(`[SCAN] Durée scanSiteHotDays (${siteId})`);
+    localStorage.setItem(`hotDays_${siteId}`, JSON.stringify(hotDays));
+    return hotDays;
+
+  } catch (err) {
+    console.error("[SCAN] Erreur générale scanSiteHotDays:", err);
+    console.timeEnd(`[SCAN] Durée scanSiteHotDays (${siteId})`);
+    return hotDays;
+  }
+}
+
+
+function loadSiteHotDays(siteId) {
+  const data = localStorage.getItem(`hotDays_${siteId}`);
+  return data ? JSON.parse(data) : {};
+}
+
+
+function clearSiteHotDays() {
+  if (currentSiteId) {
+    localStorage.removeItem(`hotDays_${currentSiteId}`);
+  }
+  hotDaysMap = {};
+  currentSiteId = null;
+}
+
+
+
+  
 /* ----------- 🔥 Vérif CSV du jour pour "Temp" ----------- */
 async function checkTraçaTempToday(parentLi, tracatempId) {
   const today = new Date();
@@ -1064,15 +1384,20 @@ const res = await fetch(url);
 }
 
 function markFolderWithFlame(li) {
+  if (!li) return; // sécurité
+
   const span = li.querySelector(".folder-name");
-  if (span && !span.classList.contains("has-flame")) {
+  if (!(span instanceof HTMLElement)) return; // évite les erreurs de type
+
+  if (!span.classList.contains("has-flame")) {
     span.classList.add("has-flame");
-    span.innerHTML = `<span class="flame" title="Brûleur(s) actuellement en fonctionnement">🔥</span> ` + span.innerHTML;
+    span.innerHTML = `<span class="flame-folder" title="Brûleur(s) actuellement en fonctionnement">🔥</span> ` + span.innerHTML;
   }
-  if (li.parentElement && li.parentElement.closest("li")) {
-    markFolderWithFlame(li.parentElement.closest("li"));
-  }
+
+  const parent = li.parentElement?.closest("li");
+  if (parent) markFolderWithFlame(parent);
 }
+
 
 
 
@@ -1087,12 +1412,33 @@ window.onload=()=>{
   document.getElementById("downloadFolderBtn").style.display="none";
 
   loadRootFolders();
-  const last=localStorage.getItem('lastFolderId');
-  if(last){
-    const temp={dataset:{id:last}, querySelector:()=>({classList:{add:()=>{}}})};
-    loadFolderFilesOnClick(temp);
-  }
+const last = localStorage.getItem("lastFolderId");
+if (last) {
+  // attendre un peu que l'arborescence soit rendue
+  setTimeout(() => {
+    const li = document.querySelector(`#folderTree li[data-id="${last}"]`);
+    if (li) {
+      loadFolderFilesOnClick(li);
+    } else {
+      console.warn("[INIT] Impossible de retrouver le dernier dossier ouvert :", last);
+    }
+  }, 1200);
+}
+
 };
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
