@@ -378,6 +378,9 @@ body{
 let csvData=[], headers=[], planTop=[], planBottom=[];
 let z3Events = [];         // {timeText, minutes, desc, fileId, fileName}
 let lastSliderIndex = 0;
+let currentDay = null;
+let isMerging = false;
+let mergedDays = new Set();
 const Z3_HILITE_TOL_MIN = 5;  // tolérance (minutes) pour surlignage
 const params=new URLSearchParams(window.location.search);
 const fileId=params.get("fileId");
@@ -844,6 +847,25 @@ function addSpecialsAfterCSV() {
     { id: "IPE",       label: "🔥 Ipé",        col: "D", row:10, optional: true, bg: "#33FF00", active: hasIpe }
   ];
 
+  // 🔸 Nouveaux compteurs et chronos
+  const hasMinuterie  = headers.some(h => normalize(h).includes("minuterie"));
+  const hasModulee    = headers.some(h => normalize(h).includes("modulee"));
+  const hasCumul      = headers.some(h => normalize(h).includes("cumul"));
+  const hasExtract    = headers.some(h => normalize(h).includes("extraction"));
+  const hasCptTotal   = headers.some(h => normalize(h).includes("cptkwh") && normalize(h).includes("total"));
+  const hasCptLot     = headers.some(h => normalize(h).includes("cptkwh") && normalize(h).includes("lot"));
+
+  specials.push(
+    { id: "Minuterie", label: "Minuterie", col: "R", row: 7, optional: true, active: hasMinuterie, unit: "s", bg: "#ccffcc" },   // vert clair
+    { id: "Modulee",   label: "Modulée",   col: "R", row: 8, optional: true, active: hasModulee,   unit: "s", bg: "#cce5ff" },   // bleu clair
+    { id: "Cumul",     label: "Cumul",     col: "R", row: 9, optional: true, active: hasCumul,     unit: "t", bg: "#ccffcc" },   // vert clair
+    { id: "NbExtract", label: "Nb Extraction", col: "R", row: 10, optional: true, active: hasExtract, bg: "#ccffcc" },            // vert clair
+    { id: "CptTotal",  label: "Compteur kWh Total", col: "B", row: 8, optional: true, active: hasCptTotal, unit: "kWh", bg: "#FFCC33" }, // jaune gaz
+    { id: "CptLot",    label: "Compteur kWh Lot", col: "B", row: 9, optional: true, active: hasCptLot, unit: "kWh", bg: "#FFCC33" }     // jaune gaz
+  );
+
+
+  
   function colIdx(letter){ return letter.toUpperCase().charCodeAt(0) - 64; }
 
   function placeSpecial(s){
@@ -960,6 +982,10 @@ text = decodeSmart(buf);
 
   headers = results.meta.fields || [];
   csvData = results.data || [];
+// 🗓️ Détecte le jour courant
+const m = (file.name || "").match(/(\d{8})/);
+currentDay = m ? m[1] : null;
+if (currentDay) mergedDays.add(currentDay);
 
   const lc = document.getElementById("lineCount");
   if (lc)
@@ -1074,10 +1100,40 @@ function updateGrid(idx){
     else if (L.includes("normal")) unit = "Nm³/h";
     else if (L.includes("ip")) unit = "kWh/tee";
 
+// 🔸 Priorité à l’unité personnalisée (spéciale)
+if (opts.unit) unit = opts.unit;
+
+// 🔸 Format d'affichage selon la nature de la donnée
+let decimals = 1;
+let formatAsTime = false;
+
+if (["minuterie", "modulee"].some(k => L.includes(k))) {
+  formatAsTime = true; // affichage mm:ss
+  unit = ""; // pas de °C ni de 's'
+} else if (L.includes("nbextract")) {
+  decimals = 0;
+  unit = "";
+} else if (L.includes("cumul")) {
+  decimals = 1;
+  unit = opts.unit || "t";
+}
+
+
     // --- Style valeur ---
     const vdiv = el.querySelector(".val");
     vdiv.style.fontSize = "clamp(11px, calc(var(--tile-size)*0.13), 17px)";
-    vdiv.textContent = isNaN(val) ? `-- ${unit}` : `${val.toFixed(1)} ${unit}`;
+    if (isNaN(val)) {
+  vdiv.textContent = `-- ${unit}`;
+} else if (formatAsTime) {
+  const total = Math.max(0, Math.round(val));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  vdiv.textContent = `${m}:${s.toString().padStart(2, "0")}`;
+} else {
+  vdiv.textContent = `${val.toFixed(decimals)} ${unit}`;
+}
+
+
 
     // --- Consignes ACsup/ACinf/Grain (comme avant) ---
     const consEl = el.querySelector(".consigne");
@@ -1128,6 +1184,15 @@ function updateGrid(idx){
     prefer: ["ip"]
   });
 
+   // Nouveaux suivis process
+  updateSpecial("Minuterie", "Minuterie", { altLabels: ["Minuterie"], prefer: ["minuterie"] });
+  updateSpecial("Modulée",   "Modulee",   { altLabels: ["Modulee"], prefer: ["modulee"] });
+  updateSpecial("Cumul",     "Cumul",     { altLabels: ["Cumul"], prefer: ["cumul"] });
+  updateSpecial("Nb Extraction", "NbExtract", { altLabels: ["Extractions"], prefer: ["extraction"] });
+  updateSpecial("Compteur kWh Total", "CptTotal", { altLabels: ["CPT KWH TOTAL"], prefer: ["cptkwhtotal"], unit: "kWh" });
+  updateSpecial("Compteur kWh Lot", "CptLot", { altLabels: ["CPT KWH LOT"], prefer: ["cptkwhlot"], unit: "kWh" });
+ 
+
   // ➕ Surligne l'event Z3 le plus proche de l'heure courante
   const mins = minutesFromRowTime(row);
   updateZ3Intensity(mins);
@@ -1137,10 +1202,22 @@ function updateGrid(idx){
 
 /* =================== Listeners =================== */
 window.addEventListener("resize", updateTileSize);
-document.getElementById("slider").addEventListener("input", e => {
+document.getElementById("slider").addEventListener("input", async e => {
   const idx = parseInt(e.target.value)||0;
   updateGrid(idx);
+document.getElementById("slider").max = csvData.length - 1;
+
+  // Détection bord du slider → fusion
+  const slider = e.target;
+  if (idx <= 0 && !isMerging) {
+    console.log("🕒 Maintien confirmé → chargement du jour précédent");
+    await mergeNeighborDay(-1); // jour précédent
+  } else if (idx >= slider.max && !isMerging) {
+    console.log("🕒 Maintien confirmé → chargement du jour suivant");
+    await mergeNeighborDay(1); // jour suivant
+  }
 });
+
 document.getElementById("minInput").addEventListener("change", ()=>{
   const v=parseFloat(document.getElementById("minInput").value);
   localStorage.setItem("scaleMin", isFinite(v)?String(v):"30");
@@ -1255,8 +1332,136 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("load", updateTileSize);
 });
 
+async function mergeNeighborDay(offset) {
+  if (!currentDay || isMerging) return;
+  isMerging = true;
+
+// 🔹 Utilise le dernier jour fusionné comme référence
+let refDay = [...mergedDays].sort().pop() || currentDay;
+const y = parseInt(refDay.slice(0,4));
+const m = parseInt(refDay.slice(4,6))-1;
+const d = parseInt(refDay.slice(6,8));
+const base = new Date(y,m,d);
+base.setDate(base.getDate()+offset);
+const nextDay = base.toISOString().slice(0,10).replace(/-/g,"");
+
+
+  if (mergedDays.has(nextDay)) {
+    console.log("⚠️ Jour déjà fusionné :", nextDay);
+    isMerging = false;
+    return;
+  }
+
+  console.log(`⏳ Chargement du fichier voisin SA00001_${nextDay}.csv...`);
+  const list = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
+  const neighbor = list.find(f => f.name.includes(nextDay));
+  if (!neighbor) {
+    console.warn("⚠️ Aucun fichier voisin trouvé pour", nextDay);
+    isMerging = false;
+    return;
+  }
+
+    try {
+    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${neighbor.id}&name=${encodeURIComponent(neighbor.name)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Erreur proxy Drive");
+    const buf = await res.arrayBuffer();
+    const text = decodeSmart(buf);
+    const parsed = Papa.parse(text,{header:true,skipEmptyLines:true});
+    const data = parsed.data||[];
+
+    csvData = csvData.concat(data);
+    document.getElementById("slider").max = csvData.length-1;
+    mergedDays.add(nextDay);
+
+    console.log(`✅ Fichier fusionné : ${neighbor.name} (${data.length} lignes)`);
+    console.log(`📊 Fusion réussie → ${csvData.length} lignes au total`);
+    console.log(`🔍 Recherche Z3 du voisin ${nextDay} →`);
+    await mergeZ3ForDay(nextDay);
+
+// 🔁 === RECHARGEMENT COMPLET APRÈS FUSION MULTI-JOURS ===
+console.log("♻️ Rafraîchissement complet : reconstruction complète de la page");
+buildGrid();              // Recrée toute la grille (haut + bas)
+addSpecialsAfterCSV();    // Réinjecte les cases spéciales
+updateGrid(lastSliderIndex);  // Affiche la dernière ligne active fusionnée
+renderZ3List();           // Reconstruit le panneau d’événements Z3
+highlightZ3Near(currentRowMinutes(lastSliderIndex)); // Surligne événement le plus proche
+updateTileSize();         // Recalcule la taille responsive
+
+
+  } catch(err) {
+    console.error("❌ Erreur fusion jour", err);
+  }
+
+  isMerging = false;
+
+}
+// 🟢 Fonction déplacée ici (à l’extérieur)
+async function mergeZ3ForDay(dayStr) {
+  const z3Files = await ensureZ3FilesLoaded();
+  const sameDay = z3Files.filter(f => f.name.includes(dayStr));
+  if (!sameDay.length) {
+    console.log(`⚠️ Aucun fichier Z3 trouvé pour ${dayStr}`);
+    return;
+  }
+
+  for (const f of sameDay) {
+    try {
+      console.log("🌐 Téléchargement Z3 voisin :", f.name);
+      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name || "")}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Erreur proxy Drive");
+      const buf = await res.arrayBuffer();
+      const text = decodeSmart(buf);
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+      const startIndex = lines.findIndex(l => /trigger.?time|horodatage/i.test(l));
+      const csvClean = lines.slice(startIndex >= 0 ? startIndex : 0).join("\n");
+      const parsed = Papa.parse(csvClean, { header: true, skipEmptyLines: true });
+
+      const H = parsed.meta.fields || [];
+      const rows = parsed.data || [];
+
+      const timeCol = H.find(h => /(trigger.?time|heure|horodatage|time|temps)/i.test(h)) || H[0];
+      const msgCol  = H.find(h => /(message|desc|description|evenement|event)/i.test(h)) || H[1];
+      const addrCol = H.find(h => /(address|adresse|addr|zone|address ?1)/i.test(h)) || null;
+
+      for (const r of rows) {
+        const t = String(r[timeCol] || "").trim();
+        const msg = String(r[msgCol] || "").trim();
+        const addr = String(r[addrCol] || "").trim();
+        const mins = toMinutes(t);
+        if (!isNaN(mins) && msg) {
+          z3Events.push({
+            timeText: t,
+            minutes: mins,
+            desc: addr ? `${msg} (${addr})` : msg,
+            fileId: f.id,
+            fileName: f.name,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("❌ Erreur fusion Z3 du voisin :", f.name, err);
+    }
+  }
+
+  console.log(`✅ Fusion des événements Z3 du jour ${dayStr} terminée (${sameDay.length} fichier(s)).`);
+  z3Events.sort((a, b) => a.minutes - b.minutes);
+  renderZ3List();
+}
+
 
 
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
