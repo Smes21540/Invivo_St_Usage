@@ -204,18 +204,20 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 }
 #themeMenu button:hover {background: var(--accent-darker);}
 .flame {
-  display: flex;                /* permet de centrer facilement */
-  justify-content: center;      /* horizontalement */
-  align-items: center;          /* verticalement */
-  font-size: 22px;              /* taille de la flamme */
+  display: inline-flex;          /* 🔄 pour être sur la même ligne que 📝 */
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;               /* taille harmonisée */
   line-height: 1;
+  vertical-align: middle;
   animation: flicker 0.6s infinite alternate,
-             sway 1.2s infinite ease-in-out; /* mouvement latéral doux */
+             sway 1.2s infinite ease-in-out;
   text-shadow:
     0 0 4px rgba(255, 140, 0, 0.8),
     0 0 8px rgba(255, 80, 0, 0.7),
     0 0 12px rgba(255, 30, 0, 0.5);
 }
+
 
 /* Petite flamme pour les dossiers dans l’arborescence */
 .flame-folder {
@@ -229,7 +231,18 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
     0 0 6px rgba(255, 80, 0, 0.7);
   animation: flicker 1s infinite alternate;
 }
-  
+
+.note {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;               /* même taille que 🔥 */
+  vertical-align: middle;
+  margin-left: 4px;              /* petit espace entre 🔥 et 📝 */
+  color: #1565c0;                /* bleu lisible */
+  text-shadow: 0 0 4px rgba(21, 101, 192, 0.5);
+}
+
 
 @keyframes sway {
   0%, 100% { transform: translateX(0); }
@@ -589,6 +602,23 @@ while (parentLi) {
 
   localStorage.setItem('lastFolderId', li.dataset.id);
 
+// 📂 Sauvegarde du chemin complet (ex: Voreppe/Traça_Temp)
+function buildFullFolderPath(li) {
+  const parts = [];
+  let current = li;
+  while (current) {
+    const nameSpan = current.querySelector(".folder-name");
+    if (nameSpan) parts.unshift(nameSpan.textContent.trim());
+    current = current.parentElement.closest("li");
+  }
+  return parts.join("/");
+}
+
+const fullPath = buildFullFolderPath(li);
+localStorage.setItem("lastFolderPath", fullPath);
+console.log("[Folder] Chemin complet enregistré :", fullPath);
+
+  
   const folderName = nameSpan ? nameSpan.textContent.toLowerCase() : "";
 
   // ⚡ Gestion spéciale Z3
@@ -634,11 +664,13 @@ while (parentLi) {
 
   // Charger fichiers CSV/JPG classiques du dossier
   const files = await fetchFolderContents(li.dataset.id);
-  const filtered = files.filter(f => 
-    f.name.toLowerCase().endsWith('.csv') || 
-    f.name.toLowerCase().endsWith('.jpg') || 
-    f.name.toLowerCase().endsWith('.jpeg')
-  );
+const filtered = files.filter(f => 
+  f.name.toLowerCase().endsWith('.csv') || 
+  f.name.toLowerCase().endsWith('.jpg') || 
+  f.name.toLowerCase().endsWith('.jpeg') ||
+  f.name.toLowerCase().endsWith('.json')
+);
+
 
 
 
@@ -658,18 +690,21 @@ scanSiteHotDays(siteId).then(map => {
   hotDaysMap = map;
   console.log(`[CACHE] 🔥 ${Object.keys(hotDaysMap).length} jours chauds détectés et chargés pour ${siteLi.querySelector(".folder-name")?.textContent}`);
 
-  // 🪄 Rafraîchir seulement les flammes dans le tableau actuel
-  document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
-    const nameCell = tr.cells[3]; // colonne Nom du fichier
-    const flameCell = tr.cells[1]; // colonne flamme
-    if (!nameCell || !flameCell) return;
+// 🪄 Rafraîchir seulement les flammes dans le tableau actuel sans supprimer les notes 📝
+document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
+  const nameCell = tr.cells[3];
+  const flameCell = tr.cells[1];
+  if (!nameCell || !flameCell) return;
 
-    const fname = nameCell.textContent.trim();
-    const m = fname.match(/(\d{8})\.csv$/i);
-    if (m && hotDaysMap[m[1]]) {
-      flameCell.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
-    }
-  });
+  const fname = nameCell.textContent.trim();
+  const m = fname.match(/(\d{8})\.csv$/i);
+  if (m && hotDaysMap[m[1]]) {
+    const hadNote = flameCell.innerHTML.includes("📝");
+    flameCell.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
+    if (hadNote) flameCell.innerHTML += ` <span class="note" title="Note associée">📝</span>`;
+  }
+});
+
 });
 
 } else if (siteId && Object.keys(hotDaysMap).length === 0) {
@@ -707,7 +742,8 @@ if (Object.keys(hotDaysMap).length > 0) {
 
 
 
-function displayFiles(files, folderName){
+async function displayFiles(files, folderName){
+
   const tbody=document.querySelector('#csvTable tbody');
   const downloadBtn=document.getElementById('downloadFolderBtn');
   tbody.innerHTML='';
@@ -717,12 +753,67 @@ function displayFiles(files, folderName){
     downloadBtn.style.display="none";
     return;
   }
+  
 
   downloadBtn.style.display="inline-block";
 
-  for(const f of files){
+downloadBtn.style.display="inline-block";
+
+// 🔍 Prépare la liste des dates ayant un JSON "actif"
+const jsonDates = new Set();
+
+await Promise.all(files
+  .filter(f => f.name.toLowerCase().endsWith(".json"))
+  .map(async (file) => {
+    const m = file.name.match(/(\d{8})/);
+    if (!m) return;
+
+    try {
+      const res = await fetch(
+        `https://smes21540.netlify.app/.netlify/functions/drive?id=${file.id}&name=${encodeURIComponent(file.name)}&site=Smes_Acces`
+      );
+      if (!res.ok) return;
+      const text = await res.text();
+
+try {
+  const data = JSON.parse(text);
+  if (data?.[0]?.status?.toLowerCase() === "active") {
+    jsonDates.add(m[1]);
+  }
+} catch (e) {
+  // Si le JSON n'est pas bien formé, on ignore sans planter
+  console.warn("⚠️ JSON mal formé :", file.name);
+}
+
+    } catch (err) {
+      console.warn("Erreur lecture JSON :", file.name, err);
+    }
+  })
+);
+
+
+// ➕ Helpers pour ajouter sans écraser
+function addFlame(cell){
+  if (!cell.innerHTML.includes("🔥")) {
+    cell.innerHTML += (cell.innerHTML ? " " : "") + `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
+  }
+}
+function addNote(cell){
+  if (!cell.innerHTML.includes("📝")) {
+    cell.innerHTML += (cell.innerHTML ? " " : "") + `<span class="note" title="Note associée">📝</span>`;
+  }
+}
+
+
+
+
+for(const f of files){
+    // ❌ On n'affiche pas les .json : ils servent juste à poser 📝
+    if (f.name.toLowerCase().endsWith(".json")) continue;
+
     // Date
     let date='';
+
     const m=f.name.match(/(\d{8})\.csv$/i);
     if(m){ date=`${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`; }
     else if(/\.(jpg|jpeg)$/i.test(f.name)){
@@ -741,23 +832,26 @@ tdFlame.textContent = "";
 
     
 
-    // 🔥 Application flamme si le fichier correspond à un jour chaud
+// 🔥 Application flamme si le fichier correspond à un jour chaud
 const match = f.name.match(/(\d{8})\.csv$/i);
 if (match) {
   const dateKey = match[1];
 
-  // 🔥 flamme si déjà détectée dans le cache
   if (hotDaysMap[dateKey]) {
-    tdFlame.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
+    addFlame(tdFlame);
   } else {
-    // 🕓 attente de la fin du scan → on vérifie à nouveau après 1 seconde
     setTimeout(() => {
-      if (hotDaysMap[dateKey]) {
-        tdFlame.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
-      }
+      if (hotDaysMap[dateKey]) addFlame(tdFlame);
     }, 1000);
   }
 }
+
+// 📝 Ajoute une icône si un JSON de la même date est présent (persiste même après réaffichage)
+if (match && jsonDates.has(match[1])) {
+  addNote(tdFlame);
+  tdFlame.dataset.hasNote = "true"; // marquage persistant
+}
+
 
 
 
@@ -835,9 +929,23 @@ for (let i = 1; i < lines.length; i++) {
 
 
 if (countFlame >= 1) {
+  // 🔥 Ajoute la flamme tout en préservant la note existante
+  const hadNote = tdFlame.innerHTML.includes("📝");
   tdFlame.innerHTML = `<span class="flame" title="Brûleur actif détecté ce jour !">🔥</span>`;
+  if (hadNote) tdFlame.innerHTML += ` <span class="note" title="Note associée">📝</span>`;
 }
+
+
+// 📝 Si un JSON de la même date existe → conserver même si scan flamme réécrit
+const mNote = f.name.match(/(\d{8})\.csv$/i);
+if (mNote && jsonDates.has(mNote[1])) {
+  if (!tdFlame.innerHTML.includes("📝")) addNote(tdFlame);
+  tdFlame.dataset.hasNote = "true";
+}
+
+
 tdName.textContent = f.name;
+
 
     } catch(e) {
       console.error("Erreur flamme fichier:", f.name, e);
@@ -912,33 +1020,32 @@ async function openViewer(viewer, id, name){
 
   const folderId = localStorage.getItem('lastFolderId');
 
-// 📂 Charger tous les fichiers du dossier courant
-const files = await fetchFolderContents(folderId);
+  // 📂 Charger tous les fichiers du dossier courant
+  const files = await fetchFolderContents(folderId);
 
-// 🧩 Séparer les fichiers CSV et JSON
-const saFiles = files.filter(f =>
-  f.name.toUpperCase().startsWith("SA") &&
-  f.name.toLowerCase().endsWith(".csv")
-);
-const jsonFiles = files.filter(f =>
-  f.name.toLowerCase().endsWith(".json")
-);
+  // 🧩 Séparer les fichiers CSV et JSON
+  const saFiles = files.filter(f =>
+    f.name.toUpperCase().startsWith("SA") &&
+    f.name.toLowerCase().endsWith(".csv")
+  );
+  const jsonFiles = files.filter(f =>
+    f.name.toLowerCase().endsWith(".json")
+  );
 
-// 🔗 Récupérer les Z3 préchargés
-const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
+  // 🔗 Récupérer les Z3 préchargés
+  const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
 
-// 🗒️ Ajouter les fichiers .json dans le cache
-if (jsonFiles.length > 0) {
-  console.log(`[Notes] ${jsonFiles.length} fichiers .json ajoutés au cache`);
-  jsonFiles.forEach(jf => {
-    if (!jf.parents) jf.parents = [folderId];
-    if (!jf.mimeType) jf.mimeType = "application/json";
-  });
-}
+  // 🗒️ Ajouter les fichiers .json dans le cache
+  if (jsonFiles.length > 0) {
+    console.log(`[Notes] ${jsonFiles.length} fichiers .json ajoutés au cache`);
+    jsonFiles.forEach(jf => {
+      if (!jf.parents) jf.parents = [folderId];
+      if (!jf.mimeType) jf.mimeType = "application/json";
+    });
+  }
 
-// 🧠 Fusionner le tout
-const allCsv = [...saFiles, ...z3Files, ...jsonFiles];
-
+  // 🧠 Fusionner le tout
+  const allCsv = [...saFiles, ...z3Files, ...jsonFiles];
 
   function addFolderHierarchy(li, acc){
     if (!li) return;
@@ -953,6 +1060,7 @@ const allCsv = [...saFiles, ...z3Files, ...jsonFiles];
       acc.push(folderObj);
     }
   }
+
   const activeLi = active.closest('li');
   addFolderHierarchy(activeLi, allCsv);
   allCsv.forEach(f => {
@@ -962,9 +1070,6 @@ const allCsv = [...saFiles, ...z3Files, ...jsonFiles];
     }
   });
 
-
-
-  
   localStorage.setItem("csvFilesList", JSON.stringify(allCsv));
   const index = allCsv.findIndex(f => f.id === id);
   localStorage.setItem("csvFileIndex", index);
@@ -973,11 +1078,17 @@ const allCsv = [...saFiles, ...z3Files, ...jsonFiles];
   const planFile = files.find(f => f.name.toLowerCase() === "plan_sondes.csv");
   let url = `${viewer}?fileId=${id}&fileName=${encodeURIComponent(name)}`;
 
+const folderPath = localStorage.getItem("lastFolderPath") || "";
+url += `&folderPath=${encodeURIComponent(folderPath)}`;
+console.log("[Viewer] Dossier ajouté à l’URL :", folderPath);
+  // 🔹 Sauvegarde explicite du chemin pour le viewer02
+localStorage.setItem("currentFolderPath", folderPath);
+
+
+  
   if (planFile) {
     try {
-const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${planFile.id}&name=${encodeURIComponent(planFile.name)}&site=Smes_Acces`);
-
-
+      const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${planFile.id}&name=${encodeURIComponent(planFile.name)}&site=Smes_Acces`);
       const textPlan = await respPlan.text();
       localStorage.setItem("planSondes", textPlan);
     } catch (e) {
@@ -987,9 +1098,10 @@ const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/d
     localStorage.removeItem("planSondes");
   }
 
-  window.open(url,'_blank');
 
-  // 🔄 après un petit délai → réautoriser les scans
+
+
+  window.open(url,'_blank');
   setTimeout(() => { cancelScan = false; }, 1000);
 }
 
@@ -1429,8 +1541,6 @@ if (last) {
 </script>
 </body>
 </html>
-
-
 
 
 
