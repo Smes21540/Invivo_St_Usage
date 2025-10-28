@@ -1,1460 +1,2044 @@
+
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Plan des sondes + Evénements</title>
+  <!-- === PARTIE 1 : DOCTYPE + HEAD (Librairies) === -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Graphique CSV</title>
 
-<!-- ✅ Police compatible accents (latin-ext) -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap&subset=latin-ext" rel="stylesheet">
+  <!-- Librairies -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
+  <!-- === PARTIE 2 : Styles CSS === -->
+  <style>
+    :root{
+      --bg:#fff5f5; --panel:#ffffff; --accent:#ff7043; --accent-darker:#e64a19;
+      --accent-muted:#ffccbc; --danger:#d84315; --text:#333; --shadow:rgba(0,0,0,0.1);
+    }
 
-<style>
-:root{
-  /* Thème (identique viewer02) */
-  --bg:#fff5f5; --panel:#ffffff; --accent:#ff7043; --accent-darker:#e64a19;
-  --accent-muted:#ffccbc; --danger:#d84315; --text:#333;
+    /* Base */
+    body{
+      font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;
+      background:var(--bg); margin:0; padding:5px 20px; color:var(--danger);
+      display:flex; flex-direction:column; min-height:100vh;
+    }
 
---text-light: #fff;
---text-dark: #222;
+    /* Header */
+    .header{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+    .header .logo{height:60px;width:auto;}
+    #fileNameContainer{position:absolute;right:0;top:0;text-align:right;}
+    #fileName,#lineCount{color:var(--accent-darker);}
+    #fileName{font-size:24px;font-weight:bold;white-space:nowrap;max-width:300px;overflow:hidden;text-overflow:ellipsis;display:none;}
+    #lineCount{font-size:12px;display:none;}
 
-  
-  /* Grille logique */
-  --cols: 22;
-  --rows-top: 6;
-  --rows-bot: 6;
-  --split-gap: 0.3;          /* espace vertical entre les 2 sous-grilles (en fraction de case) */
+    /* Barre de contrôles */
+    .controls{
+      display:flex; justify-content:center; align-items:center;
+      gap:10px; margin-bottom:10px; flex-wrap:wrap;
+    }
+    button{
+      background:var(--accent); color:#fff; border:none; cursor:pointer;
+      font-weight:bold; padding:8px 12px; border-radius:6px; font-size:13px;
+      transition:background-color .3s, transform .2s;
+    }
+    button:hover{background:var(--accent-darker);transform:scale(1.05);}
+    button:disabled{background:#ccc;color:#666;cursor:not-allowed;transform:none;}
 
-  /* Cellules */
-  --tile-size: 110px;        /* sera recalculé en JS */
-  --cell-gap: 8px;
+    /* ⚙️ Garantit des boutons compacts dans la barre de contrôle */
+    .controls button{flex:0 0 auto; width:auto; display:inline-block;}
 
-  /* Sidebar temporelle (en dessous) */
-  --timebar-cols: 6;         /* largeur = 6 cases */
+    /* Zone graphe */
+.graph-wrapper {
+  display: flex;
+  align-items: stretch;   /* le canvas prend toute la hauteur */
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 40px;
+  height: 1000px;          /* hauteur fixée comme le canvas */
 }
 
-*{box-sizing:border-box;margin:0;padding:0}
-body{
-  font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",
-               Arial,"Noto Sans","Liberation Sans","DejaVu Sans",sans-serif;
-  background:var(--bg); color:var(--text);
-  min-height:100vh; display:flex; flex-direction:column;
-}
-
-
-/* ===== Header (style viewer02) ===== */
-.header{
-  position:relative; display:flex; align-items:center; justify-content:center;
-  min-height:60px; padding:10px 16px 0;
-}
-.header .logo{height:50px;width:auto;}
-#currentFolderName{
-  position:absolute; left:16px; top:8px; font-size:22px; font-weight:bold; color:var(--accent);
-  max-width:45vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-#fileNameContainer{position:absolute; right:16px; top:8px; text-align:right;}
-#fileName{font-size:18px; font-weight:bold; color:var(--accent-darker); max-width:40vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-#lineCount{font-size:12px; color:var(--accent-darker); margin-top:2px;}
-.flame{display:inline-block; animation:flicker 1s infinite alternate;}
-@keyframes flicker{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
-
-/* ===== Titre date/heure ===== */
-#datetimeLabel{
-  font-weight:bold; font-size:18px; text-align:center; color:var(--danger);
-  margin:8px auto 6px;
-}
-
-/* ===== PAGE LAYOUT : main (3/4) + side (1/4) ===== */
-#pageWrap{
-  flex:1; display:flex; gap:10px; padding:10px 12px; overflow:hidden;
-}
-
-/* ===== Zone centrale : deux sous-grilles 22×6 centrées ===== */
-#mainCol{
-  flex:3; min-width:0;
-  display:flex; flex-direction:column;
-  overflow:hidden;
-  background: transparent;
-  min-height:70vh; /* ✅ assure un espace suffisant pour la grille */
-}
-
-#gridWrap{
-  flex:1; display:flex; align-items:center; justify-content:center;
-  overflow:auto;
-}
-#grid{
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap: calc(var(--tile-size) * var(--split-gap)); /* espace vertical entre top/bottom */
-}
-
-/* Sous-grilles 22 colonnes chacune */
-.grid-part{
-  display:grid;
-  grid-template-columns: repeat(var(--cols), var(--tile-size));
-  grid-auto-rows: var(--tile-size);
-  gap: var(--cell-gap);
-}
-
-/* Cellules “sonde” */
-.sonde{
-  width: var(--tile-size); height: var(--tile-size);
-  background: var(--panel); border-radius: 10px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  box-shadow:0 2px 5px rgba(0,0,0,0.2); padding:6px;
-  overflow:hidden;
-}
-.sonde .label{ font-size: clamp(10px, calc(var(--tile-size)*0.12), 14px); font-weight:bold; color:#000; margin-bottom:2px; }
-.sonde .consigne{ font-size: clamp(9px, calc(var(--tile-size)*0.10), 12px); color:#555; font-style:italic; }
-.sonde .val{ font-size: clamp(14px, calc(var(--tile-size)*0.18), 22px); font-weight:bold; color:#000; }
-
-/* ===== Cases spéciales ===== */
-.sonde.special {
-  outline: none;
+.graph-side {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;   /* centre verticalement */
-  text-align: center;        /* centre horizontalement */
-  padding: 0;                /* enlève les décalages internes */
+  justify-content: center; /* centre verticalement si le menu est plus petit */
 }
 
-/* ===== Sidebar temporelle (en dessous de la grille) ===== */
-#bottomBar{
-  display:flex; align-items:center; justify-content:center; gap:16px;
-  padding:10px 0 14px;
+#myChart {
+  width: 100%;
+  aspect-ratio: 16/9;
+  max-height: 1000px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--shadow);
+  display: block;
+  margin: 0 auto;
 }
-#timeBar{
-  width: calc(var(--timebar-cols) * var(--tile-size) + (var(--timebar-cols) - 1) * var(--cell-gap));
-  display:flex; align-items:center; justify-content:center;
-}
-#slider{ width:100%; height: calc(var(--tile-size) * 0.35); }
 
-#scaleBox{
-  background:var(--panel); border:1px solid #ddd; border-radius:8px;
-  padding:8px 10px; box-shadow:0 2px 8px rgba(0,0,0,0.12); font-size:13px; color:var(--text);
-}
-#scaleBox label{ margin-right:6px; }
-#scaleBox input{ width:70px; padding:4px; border:1px solid #ccc; border-radius:6px; }
-
-/* Scrollbars (grille) */
-#gridWrap::-webkit-scrollbar{height:10px;width:10px;}
-#gridWrap::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;}
-#gridWrap::-webkit-scrollbar-track{background:#eee;}
-
-/* ===== Événements Z3 (volet élargi + scrollbar + nuance centrée) ===== */
-#sideCol {
-  flex: 0 1 auto;             /* largeur s’adapte au contenu */
-  min-width: 360px;
-  max-width: 600px;           /* largeur max pour les longs textes */
+.y-columns {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+
+  /* hauteur adaptative */
+  max-height: 1000px;      /* ne jamais dépasser 1000px */
+  height: auto;            /* prend la taille du contenu si < 1000px */
+
+  overflow-y: auto;        /* ajoute une barre de défilement si trop long */
+  border: 1px solid #ddd;
+  padding: 6px;
+  border-radius: 6px;
   background: var(--panel);
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-  max-height: calc(100vh - 160px);
-  overflow: hidden;
-  align-self: flex-start;
-  margin-bottom: 10px;
+  scrollbar-width: thin;
+  width: 220px;
 }
 
 
-#sideHeader {
-  font-weight: 600;
-  font-size: 15px;
-  padding: 10px;
+
+
+    /* Infos & états */
+    #zoomInfo{
+      position:absolute; top:80px; right:20px; background:rgba(255,255,255,0.9);
+      border:1px solid var(--accent); border-radius:6px; padding:6px 10px; font-size:12px;
+      color:var(--accent-darker); font-weight:bold; z-index:10; pointer-events:none;
+    }
+    #spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:50px;height:50px;border:6px solid #f3f3f3;border-top:6px solid var(--accent);
+      border-radius:50%;animation:spin 1s linear infinite;z-index:2000;}
+    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
+    #errorBox{
+      display:none;position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);
+      background:var(--accent-muted);padding:20px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.2);
+      z-index:2001;text-align:center;color:var(--danger);font-weight:bold;
+    }
+
+    /* Menu thèmes */
+    #secretBtn{position:fixed;bottom:10px;right:10px;width:25px;height:25px;opacity:0;cursor:pointer;z-index:2000;}
+    #themeMenu{
+      display:none;position:fixed;bottom:50px;right:10px;background:var(--panel);
+      border:2px solid var(--accent);border-radius:8px;box-shadow:0 4px 12px var(--shadow);
+      padding:10px;z-index:2001;min-width:150px;
+    }
+    #themeMenu h3{margin:0 0 8px 0;font-size:14px;color:var(--accent);}
+    #themeMenu .closeMenu{position:absolute;top:5px;right:8px;font-size:14px;cursor:pointer;color:var(--accent);}
+    #themeMenu .closeMenu:hover{color:var(--accent-darker);}
+    #themeMenu button{display:block; width:100%; margin:4px 0; padding:6px; border:none; border-radius:6px;
+      background:var(--accent); color:#fff; cursor:pointer; font-size:13px;}
+    #themeMenu button:hover{background:var(--accent-darker);}
+
+    /* Modal jours */
+    #dayModal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);
+      border:2px solid var(--accent);border-radius:10px;box-shadow:0 4px 12px var(--shadow);
+      padding:20px;z-index:3000;text-align:center;min-width:270px;}
+    #dayModal h3{margin:0;color:var(--accent);font-size:16px;}
+    #dayModal input{width:80px;text-align:center;padding:6px;margin:15px 0;font-size:15px;border:1px solid #ddd;border-radius:6px;}
+    #dayModal .actions{margin-top:14px;display:flex;justify-content:center;gap:10px;}
+    #dayModal button{margin:0;padding:8px 12px;border-radius:6px;}
+    #dayModal .ghost{background:#eee;color:#333;}
+
+    /* Sélecteurs colonnes */
+    @media (max-width:600px){#myChart{width:100%;}}
+.y-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  /* hauteur auto sauf si trop long */
+  height: auto;            /* s'adapte au contenu */
+  max-height: 1000px;      /* plafonné à 1000px si trop grand */
+  overflow-y: auto;        /* active le scroll uniquement si nécessaire */
+
+  border: 1px solid #ddd;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--panel);
+  scrollbar-width: thin;
+  width: 220px;
+}
+
+    }
+    .y-columns::-webkit-scrollbar{width:6px;}
+    .y-columns::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px;}
+    .y-columns::-webkit-scrollbar-track{background:#f0f0f0;}
+
+    .y-columns label{
+      display:flex; align-items:center; gap:6px; padding:4px 6px; border-radius:4px; cursor:pointer;
+      font-size:13px; background:var(--accent-muted); user-select:none; white-space:nowrap; justify-content:flex-start;
+    }
+    .y-columns input[type="checkbox"]{accent-color:var(--accent);}
+
+    /* Petite mise au point pour le conteneur des sélecteurs */
+    #columnSelectors{align-items:center;}
+
+/* 🔒 Masquer les boutons "avant/après" et "étendre" */
+#extendPrev,
+#extendNext,
+#panPrev,
+#panNext {
+  display: none !important;
+}
+
+/* Positionnement du bloc à gauche du graphe */
+.graph-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* centre verticalement */
+  align-items: center;     /* centre horizontalement */
+}
+
+    #currentFolderName {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      font-size: 28px;           /* assez gros */
+      font-weight: bold;
+      color: var(--accent);      /* couleur du thème */
+      white-space: nowrap;
+      max-width: 500px;          /* limite largeur */
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+/* Effet flamme animée */
+.flame {
+  display: inline-block;
+  animation: flicker 1s infinite alternate;
+}
+@keyframes flicker {
+  0%   { transform: scale(1) rotate(0deg); opacity: 1; }
+  25%  { transform: scale(1.1) rotate(-5deg); opacity: 0.9; }
+  50%  { transform: scale(0.9) rotate(5deg); opacity: 0.8; }
+  75%  { transform: scale(1.05) rotate(-3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 0.95; }
+}
+
+/* Bouton flottant */
+#noteButton {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: 50%;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+  transition: transform 0.2s;
+  z-index: 1200;
+}
+#noteButton:hover {
+  transform: scale(1.1);
+  background: var(--accent-darker);
+}
+
+/* Popup de note */
+#notePopup {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  z-index: 2000;
+  justify-content: center;
+  align-items: center;
+}
+
+#notePopup.active {
+  display: flex;
+}
+
+.note-content {
+  background: var(--panel);
+  color: var(--text);
+  padding: 20px;
+  border-radius: 10px;
+  width: 400px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.note-content h3 {
+  margin-top: 0;
+  color: var(--accent);
+}
+
+#noteText {
+  width: 100%;
+  height: 120px;
+  border: 1px solid var(--table-border);
+  border-radius: 6px;
+  padding: 8px;
+  resize: vertical;
+  font-size: 14px;
+}
+
+.note-actions {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.note-actions button {
   background: var(--accent);
   color: #fff;
-  text-align: center;
-  border-bottom: 2px solid var(--accent-darker);
-}
-
-#z3List {
-  flex: 1;
-  overflow-y: auto; /* ✅ scroll si trop d’événements */
-  background: var(--panel);
-  padding: 8px 10px;
-  font-family: "Inter", system-ui, sans-serif;
-}
-
-/* Items */
-.z3Item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  margin-bottom: 4px;
+  border: none;
+  padding: 6px 12px;
   border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.2;
+  font-weight: bold;
   cursor: pointer;
-  transition: background 0.25s, color 0.25s, transform 0.15s;
+  margin-left: 6px;
 }
-.z3Item .t {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
+
+.note-actions button:hover {
+  background: var(--accent-darker);
+}
+
+#noteStatus {
+  margin-top: 8px;
   font-size: 12px;
-  color: var(--accent-darker);
-  min-width: 52px;
-}
-.z3Item .d {
-  flex: 1;
-  color: var(--text);
-  overflow-wrap: anywhere;
-  white-space: normal;
+  color: var(--muted-text);
 }
 
 
-
-/* Dégradé centré sur l’événement (0 → 4) + texte adaptatif */
-.z3Item[data-intensity="0"],
-.hour-mark[data-intensity="0"] {
-  background-color: color-mix(in srgb, var(--accent) 5%, var(--panel));
-  color: var(--text-dark);
-}
-
-.z3Item[data-intensity="1"],
-.hour-mark[data-intensity="1"],
-.z3Item[data-intensity="2"],
-.hour-mark[data-intensity="2"],
-.z3Item[data-intensity="3"],
-.hour-mark[data-intensity="3"],
-.z3Item[data-intensity="4"],
-.hour-mark[data-intensity="4"] {
-  /* dès qu’il y a de la couleur, texte blanc */
-  color: var(--text-light);
-}
-
-.z3Item[data-intensity="1"],
-.hour-mark[data-intensity="1"] {
-  background-color: color-mix(in srgb, var(--accent) 25%, var(--panel));
-}
-
-.z3Item[data-intensity="2"],
-.hour-mark[data-intensity="2"] {
-  background-color: color-mix(in srgb, var(--accent) 45%, var(--panel));
-}
-
-.z3Item[data-intensity="3"],
-.hour-mark[data-intensity="3"] {
-  background-color: color-mix(in srgb, var(--accent) 65%, var(--panel));
-}
-
-.z3Item[data-intensity="4"],
-.hour-mark[data-intensity="4"] {
-  background-color: var(--accent-darker);
-  transform: scale(1.02);
-}
-
-
-
-/* Lissage des transitions de couleur et lisibilité */
-.z3Item {
-  transition: background-color 0.4s ease, color 0.3s ease, transform 0.15s ease;
-}
-
-/* Lignes horaires (repères visuels) */
-.hour-mark {
-  opacity: 0.6;
-  font-style: italic;
-  background: var(--panel);
-  color: var(--accent-darker);
-  cursor: default;
-}
-
-
-/* Événement sélectionné */
-.z3Item.active {
-  outline: 2px solid var(--accent);
-  background: var(--accent-muted);
-  color: var(--accent-darker);
-}
-
-/* Scrollbar esthétique */
-#z3List::-webkit-scrollbar { width: 8px; }
-#z3List::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 6px; }
-#z3List::-webkit-scrollbar-track { background: var(--accent-muted); }
-
-
-
-/* collapsed state (rail) */
-#sideCol.collapsed{
-  min-width: 46px; max-width: 46px;
-}
-#sideCol.collapsed #sideHeader h3,
-#sideCol.collapsed .sideSection { display:none; }
-#sideCol.collapsed #toggleSide{ width:100%; border-radius:8px; }
-
-/* small hint button floating (optional, not needed since header has toggle) */
-#floatOpen{
-  position:absolute; left:-8px; top:12px;
-  transform: translateX(-100%);
-  background: var(--accent); color:#fff; border:none; border-radius:14px;
-  padding:6px 8px; cursor:pointer; display:none;
-}
-#floatOpen:hover{ background: var(--accent-darker); }
-
-/* 🔧 Correctif final : texte blanc dès qu’une intensité colore la case */
-.z3Item[data-intensity]:not([data-intensity="0"]),
-.hour-mark[data-intensity]:not([data-intensity="0"]) {
-  color: var(--text-light) !important;
-}
-
-.z3Item[data-intensity]:not([data-intensity="0"]) .t,
-.z3Item[data-intensity]:not([data-intensity="0"]) .d,
-.hour-mark[data-intensity]:not([data-intensity="0"]) .t,
-.hour-mark[data-intensity]:not([data-intensity="0"]) .d {
-  color: var(--text-light) !important;
-}
-
-/* Et un petit contraste pour le texte neutre (intensité 0) */
-.z3Item[data-intensity="0"] .t,
-.z3Item[data-intensity="0"] .d,
-.hour-mark[data-intensity="0"] .t,
-.hour-mark[data-intensity="0"] .d {
-  color: var(--text-dark) !important;
-}
-
-  
-</style>
+  </style>
 </head>
 <body>
-
-<!-- ===== Header ===== -->
+  <!-- === PARTIE 3 : Header === -->
 <div class="header">
-  <div id="currentFolderName"></div>
-  <img src="img/logo.png" class="logo" alt="Logo"/>
+  <div id="currentFolderName"></div> <!-- 💡 nouveau bloc pour le dossier -->
+  <img src="img/logo.png" alt="Logo" class="logo" />
   <div id="fileNameContainer">
     <div id="fileName"></div>
     <div id="lineCount"></div>
   </div>
 </div>
 
-<div id="datetimeLabel">-- / -- / ---- — --:--</div>
 
-<!-- ===== PAGE WRAP (main + side) ===== -->
-<div id="pageWrap">
+  <!-- === PARTIE 4 : Contrôles === -->
+  <div class="controls">
+    <button id="backBtn">⬅️ Retour</button>
+    <button id="exportPDF" style="display:none;">📄 Exporter PDF</button>
+    <button id="resetZoom" style="display:none;">🔄 Réinitialiser zoom</button>
+    <button id="smoothBtn" style="display:none;">✨ Lissage OFF</button>
+    <button id="toggleZ3" style="display:none;">🚨 Événements Z3 OFF</button>
+    <button id="toggleNotes" style="display:none;">🗒️ Notes ON</button>
 
-  <!-- ===== MAIN (inchangé dans l’esprit) ===== -->
-  <div id="mainCol">
-    <div id="gridWrap">
-      <div id="grid">
-        <div id="gridTop" class="grid-part"></div>
-        <div id="gridBottom" class="grid-part"></div>
-      </div>
+  </div>
+
+  <!-- === PARTIE 5 : Sélecteurs === -->
+  <div class="controls" id="columnSelectors" style="display:none; flex-direction:column; gap:8px;">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <select id="xColumn"></select>
+      <button id="drawChartBtn" style="display:none;">📊 Afficher courbes</button>
     </div>
+    <!-- Cases à cocher pour les colonnes Y -->
+    
+  </div>
 
-    <!-- ===== Sidebar temporelle + min/max ===== -->
-    <div id="bottomBar">
-      <div id="timeBar">
-        <input type="range" id="slider" min="0" max="0" value="0"/>
-      </div>
-      <div id="scaleBox" title="Réglage des bornes couleurs">
-        <label>Min</label><input type="number" id="minInput" step="0.1" value="30"/>
-        <label style="margin-left:10px;">Max</label><input type="number" id="maxInput" step="0.1" value="60"/>
-      </div>
-      <!-- Bouton optionnel plus tard : Fusion jours (désactivé par défaut) -->
-      <!-- <button id="mergeDaysBtn" style="margin-left:12px;">Fusionner jours</button> -->
+<!-- === PARTIE 6 : Zone Graphique === -->
+<div class="graph-wrapper">
+  <!-- Côté gauche : menu Y -->
+  <div class="graph-side">
+    <div id="yColumnsContainer" class="y-columns"></div>
+  </div>
+
+  <!-- Zone centrale : graphe -->
+  <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+    <canvas id="myChart" width="1400" height="1000"></canvas>
+    <input type="color" id="colorPicker" style="display:none;" />
+    <div id="dateLabels" style="text-align:center; margin-top:8px; font-weight:bold; color:var(--danger);"></div>
+  </div>
+</div>
+
+
+
+  <!-- === PARTIE 7 : Aides/états === -->
+  <div id="zoomInfo">🔍 Sélectionner une zone (drag) pour zoomer, molette+Ctrl pour zoom, Ctrl+clic sur la courbe pour changer sa couleur</div>
+  <div id="spinner"></div>
+  <div id="errorBox">
+    ⚠️ Impossible de charger le fichier.<br>Vérifiez la connexion ou réessayez plus tard.<br><br>
+    <button onclick="window.location.reload()">Réessayer</button>
+  </div>
+
+  <!-- === PARTIE 8 : Menu Thèmes === -->
+  <div id="secretBtn" title=" "></div>
+  <div id="themeMenu">
+    <span class="closeMenu" onclick="closeThemeMenu()">❌</span>
+    <h3>Choisir un thème</h3>
+    <button onclick="setTheme('orange')">Orange (défaut)</button>
+    <button onclick="setTheme('blue')">Bleu</button>
+    <button onclick="setTheme('green')">Vert</button>
+    <button onclick="setTheme('purple')">Violet</button>
+    <button onclick="setTheme('bordeaux')">Bordeaux</button>
+  </div>
+
+  <!-- === PARTIE 9 : Modal jours === -->
+  <div id="dayModal" role="dialog" aria-modal="true" aria-labelledby="dayModalTitle">
+    <h3 id="dayModalTitle">Combien de jours souhaitez-vous charger&nbsp;?</h3>
+    <input type="number" id="dayCount" value="1" min="1" />
+    <div class="actions">
+      <button id="confirmDay">OK</button>
+      <button class="ghost" onclick="closeDayModal()">Annuler</button>
     </div>
   </div>
 
-  <!-- ===== SIDE (Z3 EVENTS) ===== -->
-<aside id="sideCol">
-  <div id="sideHeader">🧰 Evenements</div>
-  <div id="z3List"></div>
-</aside>
+  <script>
+  /* ===================== CONFIG / STATE ===================== */
+    let csvData=[], chart, currentX="", currentY=[];
+    let notesData = []; // 🗒️ Liste des notes actives à afficher sur le graphe
+    let currentFolderId = null; // 🧩 dossier actuel du CSV
+    let currentFolderPath = ""; // 🆕 texte lisible du dossier courant
+
+
+  let baseFileName="", baseFileId="", headers=[], timeField="", baseDateYYYYMMDD="";
+  let colors=[]; let themeMenuTimer;
+  let loadedDays=new Set(); let saMeta=null;
+  let customColors = {}; // mémorise les couleurs choisies par label
+  let initialMin = null, initialMax = null;
+
+
+
+  // Z3
+  let z3Events = []; // {time: Date, label: string}
+  let z3Visible = false;
+    let notesVisible = true;
+
+
+  /* ===================== THEME ===================== */
+function applyThemeVars(vars){
+  const r=document.documentElement;
+  Object.entries(vars).forEach(([k,v])=>r.style.setProperty(k,v));
+  colors = buildPalette();
+  if(chart){
+    chart.data.datasets.forEach((ds,i)=>{
+      const baseLabel = ds.label.replace(" (lissé)", "");
+      const saved = customColors[baseLabel];
+      const c = saved || colors[i % colors.length];
+      ds.borderColor = c;
+      ds.backgroundColor = c;
+      ds.pointBackgroundColor = c;
+      ds.pointBorderColor = c;
+    });
+    chart.update('none');
+  }
+}
+
+  
+  function setTheme(theme){
+    localStorage.setItem("selectedTheme",theme);
+    if(theme==="orange") applyThemeVars({"--accent":"#ff7043","--accent-darker":"#e64a19","--accent-muted":"#ffccbc","--bg":"#fff5f5","--panel":"#ffffff","--danger":"#d84315","--text":"#333"});
+    if(theme==="blue")   applyThemeVars({"--accent":"#2196f3","--accent-darker":"#1976d2","--accent-muted":"#bbdefb","--bg":"#e3f2fd","--panel":"#ffffff","--danger":"#0d47a1","--text":"#0d47a1"});
+    if(theme==="green")  applyThemeVars({"--accent":"#4caf50","--accent-darker":"#2e7d32","--accent-muted":"#c8e6c9","--bg":"#f1f8e9","--panel":"#ffffff","--danger":"#1b5e20","--text":"#1b5e20"});
+    if(theme==="purple") applyThemeVars({"--accent":"#9c27b0","--accent-darker":"#6a1b9a","--accent-muted":"#e1bee7","--bg":"#f3e5f5","--panel":"#ffffff","--danger":"#4a148c","--text":"#4a148c"});
+    if(theme==="bordeaux")applyThemeVars({"--accent":"#800020","--accent-darker":"#4b0014","--accent-muted":"#d7a1a9","--bg":"#fff0f2","--panel":"#ffffff","--danger":"#600018","--text":"#4b0014"});
+  }
+  document.getElementById("secretBtn").onclick=()=>{
+    const m=document.getElementById("themeMenu");
+    if(m.style.display==="block"){closeThemeMenu();}else{m.style.display="block";resetThemeMenuTimer();}
+  };
+  function resetThemeMenuTimer(){clearTimeout(themeMenuTimer);themeMenuTimer=setTimeout(closeThemeMenu,10000);}
+  function closeThemeMenu(){document.getElementById("themeMenu").style.display="none";clearTimeout(themeMenuTimer);}
+  function getCSSVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  function hexToRgb(hex){hex=hex.replace('#','');if(hex.length===3){hex=hex.split('').map(h=>h+h).join('');}const n=parseInt(hex,16);return {r:(n>>16)&255,g:(n>>8)&255,b:n&255};}
+  function buildPalette(){const a=getCSSVar('--accent'),d=getCSSVar('--danger');return [a,d,"#3380ff","#4caf50","#8e44ad","#ff33a6","#33cccc","#ffc300"];}
+
+  /* ===================== SPINNER + ERROR ===================== */
+  function showSpinner(){document.getElementById('spinner').style.display='block';}
+  function hideSpinner(){document.getElementById('spinner').style.display='none';}
+  function showError(){hideSpinner();document.getElementById('errorBox').style.display='block';}
+
+  /* ===================== UTILS ===================== */
+  function getParam(n){return new URLSearchParams(window.location.search).get(n);}
+  function parseSAFileName(fname){const m=fname.match(/^SA(\d+)_(\d{8})/i);if(!m) return null;return {num:m[1].padStart(5,"0"),date:m[2]};}
+  function shiftDate(yyyymmdd,delta){
+    const y=+yyyymmdd.slice(0,4), m=+yyyymmdd.slice(4,6)-1, d=+yyyymmdd.slice(6,8);
+    const dt=new Date(y,m,d); dt.setDate(dt.getDate()+delta);
+    return dt.getFullYear()+String(dt.getMonth()+1).padStart(2,"0")+String(dt.getDate()).padStart(2,"0");
+  }
+  function makeSortKey(iso,t){return new Date(`${iso}T${t||"00:00:00"}`).getTime();}
+  function dedupeHeaders(arr) {
+    const hc = {};
+    return arr.map(h => {
+      const k = (h == null ? "" : String(h));
+      hc[k] = (hc[k] || 0) + 1;
+      const upperK = k.toUpperCase();
+      if (upperK.includes("SONDE") || upperK.includes("TEMP")) {
+        if (hc[k] === 1) return `${k} Consigne`;
+        if (hc[k] === 2) return `${k} Valeur`;
+        return `${k}_${hc[k]}`;
+      }
+      return hc[k] === 1 ? k : `${k}_${hc[k]}`;
+    });
+  }
+  function capitalizeFirst(s){return s? s.charAt(0).toUpperCase()+s.slice(1):s;}
+  function dayLabelFR(ts){
+    const nd=new Date(ts);
+    return capitalizeFirst(nd.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}));
+  }
+
+  /* ===================== FETCH CSV ===================== */
+// 🔒 Version sécurisée — plus de clé API exposée
+async function loadCSVByFileId(fileId){
+  try{
+    showSpinner();
+    // ✅ Utilisation du proxy Netlify sécurisé
+    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = new TextDecoder('windows-1252').decode(await res.arrayBuffer());
+    hideSpinner();
+    return Papa.parse(text, { header: false, dynamicTyping: true, skipEmptyLines: true });
+  } catch (e) {
+    console.error(e);
+    showError();
+    return null;
+  }
+}
+
+  function buildObjectsFromParsedResults(results,hdrs){
+    return results.data.slice(1).map(row=>{const o={};row.forEach((v,i)=>o[hdrs[i]]=v);return o;});
+  }
+  function enrichRowsWithDate(rows,yyyymmdd){
+    if(!timeField) return rows;
+    const iso=`${yyyymmdd.slice(0,4)}-${yyyymmdd.slice(4,6)}-${yyyymmdd.slice(6,8)}`;
+    rows.forEach(r=>{r.__dateISO=iso;r.__sortKey=makeSortKey(iso,r[timeField]);});
+    return rows;
+  }
+
+  /* ===================== LOAD CSV (base) ===================== */
+async function loadCSVFromDrive(){
+  baseFileId = getParam('fileId'); 
+  baseFileName = decodeURIComponent(getParam('fileName')||'');
+  if(!baseFileId){showError();return;}
+
+  document.getElementById('fileName').textContent = baseFileName;
+  document.getElementById('fileName').style.display = "block";
+  document.getElementById('lineCount').style.display = "block";
+  document.getElementById('exportPDF').style.display = "inline-block";
+  document.getElementById('resetZoom').style.display = "inline-block";
+
+// 💾 Détermination du dossier courant uniquement
+try {
+  const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+  const f = list.find(x => x.id === baseFileId);
+
+  if (f && Array.isArray(f.parents) && f.parents.length > 0) {
+    currentFolderId = f.parents[0]; // dossier exact du CSV
+    console.log("📁 Dossier courant (exact):", currentFolderId);
+  } else {
+    console.warn("⚠️ Aucun dossier trouvé pour ce fichier, currentFolderId = null");
+    currentFolderId = null;
+  }
+
+// affiche le nom du dossier courant et mémorise le "chemin" texte
+const folder = list.find(x => x.id === currentFolderId);
+const folderName = folder ? folder.name : "(Dossier inconnu)";
+document.getElementById("currentFolderName").textContent = folderName;
+
+// 🧭 on conserve au moins le nom du dossier comme chemin texte
+currentFolderPath = getParam("folderPath") || (folder ? folder.name : "");
+
+// 🔹 Récupération du chemin complet du dossier
+let folderPath = new URLSearchParams(window.location.search).get("folderPath");
+
+// 🔹 Si pas trouvé dans l’URL (ou test local), on le reprend du localStorage
+if (!folderPath || folderPath.trim() === "") {
+  folderPath = localStorage.getItem("currentFolderPath") || "";
+}
+
+// 🔹 Pour vérif
+console.log("[Viewer02] Chemin dossier récupéré :", folderPath);
+
+// 🔹 On synchronise la variable globale
+currentFolderPath = folderPath;
+
+  
+
+} catch (e) {
+  console.warn("⚠️ Erreur récupération dossier courant", e);
+}
+
+
+
+
+  const parsed = await loadCSVByFileId(baseFileId); 
+  if(!parsed) return;
+  headers = dedupeHeaders(parsed.data[0]||[]);
+  csvData = buildObjectsFromParsedResults(parsed,headers);
+  document.getElementById('lineCount').textContent = csvData.length+" ligne"+(csvData.length>1?"s":"");
+
+  const xSel = document.getElementById('xColumn');
+  xSel.innerHTML = "";
+
+  // vide et reconstruit le conteneur Y
+  const yContainer = document.getElementById("yColumnsContainer");
+  yContainer.innerHTML = "";
+
+  let defX = headers.find(h=>h.toLowerCase().includes("time")||h.toLowerCase()==="heure");
+
+headers.forEach((f,i)=>{
+  // X : on ajoute toutes les colonnes
+  const ox = document.createElement("option");
+  ox.value = f;
+  ox.text = f;
+  xSel.appendChild(ox);
+
+  // Y : on saute la colonne temps
+  if (f === defX || /time|date|jour/.test(f.toLowerCase())) return;
+
+  // 🔹 coche automatiquement SONDE AC INF / SUP
+  const checkedByDefault =
+    f.toUpperCase().includes("SONDE AC INF") ||
+    f.toUpperCase().includes("SONDE AC SUP");
+
+  const label = document.createElement("label");
+  label.innerHTML = `<input type="checkbox" value="${f}" ${checkedByDefault ? "checked" : ""}> ${f}`;
+  yContainer.appendChild(label);
+});
+
+// === afficher les sélecteurs ===
+document.getElementById('columnSelectors').style.display = "flex";
+
+if (defX) {
+  xSel.value = defX;
+  xSel.style.display = "none";
+  timeField = defX;
+}
+
+// === après l’enrichissement, tracer automatiquement les bonnes colonnes ===
+setTimeout(() => {
+  currentX = defX;
+  currentY = Array.from(document.querySelectorAll("#yColumnsContainer input:checked")).map(cb => cb.value);
+
+  if (currentY.length && csvData.length && timeField) {
+    drawChart();
+  }
+}, 300);
+
+
+  saMeta = parseSAFileName(baseFileName);
+  if(saMeta){
+    baseDateYYYYMMDD = saMeta.date;
+    enrichRowsWithDate(csvData,baseDateYYYYMMDD);
+    loadedDays.add(baseDateYYYYMMDD);
+  }
+}
+
+
+  /* ===================== CHART ===================== */
+  function getTimeUnit(range){
+    const d=86400000;
+    if(range<=d) return {unit:'hour',stepSize:2};
+    if(range<=3*d) return {unit:'hour',stepSize:6};
+    if(range>=7*d) return {unit:'day',stepSize:1};
+    return {unit:'hour',stepSize:4};
+  }
+  function applyAdaptiveTicks(){
+    if(!chart) return;
+    const range=chart.scales.x.max-chart.scales.x.min;
+    const cfg=getTimeUnit(range);
+    chart.options.scales.x.time=chart.options.scales.x.time||{};
+    chart.options.scales.x.time.unit=cfg.unit;
+    chart.options.scales.x.time.stepSize=cfg.stepSize;
+    chart.options.scales.x.ticks.callback=(value)=>{
+      const d=new Date(value);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    };
+    chart.update('none');
+  }
+
+  // === LISSAGE : fonction de moyenne glissante
+  function movingAverage(data, windowSize=10) {
+    if (!data.length) return [];
+    const result = [];
+    const half = Math.floor(windowSize/2);
+    for (let i=0; i<data.length; i++) {
+      let sum = 0, count = 0;
+      for (let j=i-half; j<=i+half; j++) {
+        if (j>=0 && j<data.length) {
+          sum += data[j].y; count++;
+        }
+      }
+      result.push({ x: data[i].x, y: sum/count });
+    }
+    return result;
+  }
+
+  // === LISSAGE : buildDatasets avec mémorisation
+  function buildDatasets(){
+    const smooth = localStorage.getItem("smooth") === "1";
+    return currentY.map((yCol,i)=>{
+      // valeurs brutes
+      let pts = csvData.map(r=> {
+        const x = r.__sortKey;
+        const y = r[yCol];
+        return (Number.isFinite(x) && typeof y === 'number') ? {x,y} : null;
+      }).filter(Boolean);
+
+      // valeurs affichées
+      if (smooth) pts = movingAverage(pts, 10);
+
+const baseLabel = yCol; // la "clé" toujours sans (lissé)
+const savedColor = customColors[baseLabel];
+const c = savedColor || colors[i % colors.length];
+
+return {
+  label: baseLabel + (smooth ? " (lissé)" : ""),
+  data: pts,
+  borderColor: c,
+  backgroundColor: c,
+  borderWidth: 2,
+  fill: false,
+  tension: 0,
+  pointRadius: 0,
+  pointHoverRadius: 5,
+  pointHitRadius: 8
+};
+
+    });
+  }
+
+  // Plugin fond alterné par jour + labels dates
+  const dayBackgroundPlugin={
+    id:'dayBackground',
+    beforeDraw(chart){
+      const {scales:{x},chartArea}=chart;
+      if(!x||!isFinite(x.min)||!isFinite(x.max)) return;
+      const oneDay=86400000;
+      let start=new Date(x.min); start.setHours(0,0,0,0);
+      let toggle=false;
+      const ctx=chart.ctx; ctx.save();
+
+      for(let d=start.getTime(); d<x.max; d+=oneDay){
+        const from=x.getPixelForValue(d), to=x.getPixelForValue(d+oneDay);
+        ctx.fillStyle=toggle? (getCSSVar('--accent-muted')||'rgba(255,112,67,0.12)') : 'rgba(0,0,0,0.02)';
+        ctx.fillRect(from, chartArea.top, to-from, chartArea.bottom-chartArea.top);
+        toggle=!toggle;
+      }
+      ctx.restore();
+
+      const labels=[];
+      for(let d=start.getTime(); d<x.max; d+=oneDay){labels.push(dayLabelFR(d));}
+      const dl=document.getElementById('dateLabels'); if(dl) dl.textContent = labels.join(" | ");
+    }
+  };
+
+// Plugin lignes Z3 : traits fins pleins, gras au survol
+const z3LinesPlugin = {
+  id: 'z3Lines',
+  afterDatasetsDraw(chartArg) {
+    if (!z3Visible || !z3Events.length) return;
+    const xScale = chartArg.scales.x;
+    const { top, bottom } = chartArg.chartArea;
+    const ctx = chartArg.ctx;
+    ctx.save();
+
+    // Gestion survol souris → trouver la ligne la plus proche
+    const mouse = chartArg.$z3Mouse;
+    let nearest = null;
+    let dist = Infinity;
+
+    if (mouse) {
+      z3Events.forEach(ev => {
+        const x = xScale.getPixelForValue(ev.time.getTime());
+        const d = Math.abs(mouse.x - x);
+        if (d < dist) {
+          nearest = { ev, x };
+          dist = d;
+        }
+      });
+      if (dist > 6) nearest = null; // seuil max
+    }
+
+    // Dessiner toutes les lignes
+    z3Events.forEach(ev => {
+      const x = xScale.getPixelForValue(ev.time.getTime());
+      if (x < xScale.left || x > xScale.right) return;
+
+      let color = '#003366';
+      const label = ev.label.toLowerCase();
+      if (label.includes('défaut') || label.includes('defaut') || 
+          label.includes('arrêt')  || label.includes('arret')) {
+        color = 'red';
+      } else if (label.includes('démarrage')) {
+        color = 'green';
+      }
+
+      const isHovered = nearest && nearest.ev === ev;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = isHovered ? 3 : 0.5; // épaisseur dynamique
+
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+    });
+
+    // Tooltip uniquement sur la ligne survolée
+    if (nearest) {
+      const { ev, x } = nearest;
+      const tooltipY = top + 25;
+      const h = String(ev.time.getHours()).padStart(2,'0')+":"+String(ev.time.getMinutes()).padStart(2,'0');
+      const line1 = `⏰ ${h}`;
+      const line2 = ev.label;
+      const line3 = ev.address ? `📍 ${ev.address}` : "";
+      ctx.font = '12px sans-serif';
+      const w = Math.max(
+        ctx.measureText(line1).width,
+        ctx.measureText(line2).width,
+        ctx.measureText(line3).width
+      ) + 14;
+      const panel = getCSSVar('--panel') || '#fff';
+      const accent = getCSSVar('--accent') || 'black';
+      ctx.fillStyle = panel;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1;
+      ctx.shadowColor = 'rgba(0,0,0,0.25)';
+      ctx.shadowBlur = 4;
+      const boxX = x - w/2;
+      const boxY = tooltipY - 20;
+      const boxH = line3 ? 48 : 36;
+      const r = 6;
+      ctx.beginPath();
+      ctx.moveTo(boxX+r, boxY);
+      ctx.lineTo(boxX+w-r, boxY);
+      ctx.quadraticCurveTo(boxX+w, boxY, boxX+w, boxY+r);
+      ctx.lineTo(boxX+w, boxY+boxH-r);
+      ctx.quadraticCurveTo(boxX+w, boxY+boxH, boxX+w-r, boxY+boxH);
+      ctx.lineTo(boxX+r, boxY+boxH);
+      ctx.quadraticCurveTo(boxX, boxY+boxH, boxX, boxY+boxH-r);
+      ctx.lineTo(boxX, boxY+r);
+      ctx.quadraticCurveTo(boxX, boxY, boxX+r, boxY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = accent;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(line1, x, boxY + 10);
+      ctx.fillText(line2, x, boxY + 25);
+      if(line3) ctx.fillText(line3, x, boxY + 40);
+    }
+
+    ctx.restore();
+  }
+};
+
+const notesPlugin = {
+  id: "notesPlugin",
+  afterDatasetsDraw(chart) {
+    if (!notesData.length) return;
+    if (!notesVisible) return;
+
+    const ctx = chart.ctx;
+    const xScale = chart.scales.x;
+    const yScale = chart.scales.y;
+    const canvas = chart.canvas;
+
+    ctx.save();
+    ctx.font = "12px Segoe UI";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Liste des zones de clic calculées
+    chart.$noteHitZones = [];
+
+    notesData.forEach(n => {
+      if (n.status !== "active") return;
+      const x = xScale.getPixelForValue(n.x);
+      const y = yScale.getPixelForValue(n.y);
+      if (x < xScale.left || x > xScale.right) return;
+      if (y < yScale.top || y > yScale.bottom) return;
+
+      const text = n.text || n.note || "(note vide)";
+
+      // 🌿 Gestion des retours à la ligne automatiques
+      const maxWidth = 160; // largeur max de l’étiquette
+      const words = text.split(" ");
+      const lines = [];
+      let line = "";
+      for (let w of words) {
+        const test = line ? line + " " + w : w;
+        if (ctx.measureText(test).width > maxWidth) {
+          lines.push(line);
+          line = w;
+        } else line = test;
+      }
+      if (line) lines.push(line);
+
+      const paddingX = 8;
+      const paddingY = 4;
+      const boxWidth = Math.min(maxWidth, Math.max(...lines.map(l => ctx.measureText(l).width)) + paddingX * 2);
+      const boxHeight = lines.length * 16 + paddingY * 2;
+
+      // 🎨 Fond blanc semi-transparent + léger contour
+      const panel = getCSSVar("--panel") || "#fff";
+      const accent = getCSSVar("--accent") || "#000";
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.roundRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // ✏️ Texte sur plusieurs lignes
+      ctx.fillStyle = getCSSVar("--danger") || "red";
+      lines.forEach((l, i) => {
+        ctx.fillText(l, x, y - (boxHeight / 2) + paddingY + 8 + i * 14);
+      });
+
+      // 🧭 Sauvegarde zone de clic (pour survol / ouverture)
+      chart.$noteHitZones.push({
+        note: n,
+        x1: x - boxWidth / 2,
+        y1: y - boxHeight / 2,
+        x2: x + boxWidth / 2,
+        y2: y + boxHeight / 2
+      });
+    });
+
+    ctx.restore();
+
+    // ===== Gestion du survol et du curseur =====
+    const rect = canvas.getBoundingClientRect();
+    const mouse = chart.$mousePos;
+    let hovered = null;
+
+    if (mouse && chart.$noteHitZones) {
+      for (const zone of chart.$noteHitZones) {
+        const { x1, y1, x2, y2, note } = zone;
+        const x = mouse.x;
+        const y = mouse.y;
+        if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
+          hovered = note;
+          break;
+        }
+      }
+    }
+
+    canvas.style.cursor = hovered ? "pointer" : "default";
+
+    // Mise à jour position souris
+    if (!chart.$mousemoveHandlerAttached) {
+      chart.$mousemoveHandlerAttached = true;
+      canvas.addEventListener("mousemove", (ev) => {
+        const r = canvas.getBoundingClientRect();
+        chart.$mousePos = { x: ev.clientX - r.left, y: ev.clientY - r.top };
+        chart.update("none");
+      });
+      canvas.addEventListener("mouseleave", () => {
+        chart.$mousePos = null;
+        chart.update("none");
+      });
+    }
+  },
+};
+
+
+
+
+
+
+
+
+  async function loadZ3IfAvailable(){
+    z3Events = [];
+    if (!saMeta) return false;
+    const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+    const expectedZ = `Z3${saMeta.num}_${saMeta.date}.csv`.toLowerCase();
+    const f = list.find(x => String(x.name || "").toLowerCase() === expectedZ);
+    if (!f) return false;
+
+    const parsedZ = await loadCSVByFileId(f.id);
+    if (!parsedZ || !parsedZ.data || parsedZ.data.length < 1) return false;
+
+    // Détection souple des lignes d'en-tête
+    let headerRowIdx = 0;
+    for (let i=0;i<Math.min(5, parsedZ.data.length);i++){
+      const row = parsedZ.data[i] || [];
+      const joined = row.map(v => String(v||'')).join('|').toLowerCase();
+      if (joined.includes('trigger') && (joined.includes('time') || joined.includes('date'))) {
+        headerRowIdx = i;
+        break;
+      }
+    }
+    const headersZ = parsedZ.data[headerRowIdx];
+    const rows = parsedZ.data.slice(headerRowIdx+1);
+
+    // indices colonnes
+    const idxDate = headersZ.findIndex(h => String(h||'').toLowerCase().includes('trigger') && String(h||'').toLowerCase().includes('date'));
+    const idxTime = headersZ.findIndex(h => String(h||'').toLowerCase().includes('trigger') && String(h||'').toLowerCase().includes('time'));
+    let idxMsg  = headersZ.findIndex(h => String(h||'').toLowerCase().includes('message'));
+    if (idxMsg === -1) idxMsg = headersZ.findIndex(h => String(h||'').toLowerCase().includes('event'));
+let idxAddr = headersZ.findIndex(h => String(h||'').toLowerCase().includes('address'));
+
+
+    rows.forEach(r => {
+      const dateStr = r[idxDate];
+      const timeStr = r[idxTime];
+      const label = r[idxMsg] || 'Événement';
+      if (!dateStr || !timeStr) return;
+      // support "20/09/25" ou "2025-09-20"
+      let dt;
+      if (typeof dateStr === 'string' && dateStr.includes('/')){
+        const [d,m,y] = String(dateStr).split('/');
+        const iso = `20${y}-${m}-${d}T${String(timeStr)}`;
+        dt = new Date(iso);
+      }else{
+        dt = new Date(`${String(dateStr)}T${String(timeStr)}`);
+      }
+if (!isNaN(dt.getTime())) {
+  let addr = "";
+  if (idxAddr >= 0 && r[idxAddr] != null) {
+    addr = String(r[idxAddr]).trim();
+    if (addr.toLowerCase() === "null" || addr === "undefined") addr = "";
+  }
+  z3Events.push({
+    time: dt,
+    label: String(label),
+    address: addr
+  });
+}
+
+
+    });
+
+    // Afficher le bouton
+    const btn = document.getElementById('toggleZ3');
+    btn.style.display = 'inline-block';
+    return true;
+  }
+
+ function drawChart(){
+  if(!csvData.length||!timeField||!currentY.length) return;
+  const ctx=document.getElementById('myChart').getContext('2d');
+
+  const allX=csvData.map(r=>r.__sortKey).filter(v=>Number.isFinite(v));
+  const minX=Math.min(...allX), maxX=Math.max(...allX);
+
+  // stocker les bornes initiales une seule fois
+  if (initialMin === null) initialMin = minX;
+  if (initialMax === null) initialMax = maxX;
+
+  const datasets = buildDatasets();
+
+  // Sauvegarder zoom avant destruction
+  let prevMin=null, prevMax=null;
+  if(chart){
+    prevMin = chart.scales.x.min;
+    prevMax = chart.scales.x.max;
+    chart.destroy();
+  }
+
+  chart=new Chart(ctx,{
+    type:'line',
+    data:{datasets},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      parsing:false,
+      interaction:{mode:'nearest',axis:'x',intersect:false},
+      plugins:{
+        legend:{
+          position:'top',
+          labels:{
+            usePointStyle:true,
+            pointStyle:'rect',
+            color:getCSSVar('--text')
+          },
+          onClick:(e,legendItem)=>{
+            const datasetIndex = legendItem.datasetIndex;
+            const ds = chart.data.datasets[datasetIndex];
+            const baseLabel = ds.label.replace(" (lissé)", "");
+            const picker = document.getElementById('colorPicker');
+            picker.oninput = (ev)=>{
+              const newColor = ev.target.value;
+              customColors[baseLabel] = newColor;
+              ds.borderColor = newColor;
+              ds.backgroundColor = newColor;
+              ds.pointBackgroundColor = newColor;
+              ds.pointBorderColor = newColor;
+              chart.update('none');
+            };
+            picker.click();
+          }
+        },
+        datalabels:{display:false},
+        zoom:{
+          zoom:{
+            wheel:{enabled:true,modifierKey:'ctrl'},
+            pinch:{enabled:true},
+            drag:{
+              enabled:true,
+              mode:'x',
+              backgroundColor:'rgba(54, 162, 235, 0.1)', // fond semi-transparent
+              borderColor:'rgba(54, 162, 235, 0.5)',     // contour visible
+              borderWidth:1
+            }
+          },
+          pan:{enabled:true,mode:'x'},
+          limits:{ y:{min:'original',max:'original'} }
+        }
+      },
+      tooltip:{
+        callbacks:{
+          title:(items)=>{
+            if(!items?.length) return '';
+            const d=new Date(items[0].parsed.x);
+            return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+          }
+        }
+      },
+      scales:{
+        x:{
+          type:'time',
+          min: prevMin ?? (Number.isFinite(minX)?minX:undefined),
+          max: prevMax ?? (Number.isFinite(maxX)?maxX:undefined),
+          time:{
+            unit:'hour',
+            tooltipFormat:'HH:mm',
+            displayFormats:{hour:'HH:mm',minute:'HH:mm'}
+          },
+          ticks:{
+            autoSkip:true,
+            callback:(value)=>{
+              const d=new Date(value);
+              return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+            }
+          }
+        },
+        y:{title:{display:true,text:'Valeurs'}}
+      }
+    },
+    plugins:[ChartDataLabels,dayBackgroundPlugin,z3LinesPlugin,notesPlugin]
+
+  });
+
+  // === Tous les listeners regroupés ===
+  const canvas = chart.canvas;
+
+  // auto-load jours au zoom/dézoom/pan
+  canvas.addEventListener('wheel', async (e)=>{
+    if (e.ctrlKey) {
+      console.log("Détection zoom molette+Ctrl");
+      await autoLoadDays(chart);
+    }
+  });
+  canvas.addEventListener('mouseup', async ()=>{
+    console.log("Détection fin zoom/pan drag");
+    await autoLoadDays(chart);
+  });
+
+  // gestion survol Z3
+  canvas.addEventListener('mousemove', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    chart.$z3Mouse = {x,y};
+    chart.update('none');
+  });
+  canvas.addEventListener('mouseleave', ()=>{
+    chart.$z3Mouse = null;
+    chart.update('none');
+  });
+
+// === Gestion clic sur une note existante ===
+
+canvas.addEventListener("click", (ev) => {
+  if (!notesData.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const xClick = ev.clientX - rect.left;
+  const yClick = ev.clientY - rect.top;
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+
+  let nearest = null;
+  let minDist = 18;
+
+  notesData.forEach(n => {
+    const x = xScale.getPixelForValue(n.x);
+    const y = yScale.getPixelForValue(n.y);
+    const d = Math.hypot(x - xClick, y - yClick);
+    if (d < minDist) {
+      nearest = n;
+      minDist = d;
+    }
+  });
+
+  if (nearest) {
+    showNotePopup(nearest);
+  }
+});
+
+   
+  chart.update();
+  applyAdaptiveTicks();
+}
+
+
+
+
+  /* ===================== UI ===================== */
+  document.getElementById('backBtn').onclick=()=>window.close();
+
+  // Auto-affichage du graphique dès qu'une case Y est cochée/décochée
+  document.getElementById("yColumnsContainer").addEventListener("change", () => {
+    currentX = document.getElementById('xColumn').value;
+    currentY = Array.from(document.querySelectorAll("#yColumnsContainer input:checked")).map(cb => cb.value);
+    if (currentY.length) {
+      drawChart();
+    }
+  });
+
+  // Ctrl+clic → changer la couleur du dataset le plus proche
+  const colorPickerEl = document.getElementById('colorPicker');
+  document.getElementById('myChart').addEventListener('click', (ev)=>{
+    if (!ev.ctrlKey || !chart) return;
+    const points = chart.getElementsAtEventForMode(ev, 'nearest', {intersect:false}, true);
+    if (!points || !points.length) return;
+    const el = points[0];
+    const datasetIndex = el.datasetIndex;
+    colorPickerEl.oninput = (e)=>{
+      const newColor = e.target.value;
+      const ds = chart.data.datasets[datasetIndex];
+const baseLabel = ds.label.replace(" (lissé)", "");
+customColors[baseLabel] = newColor;
+ // mémorise par label
+ds.borderColor = newColor;
+ds.backgroundColor = newColor;
+ds.pointBackgroundColor = newColor;
+ds.pointBorderColor = newColor;
+
+      chart.update('none');
+    };
+    // ouvrir le color picker
+    colorPickerEl.click();
+  });
+
+// Reset zoom
+document.getElementById('resetZoom').onclick=()=>{
+  if(!chart) return;
+
+  // Empêcher autoLoadDays de s’exécuter pendant le reset
+  chart.$isResetting = true;
+
+  chart.resetZoom();
+  chart.options.scales.x.min = initialMin;
+  chart.options.scales.x.max = initialMax;
+  applyAdaptiveTicks();
+  chart.update('none');
+
+  // Réactiver autoLoadDays après un petit délai
+  setTimeout(()=>{ chart.$isResetting = false; }, 200);
+};
+
+
+  // ==== LISSAGE avec mémorisation ====
+  function updateSmoothBtnUI() {
+    const btn = document.getElementById("smoothBtn");
+    const smooth = localStorage.getItem("smooth") === "1";
+    btn.textContent = smooth ? "✨ Lissage ON" : "✨ Lissage OFF";
+    btn.style.background = smooth ? getCSSVar("--accent-darker") : getCSSVar("--accent");
+  }
+  document.getElementById("smoothBtn").onclick = () => {
+    const smooth = localStorage.getItem("smooth") === "1";
+    localStorage.setItem("smooth", smooth ? "0" : "1");
+    updateSmoothBtnUI();
+    if (currentY.length) drawChart();
+  };
+
+  // Bouton ON/OFF Z3
+  document.getElementById('toggleZ3').onclick = () => {
+    z3Visible = !z3Visible;
+    const btn = document.getElementById('toggleZ3');
+    btn.textContent = z3Visible ? '🚨 Événements ON' : '🚨 Événements OFF';
+    btn.style.background = z3Visible ? getCSSVar('--accent-darker') : getCSSVar('--accent');
+    if (chart) chart.update('none');
+  };
+
+  // 🗒️ Bouton ON/OFF Notes
+document.getElementById('toggleNotes').onclick = () => {
+  notesVisible = !notesVisible;
+  const btn = document.getElementById('toggleNotes');
+  btn.textContent = notesVisible ? '🗒️ Notes ON' : '🗒️ Notes OFF';
+  btn.style.background = notesVisible ? getCSSVar('--accent-darker') : getCSSVar('--accent');
+  if (chart) chart.update('none');
+};
+
+
+/* ===================== EXTEND / PAN ===================== */
+async function loadDayIfAvailable(yyyymmdd){
+  if(loadedDays.has(yyyymmdd)) return true;
+
+  const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+  if(!saMeta) return false;
+
+  // === CSV principal (SA) ===
+  const name=`SA${saMeta.num}_${yyyymmdd}.csv`;
+  const f=list.find(x=>x.name===name);
+  if(f){
+    const parsed=await loadCSVByFileId(f.id);
+    if(parsed){
+      const rows=buildObjectsFromParsedResults(parsed,headers);
+      enrichRowsWithDate(rows,yyyymmdd);
+      csvData=csvData.concat(rows);
+      loadedDays.add(yyyymmdd);
+    }
+  }
+
+  // === CSV événements Z3 associé ===
+  const nameZ = `Z3${saMeta.num}_${yyyymmdd}.csv`;
+  const fz = list.find(x => String(x.name||"").toLowerCase() === nameZ.toLowerCase());
+  if(fz){
+    const parsedZ = await loadCSVByFileId(fz.id);
+    if(parsedZ && parsedZ.data && parsedZ.data.length > 1){
+      let headerRowIdx = 0;
+      for (let i=0;i<Math.min(5, parsedZ.data.length);i++){
+        const row = parsedZ.data[i] || [];
+        const joined = row.map(v => String(v||'')).join('|').toLowerCase();
+        if (joined.includes('trigger') && (joined.includes('time') || joined.includes('date'))) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+      const headersZ = parsedZ.data[headerRowIdx];
+      const rowsZ = parsedZ.data.slice(headerRowIdx+1);
+
+      const idxDate = headersZ.findIndex(h => String(h||'').toLowerCase().includes('date'));
+      const idxTime = headersZ.findIndex(h => String(h||'').toLowerCase().includes('time'));
+      let idxMsg  = headersZ.findIndex(h => String(h||'').toLowerCase().includes('message'));
+      if (idxMsg === -1) idxMsg = headersZ.findIndex(h => String(h||'').toLowerCase().includes('event'));
+      const idxAddr = headersZ.findIndex(h => String(h||'').toLowerCase().includes('address'));
+
+      rowsZ.forEach(r=>{
+        const dateStr = r[idxDate], timeStr = r[idxTime];
+        if(!dateStr || !timeStr) return;
+        let dt;
+        if (typeof dateStr === 'string' && dateStr.includes('/')){
+          const [d,m,y] = String(dateStr).split('/');
+          const iso = `20${y}-${m}-${d}T${String(timeStr)}`;
+          dt = new Date(iso);
+        }else{
+          dt = new Date(`${String(dateStr)}T${String(timeStr)}`);
+        }
+        if(!isNaN(dt.getTime())){
+          let addr = "";
+          if(idxAddr>=0 && r[idxAddr]!=null){
+            addr = String(r[idxAddr]).trim();
+            if(addr.toLowerCase()==="null"||addr==="undefined") addr="";
+          }
+          z3Events.push({
+            time: dt,
+            label: String(r[idxMsg]||'Événement'),
+            address: addr
+          });
+        }
+      });
+
+      // Afficher le bouton Z3 si dispo
+      const btn=document.getElementById('toggleZ3');
+      btn.style.display='inline-block';
+    }
+  }
+
+  return true;
+}
+
+
+  async function panAndLoad(direction){
+    if(!chart || !saMeta) return;
+
+    const sc = chart.scales.x;
+    const oneDay = 86400000;
+    const currMin = (chart.options.scales.x.min!=null)? chart.options.scales.x.min : sc.min;
+    const currMax = (chart.options.scales.x.max!=null)? chart.options.scales.x.max : sc.max;
+    const targetMin = currMin + direction*oneDay;
+    const targetMax = currMax + direction*oneDay;
+
+    const targetDate = shiftDate(saMeta.date, direction);
+    const loaded = await loadDayIfAvailable(targetDate);
+
+    if (loaded) {
+      csvData.sort((a,b)=>(a.__sortKey||0)-(b.__sortKey||0));
+      if (currentY.length) drawChart();
+      saMeta.date = targetDate;
+      chart.options.scales.x.min = targetMin;
+      chart.options.scales.x.max = targetMax;
+      chart.options.scales.y.min = undefined;
+      chart.options.scales.y.max = undefined;
+      chart.update('none');
+      applyAdaptiveTicks();
+      // Recharger les Z3 de la nouvelle date
+      await loadZ3IfAvailable();
+    } else {
+      const d=`${targetDate.slice(6,8)}/${targetDate.slice(4,6)}/${targetDate.slice(0,4)}`;
+      alert(`Aucun fichier disponible pour la date ${d}`);
+      return;
+    }
+  }
+
+
+  async function extendDays(direction,days){
+    if(!saMeta) return;
+    for(let i=1;i<=days;i++){
+      const target=shiftDate(saMeta.date,direction>0?i:-i);
+      await loadDayIfAvailable(target);
+    }
+    csvData.sort((a,b)=>(a.__sortKey||0)-(b.__sortKey||0));
+    if(currentY.length) drawChart();
+    await loadZ3IfAvailable();
+  }
+
+  let modalResolve=null, modalDirection=0;
+  function openDayModal(initial,dir){
+    modalDirection=dir;
+    const m=document.getElementById('dayModal');
+    const inp=document.getElementById('dayCount');
+    inp.value=initial||1; m.style.display='block'; inp.focus(); inp.select();
+    return new Promise(res=>{modalResolve=res;});
+  }
+  function closeDayModal(){document.getElementById('dayModal').style.display='none'; if(modalResolve){modalResolve(null); modalResolve=null;}}
+  document.getElementById('confirmDay').onclick=()=>{
+    const n=parseInt(document.getElementById('dayCount').value,10);
+    document.getElementById('dayModal').style.display='none';
+    if(modalResolve){modalResolve(isNaN(n)?null:{n,dir:modalDirection}); modalResolve=null;}
+  };
+
+
+/* ===================== AUTO LOAD DAYS (zoom/pan) ===================== */
+async function autoLoadDays(chart){
+  // 🚫 si on est en train de faire un reset → on sort direct
+  if(chart.$isResetting) return;
+  if(!saMeta) return;
+
+  const xScale = chart.scales.x;
+  const min = xScale.min, max = xScale.max;
+
+  const d0 = new Date(min);
+  const d1 = new Date(max);
+
+  // Mise à zéro heure (⚠️ pas de limite veille/lendemain)
+  d0.setHours(0,0,0,0);
+  d1.setHours(0,0,0,0);
+
+  let newData = false;
+
+  for(let d=new Date(d0); d<=d1; d.setDate(d.getDate()+1)){
+    const ymd = d.getFullYear()
+                + String(d.getMonth()+1).padStart(2,"0")
+                + String(d.getDate()).padStart(2,"0");
+    console.log("Tentative chargement", ymd);
+    const loaded = await loadDayIfAvailable(ymd);
+    if (loaded) {
+      console.log("✅ Jour chargé", ymd);
+      newData = true;
+    }
+  }
+
+  if(newData){
+    // Trier toutes les données CSV
+    csvData.sort((a,b)=>(a.__sortKey||0)-(b.__sortKey||0));
+
+    // Recharger les datasets visibles
+    if(currentY.length){
+      chart.data.datasets = buildDatasets();
+      chart.update('none');
+      applyAdaptiveTicks();
+    }
+
+    // 🔔 Recharger les événements Z3 liés
+    await loadZ3IfAvailable();
+    if(z3Visible && chart) chart.update('none');
+  }
+}
+
+
+
+  /* ===================== EXPORT PDF ===================== */
+  document.getElementById('exportPDF').onclick = () => {
+    if (!chart) { alert("Aucun graphique à exporter."); return; }
+    let jsPDFConstructor = null;
+    if (window.jspdf && window.jspdf.jsPDF) jsPDFConstructor = window.jspdf.jsPDF;
+    else if (window.jsPDF) jsPDFConstructor = window.jsPDF;
+    if (!jsPDFConstructor) { alert("jsPDF n’est pas chargé !"); return; }
+
+    const pdf = new jsPDFConstructor({ orientation: 'landscape' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+
+    const csvName = (getParam('fileName') || '').split('\\').pop() || '';
+    let titleText = csvName;
+    let pdfFileName = csvName.replace(/\.csv$/i, '.pdf');
+
+    if (csvName.startsWith("Z")) {
+      const matchZ = csvName.match(/^Z\d+(\d{2})_(\d{8})/);
+      if (matchZ) {
+        const xx = parseInt(matchZ[1],10).toString();
+        const d = matchZ[2];
+        titleText = `Historique Séchoir ${xx} - ${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
+      }
+    } else {
+      const match = csvName.match(/^SA(\d+)_([0-9]{8})/);
+      if (match) {
+        const num = parseInt(match[1],10);
+        const d = match[2];
+        titleText = num>0 ? `Séchoir ${num} - ${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}` : `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
+        const numTwoDigits = String(num).padStart(2,'0');
+        pdfFileName = num>0 ? `Séchoir-${numTwoDigits}_${d}.pdf` : `${d}.pdf`;
+      }
+    }
+
+    const danger = getCSSVar('--danger') || '#d84315';
+    const { r, g, b } = hexToRgb(danger);
+    const pdfSafeGrey = {r:50,g:50,b:50};
+
+    pdf.setFontSize(14);
+    pdf.setTextColor(r, g, b);
+    const lines = pdf.splitTextToSize(titleText, pageWidth - 20);
+    const titleY = 12;
+    pdf.text(lines, 14, titleY);
+
+    const canvas = chart.canvas;
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const scale = Math.min((pageWidth-20)/canvas.width, (pageHeight-60)/canvas.height);
+    const chartX = (pageWidth - canvas.width*scale)/2;
+    const chartY = titleY + 8 + lines.length*5;
+    pdf.addImage(
+      canvas.toDataURL('image/png'),
+      'PNG',
+      chartX,
+      chartY,
+      canvas.width*scale,
+      canvas.height*scale
+    );
+
+    const dateLabels = document.getElementById('dateLabels')?.textContent || "";
+    if (dateLabels) {
+      pdf.setFontSize(10);
+      pdf.setTextColor(pdfSafeGrey.r, pdfSafeGrey.g, pdfSafeGrey.b);
+      const yPos = chartY + canvas.height*scale + 15;
+      const wrapped = pdf.splitTextToSize(dateLabels, pageWidth - 20);
+      pdf.text(wrapped, pageWidth/2, yPos, { align: "center" });
+    }
+
+    pdf.save(pdfFileName);
+  };
+
+  /* ===================== INIT ===================== */
+  (async function(){
+    setTheme(localStorage.getItem("selectedTheme")||"orange");
+
+    // initialiser état lissage
+    if (!localStorage.getItem("smooth")) localStorage.setItem("smooth","0");
+    document.getElementById("smoothBtn").style.display="inline-block";
+    updateSmoothBtnUI();
+
+    await loadCSVFromDrive();
+
+// === 🗒️ CHARGEMENT AUTOMATIQUE DES NOTES ASSOCIÉES ===
+try {
+  if (!currentFolderId || !baseFileName) {
+    console.warn("⚠️ Impossible de charger les notes (folderId ou baseFileName manquant)");
+  } else {
+    const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+    const expectedJson = baseFileName.replace(/\.csv$/i, ".json").toLowerCase();
+    const noteFile = list.find(
+      x =>
+        String(x.name || "").toLowerCase() === expectedJson &&
+        Array.isArray(x.parents) &&
+        x.parents.includes(currentFolderId)
+    );
+
+    if (noteFile) {
+      console.log("📥 Fichier de notes détecté :", noteFile.name, noteFile.id);
+      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${noteFile.id}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Erreur HTTP " + res.status);
+      const jsonText = await res.text();
+      const notes = JSON.parse(jsonText);
+      console.log("✅ Notes chargées :", notes);
+
+      // 🔧 Conversion et nettoyage des données avant affichage
+notesData = notes.map(n => ({
+  id: n.id || crypto.randomUUID(),               // 🆔 on garde l'identifiant
+  x: typeof n.x === "string" ? Number(n.x) || new Date(n.x).getTime() : n.x,
+  y: typeof n.y === "string" ? parseFloat(n.y) : n.y,
+  text: n.note,
+  author: n.author,
+  createdAt: n.createdAt,
+  status: n.status || "active"
+}));
+
+
+      // 🧹 On garde uniquement les notes valides
+      notesData = notesData.filter(n => Number.isFinite(n.x) && Number.isFinite(n.y));
+
+      console.log("📊 Notes prêtes à afficher :", notesData);
+
+// 🔘 Affiche le bouton d’activation des notes
+const btnNotes = document.getElementById('toggleNotes');
+btnNotes.style.display = 'inline-block';
+btnNotes.textContent = '🗒️ Notes ON';
+btnNotes.style.background = getCSSVar('--accent-darker');
+
+      
+// 🧩 Forcer l’affichage différé des notes, une fois le graphe créé
+const waitForChart = setInterval(() => {
+  if (chart) {
+    console.log("🎨 Graphe prêt → affichage des notes");
+    chart.update("none");
+    clearInterval(waitForChart);
+  }
+}, 500);
+
+    } else {
+      console.log("🗒️ Aucun fichier de notes trouvé pour", baseFileName);
+    }
+  }
+} catch (err) {
+  console.error("⚠️ Erreur lors du chargement des notes :", err);
+}
+
 
 
     
+    // Dessiner si des Y sont déjà mémorisés ? (on attend le clic utilisateur)
+    // -> rien, on laisse l'utilisateur cocher.
+
+    // Charger Z3 (si dispo) mais masquer par défaut
+    await loadZ3IfAvailable();
+    z3Visible = false;
+    const btn = document.getElementById('toggleZ3');
+    if (btn.style.display !== 'none') {
+      btn.textContent = '🚨 Événements OFF';
+    }
+
+    // aide zoom temporaire
+    document.getElementById('zoomInfo').style.display='block';
+    setTimeout(()=>{document.getElementById('zoomInfo').style.display='none';},5000);
+
+    // zone libellés de dates sous le graphe
+    if(!document.getElementById('dateLabels')){
+      const dl=document.createElement("div");
+      dl.id="dateLabels";
+      dl.style.textAlign="center";
+      dl.style.marginTop="10px";
+      dl.style.fontSize="13px";
+      dl.style.color=getCSSVar('--text');
+      document.querySelector(".graph-wrapper").after(dl);
+    }
+  })();
+
+
+
+    
+  </script>
+
+
+
+<!-- === BLOC AJOUT/ENVOI DE NOTES === -->
+<div id="noteButton" title="Ajouter une note sur cette courbe">🗒️</div>
+
+<div id="notePopup">
+  <div class="note-content">
+    <h3>Nouvelle note</h3>
+    <p id="noteCoords" style="font-size:12px;color:gray;"></p>
+    <input id="noteAuthor" type="text" placeholder="Votre nom (facultatif)" style="width:100%;padding:6px;margin-bottom:6px;">
+    <textarea id="noteText" placeholder="Écrire une remarque..." style="width:100%;height:120px;"></textarea>
+    <div class="note-actions">
+      <button id="saveNoteBtn">Enregistrer</button>
+      <button id="cancelNoteBtn">Annuler</button>
+    </div>
+    <div id="noteStatus"></div>
+  </div>
 </div>
 
-<script src="libs/papaparse.min.js"></script>
 <script>
+const noteBtn = document.getElementById("noteButton");
+const popup = document.getElementById("notePopup");
+const txt = document.getElementById("noteText");
+const status = document.getElementById("noteStatus");
+const coordsDisplay = document.getElementById("noteCoords");
+const authorInput = document.getElementById("noteAuthor");
 
+let clickedPoint = null;
 
-
-
-/* =================== Globals =================== */
-let csvData=[], headers=[], planTop=[], planBottom=[];
-let z3Events = [];         // {timeText, minutes, desc, fileId, fileName}
-let lastSliderIndex = 0;
-let currentDay = null;
-let isMerging = false;
-let mergedDays = new Set();
-const Z3_HILITE_TOL_MIN = 5;  // tolérance (minutes) pour surlignage
-const params=new URLSearchParams(window.location.search);
-const fileId=params.get("fileId");
-const fileName=params.get("fileName");
-
-/* =================== Header dossier + flamme =================== */
-(function hydrateFolderHeader(){
-  let title="";
-  try{
-    const list = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
-    const f = list.find(x=>x.id===fileId);
-    if(f && f.parents && f.parents.length){
-      const parent = list.find(x=>x.id===f.parents[0]);
-      if(parent && parent.name){
-        title = parent.name;
-        if(parent.parents && parent.parents.length){
-          const root = list.find(x=>x.id===parent.parents[0]);
-          if(root && root.name) title = root.name+" / "+parent.name;
-        }
-      }
-    }
-  }catch(e){}
-  if(!title) title = decodeURIComponent(fileName||"");
-  const flameTitle = title.replace(/🔥/g,'<span class="flame" title="Brûleur(s) en fonctionnement">🔥</span>');
-  const el=document.getElementById("currentFolderName");
-  if(el) el.innerHTML=flameTitle;
-  const fn=document.getElementById("fileName");
-  if(fn) fn.textContent = decodeURIComponent(fileName||"");
-})();
-
-/* =================== Plan depuis localStorage =================== */
-function loadPlan(){
-  const raw=localStorage.getItem("planSondes");
-  if(!raw){
-    document.getElementById("gridTop").innerHTML="<b style='color:red'>❌ planSondes manquant</b>";
+// 🟢 Étape 1 : clic sur le bouton "🗒️" → activer mode sélection avec bulle
+noteBtn.addEventListener("click", () => {
+  if (!chart) {
+    showToast("⚠️ Aucune courbe chargée !");
     return;
   }
-  const lines = raw.trim().split(/\r?\n/).map(l=>{
-    const cols = l.split(",").map(v=>v.trim());
-    return cols.every(v=>v==="") ? null : cols;
+
+  chart.$noteMode = true;
+  showToast("🖱️ Clique sur un point de la courbe pour ajouter ta note", 5000);
+});
+
+
+// 🟢 Étape 2 : clic libre sur le graphe pour définir le point de note + effet visuel
+document.getElementById("myChart").addEventListener("click", (ev) => {
+  if (!chart || !chart.$noteMode) return;
+
+  const rect = chart.canvas.getBoundingClientRect();
+  const xPix = ev.clientX - rect.left;
+  const yPix = ev.clientY - rect.top;
+
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+
+  // Conversion pixels → valeurs logiques du graphe
+  const xValue = xScale.getValueForPixel(xPix);
+  const yValue = yScale.getValueForPixel(yPix);
+  clickedPoint = { x: xValue, y: yValue };
+  chart.$noteMode = false;
+
+  // 💫 Crée un petit effet de "ping" visuel sur le canvas
+  const ping = document.createElement("div");
+  Object.assign(ping.style, {
+    position: "absolute",
+    left: rect.left + xPix - 10 + "px",
+    top: rect.top + yPix - 10 + "px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    background: "rgba(255,112,67,0.6)", // orange léger
+    transform: "scale(0.5)",
+    opacity: "1",
+    pointerEvents: "none",
+    zIndex: "2000",
+    transition: "transform 0.6s ease-out, opacity 0.8s ease-out"
+  });
+  document.body.appendChild(ping);
+
+  requestAnimationFrame(() => {
+    ping.style.transform = "scale(2)";
+    ping.style.opacity = "0";
   });
 
-  // scinder en deux blocs (ligne vide = séparation)
-  let top=[], bottom=[], buf=[];
-  let topDone=false;
-  for(const row of lines){
-    if(row===null){ if(!topDone){ top = buf; topDone=true; buf=[]; } else { /* ignore extra splits */ } }
-    else buf.push(row);
+  setTimeout(() => ping.remove(), 900);
+
+  // 🗒️ Ouvre la popup de saisie
+  coordsDisplay.textContent = `📍 X: ${new Date(xValue).toLocaleString()} | Y: ${yValue.toFixed(2)}`;
+  popup.classList.add("active");
+  txt.value = "";
+  status.textContent = "";
+  txt.focus();
+});
+
+
+// 🟢 Étape 3 : annuler la saisie
+document.getElementById("cancelNoteBtn").addEventListener("click", () => {
+  popup.classList.remove("active");
+});
+
+// 🟢 Étape 4 : envoyer la note au script Google
+document.getElementById("saveNoteBtn").addEventListener("click", async () => {
+  const content = txt.value.trim();
+  if (!content) {
+    status.textContent = "⚠️ Note vide.";
+    return;
   }
-  bottom = topDone ? buf : [];
-
-  planTop = top;
-  planBottom = bottom;
-
-  buildGrid();
-}
-
-/* =================== Construction de la grille centrée =================== */
-function buildGrid(){
-  const gridTop = document.getElementById("gridTop");
-  const gridBottom = document.getElementById("gridBottom");
-  gridTop.innerHTML = ""; 
-  gridBottom.innerHTML = "";
-
-  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols')) || 22;
-
-  function placeRows(container, rows){
-    if(!rows || !rows.length) return;
-    const planCols = rows[0].length;
-    const startCol = Math.max(1, Math.floor((cols - planCols)/2) + 1); // centre dans 22
-    rows.forEach(r=>{
-      r.forEach((num, j)=>{
-        if(!num) return;
-        const d=document.createElement("div");
-        d.className="sonde";
-        d.id="sonde"+num;
-        d.style.gridColumn = (startCol + j) + " / span 1";
-        d.innerHTML = `
-          <div class="label">Sonde ${num}</div>
-          <div class="consigne">-- °C</div>
-          <div class="val">-- °C</div>`;
-        container.appendChild(d);
-      });
-    });
-  }
-
-  placeRows(gridTop, planTop);
-  placeRows(gridBottom, planBottom);
-} // 🔹 Fin de buildGrid()
-
-/* ============ RIGHT PANEL: load + render Z3 (auto-fetch if missing content) ============ */
-function yyyymmddFromName(name){
-  const m = (name||"").match(/(\d{8})/);
-  return m ? m[1] : null;
-}
-
-function toMinutes(t){
-  if(!t) return NaN;
-  const m = String(t).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(!m) return NaN;
-  const hh = parseInt(m[1],10), mm = parseInt(m[2],10), ss = parseInt(m[3]||"0",10);
-  return hh*60 + mm + (ss>=30? 0.5:0);
-}
-
-function minutesFromRowTime(row){
-  const timeKey=headers.find(h=>{
-    const a=(h||"").toLowerCase();
-    return a.includes("heure")||a.includes("time")||a==="h";
-  });
-  const t = timeKey ? String(row[timeKey]||"").trim() : "";
-  return toMinutes(t);
-}
-
-function currentRowMinutes(idx){
-  if(!csvData[idx]) return NaN;
-  return minutesFromRowTime(csvData[idx]);
-}
-
-/* =====================================================
-   🔁 Synchronisation automatique des fichiers Z3
-   - Vérifie que le cache est chargé depuis index.html
-   - Recharge si besoin à partir du dossier "Historique"
-   ===================================================== */
-async function ensureZ3FilesLoaded() {
-  const cached = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
-  if (cached.length) {
-    console.log(`📦 ${cached.length} fichiers Z3 déjà présents dans le cache`);
-    return cached;
-  }
-
-  console.warn("⚠️ Aucun Z3 préchargé trouvé, tentative de rechargement…");
+  status.textContent = "💾 Envoi en cours...";
 
   try {
-    const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
-    const first = list.find(
-      f => f.name &&
-      (f.name.toLowerCase().includes("traça_temp") || f.name.toLowerCase().includes("traca_temp"))
-    );
-    if (!first) throw new Error("Pas de dossier Traça_Temp détecté");
+    const createdAt = new Date().toISOString();
 
-    const parentFolder = first.folder.split('/').slice(0, -1).join('/');
-    const historiqueFolder = `${parentFolder}/Historique`;
+    // 🔍 Log des données envoyées au Script Google
+    const payload = {
+      id: crypto.randomUUID(),
+      csvName: baseFileName || "inconnu.csv",
+      fileId: baseFileId,
+      folderId: localStorage.getItem("lastFolderId") || "",
+      author: authorInput.value || "Anonyme",
+      note: content,
+      x: clickedPoint ? clickedPoint.x : "",
+      y: clickedPoint ? clickedPoint.y : "",
+      createdAt: createdAt,
+      status: "active",
+      dossier: currentFolderPath || ""   // 🆕 chemin texte du dossier (simple texte)
+    };
+    console.log("📤 Données envoyées au Script Google :", payload);
 
-    const res = await fetch(`/api/list?path=${encodeURIComponent(historiqueFolder)}`);
-    if (!res.ok) throw new Error("Erreur de lecture API");
-    const files = await res.json();
+    
+// 🌐 Récupération de l’adresse IP publique du visiteur
+let ip = "inconnue";
+try {
+  const ipRes = await fetch("https://api.ipify.org?format=json");
+  if (ipRes.ok) {
+    const ipData = await ipRes.json();
+    ip = ipData.ip || "inconnue";
+  }
+} catch {
+  console.warn("Impossible de récupérer l’IP publique");
+}
 
-    const z3Files = files
-      .filter(f => f.name.startsWith("Z3") && f.name.endsWith(".csv"))
-      .map(f => ({
-        name: f.name,
-        path: `${historiqueFolder}/${f.name}`,
-        folder: historiqueFolder
-      }));
+// 📨 Envoi au script Google
+const response = await fetch(
+  "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      id: crypto.randomUUID(),
+      csvName: baseFileName || "inconnu.csv",
+      fileId: baseFileId,
+      folderId: localStorage.getItem("lastFolderId"),
+      author: authorInput.value || "Anonyme",
+      note: content,
+      x: clickedPoint ? clickedPoint.x : "",
+      y: clickedPoint ? clickedPoint.y : "",
+      createdAt,
+      status: "active",
+      dossier: currentFolderPath || "",
+      ip // ✅ ajout de l’IP ici
+    })
+  }
+);
 
-    localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-    console.log(`✅ ${z3Files.length} fichiers Z3 rechargés depuis "${historiqueFolder}"`);
-    return z3Files;
+
+    const textRes = await response.text();
+    console.log("Réponse serveur:", textRes);
+    status.textContent = "✅ Note enregistrée !";
+
+notesData.push({
+  id: crypto.randomUUID(),                       // 🆔 identifiant local
+  x: clickedPoint.x,
+  y: clickedPoint.y,
+  text: content,
+  author: authorInput.value || "Anonyme",
+  createdAt: createdAt,
+  status: "active",
+});
+
+
+    if (chart) chart.update("none");
+    setTimeout(() => popup.classList.remove("active"), 800);
   } catch (err) {
-    console.error("❌ Impossible de recharger les fichiers Z3 :", err);
-    return [];
-  }
-}
-
-  
-// =====================================================
-// ✅ Version identique à viewer02 — complète et robuste
-// =====================================================
-// =====================================================
-// ✅ Version identique à viewer02 — complète et robuste
-// =====================================================
-async function loadZ3ForSameDay() {
-  z3Events = [];
-
-  const dayMatch = (fileName || "").match(/(\d{8})/);
-  const day = dayMatch ? dayMatch[1] : null;
-  if (!day) {
-    console.warn("⚠️ Impossible de détecter la date du fichier principal :", fileName);
-    renderZ3List();
-    return;
-  }
-
-  // 🔹 Récupération ou rechargement des fichiers Z3
-  const z3Files = await ensureZ3FilesLoaded();
-  const sameDay = z3Files.filter(f => f.name.includes(day));
-  console.log(`🔍 Recherche Z3 du ${day} → ${sameDay.length} fichier(s) trouvé(s)`);
-
-  for (const f of sameDay) {
-    let text = f.content;
-
-    // 🔸 Si pas de contenu, téléchargement via proxy Drive (identique viewer02)
-    if (!text && f.id) {
-      try {
-        console.log("🌐 Téléchargement Z3 depuis Drive :", f.name);
-        const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name || "")}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Erreur proxy Drive");
-        const buf = await res.arrayBuffer();
-        text = decodeSmart(buf); // même décodage que CSV principal
-
-        f.content = text;
-        const all = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
-        const updated = all.map(x => x.name === f.name ? f : x);
-        localStorage.setItem("csvZ3Files", JSON.stringify(updated));
-      } catch (err) {
-        console.error("❌ Erreur chargement fichier Z3 :", f.name, err);
-        continue;
-      }
-    }
-
-    if (!text) continue;
-
-    // 🧹 Nettoyage et parsing CSV
-    const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-    let startIndex = lines.findIndex(l => /trigger.?time|horodatage/i.test(l));
-    if (startIndex === -1) startIndex = 0;
-    const csvClean = lines.slice(startIndex).join("\n");
-
-    const parsed = Papa.parse(csvClean, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: false,
-      delimitersToGuess: [",", ";", "\t"],
-    });
-
-    const H = parsed.meta.fields || [];
-    const rows = parsed.data || [];
-
-    // 🔍 Détection des colonnes (FR / EN / variantes)
-    const timeCol = H.find(h => /(trigger.?time|heure|horodatage|time|temps)/i.test(h)) || H[0];
-    const msgCol  = H.find(h => /(message|desc|description|evenement|event)/i.test(h)) || H[1];
-    const addrCol = H.find(h => /(address|adresse|addr|zone|address ?1)/i.test(h)) || null;
-
-    console.log("🧩 Colonnes Z3 détectées :", { timeCol, msgCol, addrCol });
-
-    for (const r of rows) {
-      const t = String(r[timeCol] || "").trim();
-      const msg = String(r[msgCol] || "").trim();
-      const addr = String(r[addrCol] || "").trim();
-      const mins = toMinutes(t);
-      if (!isNaN(mins) && msg) {
-        z3Events.push({
-          timeText: t,
-          minutes: mins,
-          desc: addr ? `${msg} (${addr})` : msg,
-          fileId: f.id,
-          fileName: f.name,
-        });
-      }
-    }
-  }
-
-console.log("✅ Total événements Z3 chargés :", z3Events.length);
-
-// ✅ Aligne l'ordre logique : DOM des événements <-> z3Events
-z3Events.sort((a, b) => a.minutes - b.minutes);
-
-renderZ3List();
-highlightZ3Near(currentRowMinutes(0));
-
-}
-function updateZ3Intensity(currentMinutes) {
-  const RANGE = 15;          // influence ±15 min autour
-  const MAX_INTENSITY = 4;   // 0→4 correspond aux niveaux CSS
-
-  const allItems = Array.from(document.querySelectorAll("#z3List .z3Item, #z3List .hour-mark"));
-  if (!allItems.length) return;
-
-  allItems.forEach(el => {
-    let minutes;
-    if (el.classList.contains("hour-mark")) {
-      minutes = toMinutes(el.querySelector(".t")?.textContent);
-    } else {
-      const idx = parseInt(el.dataset.evIndex || "-1");
-      minutes = z3Events[idx]?.minutes ?? NaN;
-    }
-
-    if (isNaN(minutes)) {
-      el.dataset.intensity = 0;
-      return;
-    }
-
-    const diff = Math.abs(minutes - currentMinutes);
-    const ratio = 1 - Math.min(diff / RANGE, 1);
-    const level = Math.round(ratio * MAX_INTENSITY);
-    el.dataset.intensity = level;
-  });
-  allItems.forEach(el => {
-    let minutes;
-    if (el.classList.contains("hour-mark")) {
-      minutes = toMinutes(el.querySelector(".t")?.textContent);
-    } else {
-      const idx = parseInt(el.dataset.evIndex || "-1");
-      minutes = z3Events[idx]?.minutes ?? NaN;
-    }
-
-    if (isNaN(minutes)) {
-      el.dataset.intensity = 0;
-      return;
-    }
-
-    const diff = Math.abs(minutes - currentMinutes);
-    const ratio = 1 - Math.min(diff / RANGE, 1);
-    const level = Math.round(ratio * MAX_INTENSITY);
-    el.dataset.intensity = level;
-  });
-
-  // 🔹 Lisibilité dynamique : texte clair sur fond sombre
-  allItems.forEach(el => {
-    const style = getComputedStyle(el);
-    const bg = style.backgroundColor;
-
-    // Convertit la couleur en luminance relative (perceptuelle)
-    const rgb = bg.match(/\d+/g)?.map(Number) || [255,255,255];
-    const luminance = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
-
-    // Détermine couleur texte : clair si fond sombre
-    el.style.color = luminance < 0.5 ? "var(--text-light)" : "var(--text-dark)";
-  });
-}
-
-
-
-
-
-
-
-
-
-
-
-
-// 🔁 Version alignée : z3Events trié + repères 15 min intercalés
-function renderZ3List() {
-  const box = document.getElementById("z3List");
-  box.innerHTML = "";
-
-  if (!z3Events.length) {
-    box.innerHTML = `<div class="z3Item" style="opacity:.7;cursor:default;">
-      <span class="t">--:--</span><span class="d">Aucun événement Z3</span>
-    </div>`;
-    return;
-  }
-
-  // Repères horaires 00:00 → 23:45 (toutes les 15 min)
-  const timeMarks = [];
-  for (let h = 0; h < 24; h++) {
-    for (let q = 0; q < 60; q += 15) {
-      const hh = String(h).padStart(2, "0");
-      const mm = String(q).padStart(2, "0");
-      timeMarks.push(`${hh}:${mm}`);
-    }
-  }
-
-  // z3Events est DÉJÀ TRIÉ par minutes
-  let evIdx = 0;
-
-  for (const mark of timeMarks) {
-    const markMin = toMinutes(mark);
-
-    // Ligne de repère
-    const markDiv = document.createElement("div");
-    markDiv.className = "z3Item hour-mark";
-    markDiv.innerHTML = `<span class="t">${mark}</span><span class="d"></span>`;
-    box.appendChild(markDiv);
-
-    // Ajoute tous les événements qui tombent dans ce quart d'heure
-    while (evIdx < z3Events.length && z3Events[evIdx].minutes < markMin + 15) {
-      const ev = z3Events[evIdx];
-      const div = document.createElement("div");
-      div.className = "z3Item";
-      // stocke l’index logique de l’événement (optionnel mais utile)
-      div.dataset.evIndex = String(evIdx);
-      div.innerHTML = `<span class="t">${ev.timeText}</span><span class="d">${ev.desc}</span>`;
-      div.onclick = () => jumpSliderToClosest(ev.minutes);
-      box.appendChild(div);
-      evIdx++;
-    }
-
-    if (evIdx >= z3Events.length) break; // plus d'événements : on peut s’arrêter tôt
-  }
-}
-
-
-
-
-function highlightZ3Near(targetMinutes) {
-  // Nettoie tout
-  document.querySelectorAll("#z3List .z3Item").forEach(el => el.classList.remove("active"));
-  if (isNaN(targetMinutes) || !z3Events.length) return;
-
-  // Trouve l’index de l’événement le plus proche
-  let bestIdx = -1, bestDiff = Infinity;
-  z3Events.forEach((ev, idx) => {
-    const diff = Math.abs(ev.minutes - targetMinutes);
-    if (diff < bestDiff) { bestDiff = diff; bestIdx = idx; }
-  });
-
-  // Tolérance
-  if (bestIdx === -1 || bestDiff > Z3_HILITE_TOL_MIN) return;
-
-  // Récupère la N-ième tuile événement (en ignorant les repères)
-  const eventItems = Array.from(document.querySelectorAll("#z3List .z3Item"))
-    .filter(el => !el.classList.contains("hour-mark"));
-
-  const el = eventItems[bestIdx];
-  if (el) {
-    el.classList.add("active");
-
-    // Scroll dans la vue si besoin
-    const box = document.getElementById("z3List");
-    const boxRect = box.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-    if (elRect.top < boxRect.top || elRect.bottom > boxRect.bottom) {
-      box.scrollTop = el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2;
-    }
-  }
-} // ✅ cette accolade ferme bien la fonction entière
-
-
-
-
-
-
-
-function jumpSliderToClosest(targetMinutes){
-  if(!csvData.length) return;
-  let bestIdx = 0, bestDiff = Infinity;
-  for(let i=0;i<csvData.length;i++){
-    const mins = minutesFromRowTime(csvData[i]);
-    if(isNaN(mins)) continue;
-    const diff = Math.abs(mins - targetMinutes);
-    if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
-  }
-  const slider = document.getElementById("slider");
-  slider.value = String(bestIdx);
-  lastSliderIndex = bestIdx;
-  updateGrid(bestIdx);
-  highlightZ3Near(currentRowMinutes(bestIdx));
-}
-
-/* ============ Ajout différé des cases spéciales (inchangé sauf position) ============ */
-function addSpecialsAfterCSV() {
-  const normalize = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
-
-  // Détection ultra tolérante
-  const hasExt   = headers.some(h => normalize(h).includes("tcext") || normalize(h).includes("temperatureexterieure") || normalize(h).includes("tempext"));
-  const hasDebit = headers.some(h => normalize(h).includes("debit") || normalize(h).includes("debitth") || normalize(h).includes("dbit") || normalize(h).includes("tonne"));
-  const hasGaz   = headers.some(h => normalize(h).includes("gaz"));
-  const hasNorm  = headers.some(h => normalize(h).includes("normalis"));
-  const hasIpe   = headers.some(h => normalize(h).includes("ipe") || normalize(h).includes("ip") || normalize(h).includes("ipekwh"));
-
-  const specials = [
-    // 🔸 Sondes internes
-    { id: "SondeACsup", label: "Air chaud Supérieur", col: "G", row: 4 },
-    { id: "SondeACinf", label: "Air chaud Inférieur", col: "G", row: 10 },
-    { id: "TempGrain",  label: "Température Grain",   col: "P", row: 7 },
-    { id: "TempExt",    label: "Température Extérieure 🌡️", col: "E", row: 10, optional: true, active: hasExt },
-
-    // 🔸 Nouvelles cases de suivi
-    { id: "DebitTH",   label: "Débit Séchage", col: "D", row: 7, optional: true, bg: "#00CCFF", active: hasDebit },
-    { id: "GazM3H",    label: "🔥 GAZ",        col: "D", row: 8, optional: true, bg: "#FFCC33", active: hasGaz },
-    { id: "Normalise", label: "🔥 GAZ",        col: "D", row: 9, optional: true, bg: "#FFCC33", active: hasNorm },
-    { id: "IPE",       label: "🔥 Ipé",        col: "D", row:10, optional: true, bg: "#33FF00", active: hasIpe }
-  ];
-
-  // 🔸 Nouveaux compteurs et chronos
-  const hasMinuterie  = headers.some(h => normalize(h).includes("minuterie"));
-  const hasModulee    = headers.some(h => normalize(h).includes("modulee"));
-  const hasCumul      = headers.some(h => normalize(h).includes("cumul"));
-  const hasExtract    = headers.some(h => normalize(h).includes("extraction"));
-  const hasCptTotal   = headers.some(h => normalize(h).includes("cptkwh") && normalize(h).includes("total"));
-  const hasCptLot     = headers.some(h => normalize(h).includes("cptkwh") && normalize(h).includes("lot"));
-
-  specials.push(
-    { id: "Minuterie", label: "Minuterie", col: "R", row: 7, optional: true, active: hasMinuterie, unit: "s", bg: "#ccffcc" },   // vert clair
-    { id: "Modulee",   label: "Modulée",   col: "R", row: 8, optional: true, active: hasModulee,   unit: "s", bg: "#cce5ff" },   // bleu clair
-    { id: "Cumul",     label: "Cumul",     col: "R", row: 9, optional: true, active: hasCumul,     unit: "t", bg: "#ccffcc" },   // vert clair
-    { id: "NbExtract", label: "Nb Extraction", col: "R", row: 10, optional: true, active: hasExtract, bg: "#ccffcc" },            // vert clair
-    { id: "CptTotal",  label: "Compteur kWh Total", col: "B", row: 8, optional: true, active: hasCptTotal, unit: "kWh", bg: "#FFCC33" }, // jaune gaz
-    { id: "CptLot",    label: "Compteur kWh Lot", col: "B", row: 9, optional: true, active: hasCptLot, unit: "kWh", bg: "#FFCC33" }     // jaune gaz
-  );
-
-
-  
-  function colIdx(letter){ return letter.toUpperCase().charCodeAt(0) - 64; }
-
-  function placeSpecial(s){
-    const col = colIdx(s.col);
-    const row = s.row;
-    const d = document.createElement("div");
-    d.className = "sonde special";
-    d.id = s.id;
-    if (s.bg) d.style.background = s.bg;
-    d.innerHTML = `
-      <div class="label">${s.label}</div>
-      <div class="consigne">--</div>
-      <div class="val">--</div>`;
-    const target = (row <= 6) ? document.getElementById("gridTop") : document.getElementById("gridBottom");
-    d.style.gridColumn = `${col} / span 1`;
-    d.style.gridRow = `${row <= 6 ? row : row - 6} / span 1`;
-    target.appendChild(d);
-  }
-
-  specials.forEach(s => { if (!s.optional || s.active) placeSpecial(s); });
-}
-
-/* =================== Responsive : calcule la taille de case =================== */
-function updateTileSize(){
-  const wrap = document.getElementById("gridWrap");
-  const cols = 22;
-  const rows = 12;
-  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'))||8;
-  const splitGapRatio = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--split-gap'))||0.3;
-
-  const availW = wrap.clientWidth - 32;   // marges internes
-  const availH = wrap.clientHeight - 16;
-
-  const totalVCellGaps = (6-1) + (6-1); // 10
-  const hByW = (availW - (cols-1)*gap) / cols;
-  const hByH = (availH - totalVCellGaps*gap) / (rows + splitGapRatio); 
-  const s = Math.max(60, Math.floor(Math.min(hByW, hByH))); // taille min 60px
-
-  document.documentElement.style.setProperty('--tile-size', s + 'px');
-}
-
-/* =================== CSV (Drive ou LocalStorage) =================== */
-// === Helper encodage intelligent ===
-function decodeSmart(arrayBuffer) {
-  let txt = new TextDecoder("utf-8", { fatal: false }).decode(arrayBuffer);
-  if (txt.includes("Ã") || txt.includes("Â") || txt.includes("�")) {
-    try {
-      txt = new TextDecoder("iso-8859-1").decode(arrayBuffer);
-    } catch (e) {
-      console.warn("Erreur de décodage ISO-8859-1", e);
-    }
-  }
-  return txt;
-}
-
-
-  
-  async function loadCSV(){
-  const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
-  const idx = parseInt(localStorage.getItem("csvFileIndex") || "0");
-  let file = list.find(f => f.id === fileId) || list[idx] || null;
-  let text = "";
-
-  // 1️⃣ Si le CSV est déjà présent en mémoire → on l'utilise
-  if (file && file.content) {
-    console.log("📦 CSV trouvé dans localStorage :", file.name);
-    text = file.content;
-  } 
-  // 2️⃣ Sinon, on le télécharge depuis le proxy Netlify (comme avant)
-  else if (file && file.id) {
-    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${file.id}&name=${encodeURIComponent(file.name || "")}`;
-    try {
-const res = await fetch(url);
-if (!res.ok) throw new Error("Erreur proxy Drive");
-
-// ✅ Décodage intelligent UTF-8 / ISO-8859-1
-const buf = await res.arrayBuffer();
-text = decodeSmart(buf);
-
-
-      
-      console.log("🌐 CSV téléchargé depuis Drive :", file.name);
-
-      // On le sauvegarde dans le localStorage pour la prochaine fois
-      const updated = list.map(f => f.id === file.id ? { ...f, content: text } : f);
-      localStorage.setItem("csvFilesList", JSON.stringify(updated));
-    } catch (err) {
-      console.error("❌ Erreur chargement CSV :", err);
-      document.getElementById("gridTop").innerHTML = `<b style='color:red'>❌ Impossible de charger le CSV</b>`;
-      return;
-    }
-  } else {
-    console.error("⚠️ Aucun fichier CSV valide trouvé.");
-    document.getElementById("gridTop").innerHTML = `<b style='color:red'>❌ Aucun CSV valide trouvé</b>`;
-    return;
-  }
-
-  // 3️⃣ Parsing du CSV
-  const seen = {};
-  const results = Papa.parse(text, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => {
-      h = (h || "").replace(/"/g, "").trim();
-      if (seen[h]) {
-        seen[h]++;
-        return h + "_" + seen[h];
-      } else {
-        seen[h] = 1;
-        return h + "_1";
-      }
-    },
-  });
-
-  headers = results.meta.fields || [];
-  csvData = results.data || [];
-// 🗓️ Détecte le jour courant
-const m = (file.name || "").match(/(\d{8})/);
-currentDay = m ? m[1] : null;
-if (currentDay) mergedDays.add(currentDay);
-
-  const lc = document.getElementById("lineCount");
-  if (lc)
-    lc.textContent =
-      (csvData?.length || 0) +
-      " ligne" +
-      ((csvData?.length || 0) > 1 ? "s" : "");
-  document.getElementById("slider").max = Math.max(
-    0,
-    (csvData.length || 1) - 1
-  );
-
-  const minInit = parseFloat(localStorage.getItem("scaleMin") || "30");
-  const maxInit = parseFloat(localStorage.getItem("scaleMax") || "60");
-  document.getElementById("minInput").value = isNaN(minInit) ? 30 : minInit;
-  document.getElementById("maxInput").value = isNaN(maxInit) ? 60 : maxInit;
-
-  // 4️⃣ Ajout des cases spéciales et affichage initial
-  addSpecialsAfterCSV();
-  updateGrid(0);
-
-  // 5️⃣ Les fichiers Z3 → uniquement depuis localStorage
-  loadZ3ForSameDay();
-}
-
-
-
-/* =================== Couleurs =================== */
-function getScale(){
-  let min=parseFloat(document.getElementById("minInput").value);
-  let max=parseFloat(document.getElementById("maxInput").value);
-  if(!isFinite(min)) min=30;
-  if(!isFinite(max)) max=60;
-  if(max<=min) max=min+1;
-  return {min,max};
-}
-function getColor(v){
-  const {min,max}=getScale();
-  let t=(v-min)/(max-min); t=Math.max(0,Math.min(1,t));
-  if(t<0.5){const r=t/0.5;return `rgb(0,${Math.round(150+105*r)},${Math.round(255-255*r)})`;}
-  else if(t<0.75){const r=(t-0.5)/0.25;return `rgb(${Math.round(255*r)},255,0)`;}
-  else if(t<0.9){const r=(t-0.75)/0.15;return `rgb(255,${Math.round(255-90*r)},0)`;}
-  else{const r=(t-0.9)/0.1;return `rgb(255,${Math.round(165-165*r)},0)`;}
-}
-
-/* =================== Actualisation d’une ligne =================== */
-function updateGrid(idx){
-  if(!csvData[idx]) return;
-  lastSliderIndex = idx;
-  const row = csvData[idx];
-
-  // Date/Heure
-  const dateKey=headers.find(h=>(h||"").toLowerCase().includes("date"));
-  const timeKey=headers.find(h=>{
-    const a=(h||"").toLowerCase();
-    return a.includes("heure")||a.includes("time")||a==="h";
-  });
-  let dt=""; 
-  if(dateKey&&row[dateKey]) dt+=String(row[dateKey]); 
-  if(timeKey&&row[timeKey]) dt+=(dt?" — ":"")+String(row[timeKey]);
-  document.getElementById("datetimeLabel").textContent = dt||"";
-
-  // === Sondes normales ===
-  const allCells = document.querySelectorAll('.sonde:not(.special)');
-  allCells.forEach(div=>{
-    const n = div.id.replace("sonde","").padStart(2,"0");
-    const consCol = "Sonde"+n+"_1";
-    const valCol  = "Sonde"+n+"_2";
-    const cons = parseFloat(row[consCol]);
-    const val  = parseFloat(row[valCol]);
-    div.querySelector(".consigne").textContent = isNaN(cons) ? "-- °C" : cons.toFixed(1)+" °C";
-    const vdiv = div.querySelector(".val");
-    if(!isNaN(val)){
-      vdiv.textContent=val.toFixed(1)+" °C"; 
-      div.style.background=getColor(val);
-    } else {
-      vdiv.textContent="-- °C"; 
-      div.style.background="#eee";
-    }
-  });
-
-  // 🔸 Fonction générique pour les cases spéciales
-  function updateSpecial(label, id, opts = {}) {
-    const { altLabels = [], prefer = [] } = opts;
-    const el = document.getElementById(id);
-    if (!el) return;
-
-    const norm = s => (s || "").normalize("NFD").replace(/[^\w]/g, "").toLowerCase();
-    const wanted  = [label, ...altLabels].map(norm);
-    const prefers = (prefer || []).map(norm);
-
-    // --- Recherche colonne exacte ---
-    let valCol = null;
-    for (const h of headers) {
-      const n = norm(h);
-      if (prefers.some(p => n === p || n.includes(p))) { valCol = h; break; }
-    }
-    if (!valCol) {
-      for (const h of headers) {
-        const n = norm(h);
-        if (wanted.some(w => n.includes(w))) { valCol = h; break; }
-      }
-    }
-
-    const val = valCol ? parseFloat(row[valCol]) : NaN;
-
-    // --- Unités auto ---
-    let unit = "°C";
-    const L = norm(label);
-    if (L.includes("debit")) unit = "t/h";
-    else if (L.includes("gaz") && !L.includes("normal")) unit = "m³/h";
-    else if (L.includes("normal")) unit = "Nm³/h";
-    else if (L.includes("ip")) unit = "kWh/tee";
-
-// 🔸 Priorité à l’unité personnalisée (spéciale)
-if (opts.unit) unit = opts.unit;
-
-// 🔸 Format d'affichage selon la nature de la donnée
-let decimals = 1;
-let formatAsTime = false;
-
-if (["minuterie", "modulee"].some(k => L.includes(k))) {
-  formatAsTime = true; // affichage mm:ss
-  unit = ""; // pas de °C ni de 's'
-} else if (L.includes("nbextract")) {
-  decimals = 0;
-  unit = "";
-} else if (L.includes("cumul")) {
-  decimals = 1;
-  unit = opts.unit || "t";
-}
-
-
-    // --- Style valeur ---
-    const vdiv = el.querySelector(".val");
-    vdiv.style.fontSize = "clamp(11px, calc(var(--tile-size)*0.13), 17px)";
-    if (isNaN(val)) {
-  vdiv.textContent = `-- ${unit}`;
-} else if (formatAsTime) {
-  const total = Math.max(0, Math.round(val));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  vdiv.textContent = `${m}:${s.toString().padStart(2, "0")}`;
-} else {
-  vdiv.textContent = `${val.toFixed(decimals)} ${unit}`;
-}
-
-
-
-    // --- Consignes ACsup/ACinf/Grain (comme avant) ---
-    const consEl = el.querySelector(".consigne");
-    if (L.includes("acsup") || L.includes("acinf") || L.includes("grain")) {
-      let consCol = null, valCol2 = null, count = 0;
-      for (const h of headers) {
-        const n = norm(h);
-        if (n.includes(norm(label))) {
-          count++;
-          if (count === 1) consCol = h;
-          if (count === 2) valCol2 = h;
-        }
-      }
-      const consVal = consCol ? parseFloat(row[consCol]) : NaN;
-      const valVal  = valCol2 ? parseFloat(row[valCol2]) : NaN;
-      consEl.style.display = "block";
-      consEl.textContent = isNaN(consVal) ? "-- °C" : `${consVal.toFixed(1)} °C`;
-      vdiv.textContent = isNaN(valVal) ? "-- °C" : `${valVal.toFixed(1)} °C`;
-      if (!isNaN(valVal)) el.style.background = getColor(valVal);
-    } else {
-      consEl.style.display = "none";
-    }
-  }
-
-  // 🔹 Appels
-  updateSpecial("Sonde AC sup", "SondeACsup");
-  updateSpecial("Sonde AC inf", "SondeACinf");
-  updateSpecial("Temp Grain",    "TempGrain");
-  updateSpecial("T°C Ext",       "TempExt", {
-    altLabels: ["Temperature Exterieure", "Temp Ext", "TC Ext", "T C Ext"]
-  });
-
-  // 🔹 Suivis (1 seule colonne)
-  updateSpecial("Débit", "DebitTH", {
-    altLabels: ["D bit t/h", "Débit T/H", "Débit (Tonnes / Heure)"],
-    prefer: ["dbitth"]
-  });
-  updateSpecial("Gaz", "GazM3H", {
-    altLabels: ["Gaz m3/h", "GAZ M3/H", "Consommation (m3 / Heure)"],
-    prefer: ["gazm3h"]
-  });
-  updateSpecial("Normalisé", "Normalise", {
-    altLabels: ["Normalis", "Normalisé", "Consommation (Nm3 / Heure)"],
-    prefer: ["normalis"]
-  });
-  updateSpecial("Ipé", "IPE", {
-    altLabels: ["Ip", "Ipe", "Ipé (kWh/tee)", "IPE"],
-    prefer: ["ip"]
-  });
-
-   // Nouveaux suivis process
-  updateSpecial("Minuterie", "Minuterie", { altLabels: ["Minuterie"], prefer: ["minuterie"] });
-  updateSpecial("Modulée",   "Modulee",   { altLabels: ["Modulee"], prefer: ["modulee"] });
-  updateSpecial("Cumul",     "Cumul",     { altLabels: ["Cumul"], prefer: ["cumul"] });
-  updateSpecial("Nb Extraction", "NbExtract", { altLabels: ["Extractions"], prefer: ["extraction"] });
-  updateSpecial("Compteur kWh Total", "CptTotal", { altLabels: ["CPT KWH TOTAL"], prefer: ["cptkwhtotal"], unit: "kWh" });
-  updateSpecial("Compteur kWh Lot", "CptLot", { altLabels: ["CPT KWH LOT"], prefer: ["cptkwhlot"], unit: "kWh" });
- 
-
-  // ➕ Surligne l'event Z3 le plus proche de l'heure courante
-  const mins = minutesFromRowTime(row);
-  updateZ3Intensity(mins);
-
-  highlightZ3Near(mins);
-}
-
-/* =================== Listeners =================== */
-window.addEventListener("resize", updateTileSize);
-document.getElementById("slider").addEventListener("input", async e => {
-  const idx = parseInt(e.target.value)||0;
-  updateGrid(idx);
-document.getElementById("slider").max = csvData.length - 1;
-
-  // Détection bord du slider → fusion
-  const slider = e.target;
-  if (idx <= 0 && !isMerging) {
-    console.log("🕒 Maintien confirmé → chargement du jour précédent");
-    await mergeNeighborDay(-1); // jour précédent
-  } else if (idx >= slider.max && !isMerging) {
-    console.log("🕒 Maintien confirmé → chargement du jour suivant");
-    await mergeNeighborDay(1); // jour suivant
+    status.textContent = "⚠️ Erreur : " + err.message;
   }
 });
-
-document.getElementById("minInput").addEventListener("change", ()=>{
-  const v=parseFloat(document.getElementById("minInput").value);
-  localStorage.setItem("scaleMin", isFinite(v)?String(v):"30");
-  if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
-});
-document.getElementById("maxInput").addEventListener("change", ()=>{
-  const v=parseFloat(document.getElementById("maxInput").value);
-  localStorage.setItem("scaleMax", isFinite(v)?String(v):"60");
-  if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
-});
-
-
-
-/* =================== INIT =================== */
-
-  /* ----------- Thèmes + persistance ----------- */
-function setTheme(theme){
-  const r=document.documentElement;
-  localStorage.setItem("selectedTheme",theme);
-
-  if(theme==="orange"){
-    r.style.setProperty("--accent","#ff7043");
-    r.style.setProperty("--accent-darker","#e64a19");
-    r.style.setProperty("--accent-muted","#ffccbc");
-    r.style.setProperty("--bg","#fff5f5");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#ffe5d9");
-    r.style.setProperty("--danger","#d84315");
-    r.style.setProperty("--text","#333");
-    r.style.setProperty("--row-even","#ffe5d9");
-    r.style.setProperty("--row-odd","#fff5f5");
-    r.style.setProperty("--text-light", "#fff");
-r.style.setProperty("--text-dark", "#222");
-
-  }
-  if(theme==="blue"){
-    r.style.setProperty("--accent","#2196f3");
-    r.style.setProperty("--accent-darker","#1976d2");
-    r.style.setProperty("--accent-muted","#bbdefb");
-    r.style.setProperty("--bg","#e3f2fd");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#bbdefb");
-    r.style.setProperty("--danger","#0d47a1");
-    r.style.setProperty("--text","#0d47a1");
-    r.style.setProperty("--row-even","#bbdefb");
-    r.style.setProperty("--row-odd","#e3f2fd");
-    r.style.setProperty("--text-light", "#fff");
-r.style.setProperty("--text-dark", "#222");
-
-  }
-  if(theme==="green"){
-    r.style.setProperty("--accent","#4caf50");
-    r.style.setProperty("--accent-darker","#2e7d32");
-    r.style.setProperty("--accent-muted","#c8e6c9");
-    r.style.setProperty("--bg","#f1f8e9");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#c8e6c9");
-    r.style.setProperty("--danger","#1b5e20");
-    r.style.setProperty("--text","#1b5e20");
-    r.style.setProperty("--row-even","#c8e6c9");
-    r.style.setProperty("--row-odd","#f1f8e9");
-    r.style.setProperty("--text-light", "#fff");
-r.style.setProperty("--text-dark", "#222");
-
-  }
-  if(theme==="purple"){
-    r.style.setProperty("--accent","#9c27b0");
-    r.style.setProperty("--accent-darker","#6a1b9a");
-    r.style.setProperty("--accent-muted","#e1bee7");
-    r.style.setProperty("--bg","#f3e5f5");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#e1bee7");
-    r.style.setProperty("--danger","#4a148c");
-    r.style.setProperty("--text","#4a148c");
-    r.style.setProperty("--row-even","#e1bee7");
-    r.style.setProperty("--row-odd","#f3e5f5");
-    r.style.setProperty("--text-light", "#fff");
-r.style.setProperty("--text-dark", "#222");
-
-  }
-  if(theme==="bordeaux"){
-    r.style.setProperty("--accent","#800020");
-    r.style.setProperty("--accent-darker","#4b0014");
-    r.style.setProperty("--accent-muted","#d7a1a9");
-    r.style.setProperty("--bg","#fff0f2");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#f3cdd3");
-    r.style.setProperty("--danger","#600018");
-    r.style.setProperty("--text","#4b0014");
-    r.style.setProperty("--row-even","#f3cdd3");
-    r.style.setProperty("--row-odd","#fff0f2");
-    r.style.setProperty("--text-light", "#fff");
-r.style.setProperty("--text-dark", "#222");
-
-  }
-
-  r.style.setProperty("--text-light", "#fff");
-  r.style.setProperty("--text-dark", "#222");
-
-}
-
-  const savedTheme = localStorage.getItem("selectedTheme") || "orange";
-setTheme(savedTheme);
-
-
-  
-document.addEventListener("DOMContentLoaded", async () => {
-  await ensureZ3FilesLoaded();
-  loadPlan();
-  requestAnimationFrame(updateTileSize);
-  loadCSV();
-  window.addEventListener("load", updateTileSize);
-});
-
-async function mergeNeighborDay(offset) {
-  if (!currentDay || isMerging) return;
-  isMerging = true;
-
-// 🔹 Utilise le dernier jour fusionné comme référence
-let refDay = [...mergedDays].sort().pop() || currentDay;
-const y = parseInt(refDay.slice(0,4));
-const m = parseInt(refDay.slice(4,6))-1;
-const d = parseInt(refDay.slice(6,8));
-const base = new Date(y,m,d);
-base.setDate(base.getDate()+offset);
-const nextDay = base.toISOString().slice(0,10).replace(/-/g,"");
-
-
-  if (mergedDays.has(nextDay)) {
-    console.log("⚠️ Jour déjà fusionné :", nextDay);
-    isMerging = false;
-    return;
-  }
-
-  console.log(`⏳ Chargement du fichier voisin SA00001_${nextDay}.csv...`);
-  const list = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
-  const neighbor = list.find(f => f.name.includes(nextDay));
-  if (!neighbor) {
-    console.warn("⚠️ Aucun fichier voisin trouvé pour", nextDay);
-    isMerging = false;
-    return;
-  }
-
-    try {
-    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${neighbor.id}&name=${encodeURIComponent(neighbor.name)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Erreur proxy Drive");
-    const buf = await res.arrayBuffer();
-    const text = decodeSmart(buf);
-    const parsed = Papa.parse(text,{header:true,skipEmptyLines:true});
-    const data = parsed.data||[];
-
-    csvData = csvData.concat(data);
-    document.getElementById("slider").max = csvData.length-1;
-    mergedDays.add(nextDay);
-
-    console.log(`✅ Fichier fusionné : ${neighbor.name} (${data.length} lignes)`);
-    console.log(`📊 Fusion réussie → ${csvData.length} lignes au total`);
-    console.log(`🔍 Recherche Z3 du voisin ${nextDay} →`);
-    await mergeZ3ForDay(nextDay);
-
-// 🔁 === RECHARGEMENT COMPLET APRÈS FUSION MULTI-JOURS ===
-console.log("♻️ Rafraîchissement complet : reconstruction complète de la page");
-buildGrid();              // Recrée toute la grille (haut + bas)
-addSpecialsAfterCSV();    // Réinjecte les cases spéciales
-updateGrid(lastSliderIndex);  // Affiche la dernière ligne active fusionnée
-renderZ3List();           // Reconstruit le panneau d’événements Z3
-highlightZ3Near(currentRowMinutes(lastSliderIndex)); // Surligne événement le plus proche
-updateTileSize();         // Recalcule la taille responsive
-
-
-  } catch(err) {
-    console.error("❌ Erreur fusion jour", err);
-  }
-
-  isMerging = false;
-
-}
-// 🟢 Fonction déplacée ici (à l’extérieur)
-async function mergeZ3ForDay(dayStr) {
-  const z3Files = await ensureZ3FilesLoaded();
-  const sameDay = z3Files.filter(f => f.name.includes(dayStr));
-  if (!sameDay.length) {
-    console.log(`⚠️ Aucun fichier Z3 trouvé pour ${dayStr}`);
-    return;
-  }
-
-  for (const f of sameDay) {
-    try {
-      console.log("🌐 Téléchargement Z3 voisin :", f.name);
-      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name || "")}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Erreur proxy Drive");
-      const buf = await res.arrayBuffer();
-      const text = decodeSmart(buf);
-      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-      const startIndex = lines.findIndex(l => /trigger.?time|horodatage/i.test(l));
-      const csvClean = lines.slice(startIndex >= 0 ? startIndex : 0).join("\n");
-      const parsed = Papa.parse(csvClean, { header: true, skipEmptyLines: true });
-
-      const H = parsed.meta.fields || [];
-      const rows = parsed.data || [];
-
-      const timeCol = H.find(h => /(trigger.?time|heure|horodatage|time|temps)/i.test(h)) || H[0];
-      const msgCol  = H.find(h => /(message|desc|description|evenement|event)/i.test(h)) || H[1];
-      const addrCol = H.find(h => /(address|adresse|addr|zone|address ?1)/i.test(h)) || null;
-
-      for (const r of rows) {
-        const t = String(r[timeCol] || "").trim();
-        const msg = String(r[msgCol] || "").trim();
-        const addr = String(r[addrCol] || "").trim();
-        const mins = toMinutes(t);
-        if (!isNaN(mins) && msg) {
-          z3Events.push({
-            timeText: t,
-            minutes: mins,
-            desc: addr ? `${msg} (${addr})` : msg,
-            fileId: f.id,
-            fileName: f.name,
-          });
-        }
-      }
-    } catch (err) {
-      console.error("❌ Erreur fusion Z3 du voisin :", f.name, err);
-    }
-  }
-
-  console.log(`✅ Fusion des événements Z3 du jour ${dayStr} terminée (${sameDay.length} fichier(s)).`);
-  z3Events.sort((a, b) => a.minutes - b.minutes);
-  renderZ3List();
-}
-
-
-
 </script>
+
+
+<script>
+// === 🧾 Popup d'affichage / suppression d'une note ===
+function showNotePopup(note) {
+  const popup = document.createElement("div");
+  popup.style = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); display: flex;
+    align-items: center; justify-content: center; z-index: 4000;
+  `;
+
+  const dateStr = note.createdAt
+    ? new Date(note.createdAt).toLocaleString()
+    : "Date inconnue";
+
+  popup.innerHTML = `
+    <div style="background:#fff;padding:20px;border-radius:10px;max-width:400px;">
+      <h3>🗒️ Note</h3>
+      <p><strong>Auteur :</strong> ${note.author || "Anonyme"}</p>
+      <p><strong>Créée le :</strong> ${dateStr}</p>
+      <hr>
+      <p style="white-space:pre-wrap;">${note.text || note.note}</p>
+      <div style="text-align:right;margin-top:10px;">
+        <button id="deleteNoteBtn" style="background:#d84315;color:white;border:none;border-radius:6px;padding:6px 12px;">Supprimer</button>
+        <button id="closeNoteBtn" style="margin-left:6px;">Fermer</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  // 🔹 Fermer la popup
+  popup.querySelector("#closeNoteBtn").onclick = () => popup.remove();
+
+  // 🔹 Supprimer (status → inactive)
+  popup.querySelector("#deleteNoteBtn").onclick = async () => {
+showConfirm("Confirmer la suppression de cette note ?", async () => {
+  try {
+    // 💥 effet rouge visuel
+    showPointEffect(note.x, note.y, "rgba(220,0,0,0.6)");
+
+    const response = await fetch(
+      "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+body: new URLSearchParams({
+  id: note.id || "",                             // 🆔 identifiant pour mise à jour
+  folderId: localStorage.getItem("lastFolderId"), // ✅ on revient au bon dossier !
+  csvName: baseFileName,
+  note: note.text || note.note,
+  x: note.x,
+  y: note.y,
+  status: "inactive"
+})
+
+
+
+      }
+    );
+
+    console.log("Réponse suppression :", await response.text());
+
+    note.status = "inactive";
+    popup.remove();
+
+    notesData = notesData.filter(n => n.status === "active");
+    if (chart) chart.update("none");
+  } catch (err) {
+    showToast("Erreur suppression : " + err.message);
+  }
+});
+
+  };
+}
+
+// === 📢 Petit système de notification flottante (remplace alert) ===
+function showToast(message, duration = 4000) {
+  const old = document.querySelector(".toast-message");
+  if (old) old.remove();
+
+  const toast = document.createElement("div");
+  toast.className = "toast-message";
+  toast.textContent = message;
+
+  Object.assign(toast.style, {
+    position: "fixed",
+    bottom: "80px",
+    right: "20px",
+    background: "var(--accent)",
+    color: "#fff",
+    padding: "12px 16px",
+    borderRadius: "8px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+    zIndex: "3000",
+    fontWeight: "bold",
+    opacity: "0",
+    transition: "opacity 0.3s, transform 0.3s",
+    transform: "translateY(20px)"
+  });
+
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = "1";
+    toast.style.transform = "translateY(0)";
+  });
+
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(20px)";
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+  // === 💫 Petit effet visuel (création / suppression) ===
+function showPointEffect(xValue, yValue, color = "rgba(255,112,67,0.6)", duration = 900) {
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+  const xPix = xScale.getPixelForValue(xValue);
+  const yPix = yScale.getPixelForValue(yValue);
+  const rect = chart.canvas.getBoundingClientRect();
+
+  const effect = document.createElement("div");
+  Object.assign(effect.style, {
+    position: "absolute",
+    left: rect.left + xPix - 10 + "px",
+    top: rect.top + yPix - 10 + "px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    background: color,
+    transform: "scale(0.5)",
+    opacity: "1",
+    pointerEvents: "none",
+    zIndex: "2000",
+    transition: "transform 0.6s ease-out, opacity 0.8s ease-out"
+  });
+
+  document.body.appendChild(effect);
+  requestAnimationFrame(() => {
+    effect.style.transform = "scale(2)";
+    effect.style.opacity = "0";
+  });
+  setTimeout(() => effect.remove(), duration);
+}
+
+
+// === 🪶 Popup de confirmation stylée ===
+function showConfirm(message, onConfirm) {
+  const overlay = document.createElement("div");
+  overlay.style = `
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 5000;
+  `;
+
+  const box = document.createElement("div");
+  box.style = `
+    background: white;
+    border-radius: 10px;
+    padding: 20px 24px;
+    max-width: 350px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    text-align: center;
+    font-family: sans-serif;
+    animation: popIn 0.25s ease-out;
+  `;
+  box.innerHTML = `
+    <p style="margin-bottom:20px;font-weight:bold;">${message}</p>
+    <div style="display:flex;justify-content:center;gap:10px;">
+      <button id="cancelBtn" style="
+        padding:8px 14px;border:none;border-radius:6px;
+        background:#ccc;cursor:pointer;">Annuler</button>
+      <button id="okBtn" style="
+        padding:8px 14px;border:none;border-radius:6px;
+        background:#d84315;color:white;cursor:pointer;">Confirmer</button>
+    </div>
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  box.querySelector("#cancelBtn").onclick = () => overlay.remove();
+  box.querySelector("#okBtn").onclick = () => {
+    overlay.remove();
+    if (onConfirm) onConfirm();
+  };
+}
+
+  
+</script>
+
+  
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
