@@ -72,7 +72,6 @@ body{
 .folder-name{cursor:pointer;}
 .active-folder {
   background: var(--accent-muted);
-  border-left: 2px solid var(--accent);
   border-radius: 3px;
   padding: 1px 4px;
   font-weight: 600;
@@ -100,16 +99,83 @@ body{
 }
 .controls button:hover{background:var(--accent-darker);transform:scale(1.05);}
 
-/* Champs date + icône custom */
-.date-field{
-  display:flex;align-items:center;gap:6px;background:var(--panel);
-  border:2px solid var(--table-border);border-radius:6px;padding:4px 8px;
+/* --- Champs date modernisés --- */
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 2px solid var(--table-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  transition: all 0.3s ease;
 }
-.date-field span{font-size:16px;color:var(--accent);cursor:pointer;user-select:none;transition:0.2s;}
-.date-field span:hover{transform:scale(1.2);}
-.date-field input[type=date]{border:none;outline:none;background:transparent;font-size:14px;color:var(--text);padding:6px 2px;}
-input[type="date"]::-webkit-calendar-picker-indicator{display:none;-webkit-appearance:none;}
-.date-field input[type=date]:focus {box-shadow:0 0 6px var(--accent);border-color:var(--accent);color:var(--danger);}
+
+/* 📅 Icône calendrier plus grande et cliquable */
+.date-field span {
+  font-size: 24px; /* plus visible */
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.2s, color 0.2s;
+}
+.date-field span:hover {
+  transform: scale(1.2);
+  color: var(--accent-darker);
+}
+
+/* Masque le champ tant qu’aucune date n’est choisie */
+/* Flatpickr remplace les inputs type="date" par .flatpickr-input */
+.date-field .flatpickr-input {
+  display: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  color: var(--text);
+  padding: 6px 2px;
+}
+.date-field.has-date .flatpickr-input {
+  display: inline-block;
+}
+
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/* --- Style équilibré du calendrier Flatpickr --- */
+.flatpickr-calendar {
+  font-size: 1em !important;          /* ✅ police normale (plus de chevauchement) */
+  transform: scale(1.15);             /* ✅ zoom global du calendrier (plus grand sans grossir le texte) */
+  transform-origin: top left;         /* garde l’ouverture propre près de l’icône */
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  border-radius: 12px;
+  z-index: 3000 !important;
+}
+
+.flatpickr-day {
+  width: 2.4em !important;
+  height: 2.4em !important;
+  line-height: 2.4em !important;
+  font-size: 0.95em !important;       /* ✅ jours un peu plus petits, lisibles */
+  font-weight: 500;
+}
+
+.flatpickr-months .flatpickr-month {
+  font-size: 1em;                     /* ✅ mois et navigation lisibles mais pas énormes */
+  font-weight: bold;
+}
+
+.flatpickr-weekday {
+  font-size: 0.85em;                  /* ✅ noms des jours ajustés */
+  color: var(--accent-darker);
+  font-weight: 600;
+}
+
+
+
 
 /* Tableau */
 #tableWrapper{flex:1;overflow:auto;}
@@ -223,13 +289,14 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 .flame-folder {
   display: inline;               
   font-size: 14px;               
-  margin-right: 4px;             
+  margin-right: 1px;             
   line-height: 1;                
   vertical-align: middle;
   text-shadow: 
     0 0 3px rgba(255, 140, 0, 0.8),
     0 0 6px rgba(255, 80, 0, 0.7);
   animation: flicker 1s infinite alternate;
+  margin-right: 4px;
 }
 
 .note {
@@ -265,8 +332,150 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
   box-shadow:0 2px 8px rgba(0,0,0,0.2);
 }
 
+/* === Bouton Gaz (toujours visible, jaune) === */
+.gaz-btn {
+  background: linear-gradient(180deg, #ffd54f, #ffb300);
+  color: fcdc12;
+  border: none;
+  font-weight: bold;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-right: 6px;
+  cursor: default;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.gaz-btn:nth-of-type(2) {
+  background: linear-gradient(180deg, #bbdefb, #64b5f6); /* bleu clair */
+  color: #0d47a1;
+}
+
+/* Conteneur des boutons gaz */
+.gaz-group {
+  display: flex;
+  justify-content: center;   /* centrage horizontal */
+  align-items: center;       /* centrage vertical */
+  gap: 12px;                 /* espace entre les deux boutons */
+  width: 100%;
+}
+
+/* Style général des boutons gaz */
+.gaz-btn {
+  background: linear-gradient(180deg, #ffd54f, #ffb300);
+  color: #5d4037;
+  border: none;
+  font-weight: bold;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: default;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  opacity: 1 !important;
+  visibility: visible !important;
+  text-align: center;
+  transition: transform 0.3s ease, background 0.3s ease;
+  min-width: 110px;          /* largeur fixe pour un alignement parfait */
+}
+
+/* Deuxième bouton (heures) : bleu clair */
+.gaz-group .gaz-btn:nth-of-type(2) {
+  background: linear-gradient(180deg, #bbdefb, #64b5f6);
+  color: #0d47a1;
+}
+
+/* --- Jours chauds dans le calendrier --- */
+.hot-day {
+  background: var(--accent-muted) !important;
+  color: var(--danger) !important;
+  border-radius: 50% !important;
+  font-weight: bold !important;
+  box-shadow: 0 0 6px rgba(255, 100, 0, 0.6);
+}
+
+
+/* Cache le bloc de filtres de date tant qu’aucun dossier n’est sélectionné */
+.controls {
+  display: none;
+}
+
+
+/* === STRUCTURE DE L'ARBORESCENCE === */
+
+/* 🔥 Flamme ou icône à gauche, sans décaler le nom */
+.folder-name {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+}
+
+/* ✅ Supprime complètement les points devant les dossiers */
+#folderTree li {
+  list-style-type: none;
+}
+  
+.flame-folder {
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  text-shadow:
+    0 0 3px rgba(255, 140, 0, 0.8),
+    0 0 6px rgba(255, 80, 0, 0.7);
+  animation: flicker 1s infinite alternate;
+  pointer-events: none;
+}
+
+/* 🟧 Cadre visuel du dossier actif */
+.active-folder {
+  background: var(--accent-muted);
+  border-left: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 600;
+  color: var(--accent-darker);
+  display: inline-block;
+  box-shadow: 0 0 4px rgba(0,0,0,0.1);
+}
+
+/* 📂 Hiérarchie : indentation et ligne verticale */
+#folderTree ul ul {
+  margin-left: 46px;
+  border-left: 2px solid var(--accent-muted);
+  padding-left: 14px;
+}
+
+#folderTree li {
+  position: relative;
+  margin: 3px 0;
+}
+
+#folderTree li::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--accent-muted);
+  opacity: 0.4;
+}
+
+  
 
 </style>
+
+<!-- Calendrier enrichi -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
+
+
+  
 </head>
 <body>
 
@@ -277,7 +486,7 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 
 <!-- Sidebar dossiers -->
 <div id="sidebar">
-  <h2><span>📁</span>Dossiers</h2>
+  <h2><span>🌽</span>Sites / Séchoirs</h2>
   <ul id="folderTree"></ul>
 </div>
 
@@ -367,7 +576,7 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 
 <script>
 /* ----------- Config Drive ----------- */
-const ROOT_FOLDER_ID="1KsgiC3ZFg_1XKOTulcZT8nkxPvG-xxjM";
+const ROOT_FOLDER_ID="1n2ETUlB6CfK27qsHvzCwAvDHtNCg5nnH";
 
 /* ----------- Config personnalisée ----------- */
 const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
@@ -455,6 +664,10 @@ async function loadRootFolders(){
   const rootUL = document.getElementById('folderTree');
   rootUL.innerHTML = '';
 
+// 🔒 Cacher les filtres quand on revient à la racine
+document.querySelector(".controls").style.display = "none";
+
+  
   files
   .filter(f => f.mimeType === 'application/vnd.google-apps.folder')
   .sort((a,b) => a.name.localeCompare(b.name, 'fr', { sensitivity:'base' }))
@@ -465,25 +678,30 @@ async function loadRootFolders(){
 
     const toggle = document.createElement('span'); 
     toggle.className = 'folder-toggle'; 
-    toggle.textContent = '+';
+    toggle.textContent = '';
     toggle.onclick = () => toggleFolder(li);
 
 const span = document.createElement('span');
 span.className = 'folder-name';
 
 const lowerName = f.name.toLowerCase();
-if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
-  span.innerHTML = `📈 ${f.name}`;
+
+if (lowerName.includes("consommation")) {
+  span.innerHTML = `⛽ ${f.name}`;
 } else if (lowerName.includes("echantillonnage")) {
   span.innerHTML = `📊 ${f.name}`;
 } else if (lowerName.includes("historique")) {
   span.innerHTML = `🗂️ ${f.name}`;
+} else if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
+  span.innerHTML = `📈 ${f.name}`;
 } else {
-  span.textContent = f.name; // pas d’icône
+  span.textContent = f.name; // aucun symbole sinon
 }
 
 
-span.onclick = () => loadFolderFilesOnClick(li);
+
+span.onclick = (e) => loadFolderFilesOnClick(li, e);
+
 
 
 
@@ -510,11 +728,15 @@ span.onclick = () => loadFolderFilesOnClick(li);
 
 async function toggleFolder(li){
   const toggle=li.querySelector('.folder-toggle');
-  if(li.dataset.loaded==='true'){
-    const ul=li.querySelector('ul');
-    if(ul){ul.style.display=ul.style.display==='none'?'block':'none'; toggle.textContent=ul.style.display==='block'?'–':'+';}
-    return;
-  }
+if(li.dataset.loaded==='true'){
+  const ul = li.querySelector('ul');
+  // ✅ Ne replie pas le parent si on clique un sous-dossier
+  if (!ul) return;
+  if (event && event.target && !event.target.classList.contains('folder-name')) return;
+  ul.style.display = ul.style.display === 'none' ? 'block' : 'none';
+  return;
+}
+
   toggle.textContent='…';
   const files=await fetchFolderContents(li.dataset.id);
   const ul=document.createElement('ul');
@@ -529,24 +751,29 @@ for (const f of folders) {
 
     const childToggle=document.createElement('span'); 
     childToggle.className='folder-toggle'; 
-    childToggle.textContent='+';
+    childToggle.textContent='';
     childToggle.onclick=()=>toggleFolder(childLi);
 
 const span = document.createElement('span');
 span.className = 'folder-name';
 
 const lowerName = f.name.toLowerCase();
-if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
-  span.innerHTML = `📈 ${f.name}`;
+
+if (lowerName.includes("consommation")) {
+  span.innerHTML = `⛽ ${f.name}`;
 } else if (lowerName.includes("echantillonnage")) {
   span.innerHTML = `📊 ${f.name}`;
 } else if (lowerName.includes("historique")) {
   span.innerHTML = `🗂️ ${f.name}`;
+} else if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
+  span.innerHTML = `📈 ${f.name}`;
 } else {
-  span.textContent = f.name;
+  span.textContent = f.name; // aucun symbole sinon
 }
 
-span.onclick = () => loadFolderFilesOnClick(childLi);
+
+span.onclick = (e) => loadFolderFilesOnClick(childLi, e);
+
 
 
     childLi.appendChild(childToggle); 
@@ -572,7 +799,7 @@ showEventAlert();
   }
   li.appendChild(ul); 
   li.dataset.loaded='true'; 
-  toggle.textContent='+';
+  toggle.textContent='';
 }
 
 
@@ -582,7 +809,8 @@ async function fetchChildren(folderId){
   return files.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
 }
 
-async function loadFolderFilesOnClick(li){
+async function loadFolderFilesOnClick(li, event){
+
   await toggleFolder(li);
 
 // 🔄 Réinitialiser la sélection visuelle
@@ -748,6 +976,10 @@ async function displayFiles(files, folderName){
   const downloadBtn=document.getElementById('downloadFolderBtn');
   tbody.innerHTML='';
 
+  // ✅ Afficher les filtres uniquement dans un dossier final (contenant des fichiers)
+document.querySelector(".controls").style.display = "flex";
+
+
   if(files.length===0){
     tbody.innerHTML='<tr><td colspan="5" style="text-align:center;">Aucun fichier</td></tr>';
     downloadBtn.style.display="none";
@@ -862,7 +1094,7 @@ if (date) {
   const d = new Date(date);
   const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
   const jourNom = jours[d.getDay()];
-  tdDate.textContent = `${date} (${jourNom})`;
+  tdDate.textContent = `${date} ${jourNom}`;
 
   // Week-end → rouge + gras
   if (d.getDay() === 0 || d.getDay() === 6) {
@@ -988,6 +1220,118 @@ if(f.name.toLowerCase().endsWith('.csv')){
     html+=`<button class="action-btn" onclick="openViewer('index03.html','${f.id}','${f.name}')">Sondes</button>`;
   }
 }
+
+// === Si on est dans "Consommation Gaz", calcul du delta sur colonnes 2 (heure HH:MM:SS) et 3 (kWh) ===
+if (folderName.toLowerCase().includes("consommation gaz") && f.name.toLowerCase().endsWith(".csv")) {
+html += `
+  <div class="gaz-group">
+    <button class="gaz-btn" disabled>⏳ Calcul...</button>
+    <button class="gaz-btn" disabled>⏳ Heures...</button>
+  </div>
+`;
+
+
+  (async () => {
+    try {
+      const resGaz = await fetch(
+        `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
+      );
+      const textGaz = await resGaz.text();
+      const lines = textGaz.split(/\r?\n/).filter(l => l.trim() !== "");
+
+      let diffKwh = 0;
+      let diffMinutes = 0;
+
+      if (lines.length > 2) {
+        const firstCols = lines[1].split(",");
+        const lastCols = lines[lines.length - 1].split(",");
+
+        // --- Colonne 2 : heure (format HH:MM:SS)
+        const hStart = firstCols[1]?.replace(/"/g, "").trim();
+        const hEnd = lastCols[1]?.replace(/"/g, "").trim();
+
+        function parseHeureToMinutes(h) {
+          const m = h.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          if (!m) return NaN;
+          const hh = parseInt(m[1]);
+          const mm = parseInt(m[2]);
+          const ss = parseInt(m[3] || "0");
+          return hh * 60 + mm + ss / 60;
+        }
+
+        const startMin = parseHeureToMinutes(hStart);
+        const endMin = parseHeureToMinutes(hEnd);
+
+        if (isFinite(startMin) && isFinite(endMin)) {
+          diffMinutes = endMin - startMin;
+          if (diffMinutes < 0) diffMinutes += 24 * 60; // passage minuit
+        }
+
+        // --- Colonne 3 : compteur kWh ---
+        const vCfirst = parseFloat(firstCols[2]?.replace(/"/g, "").trim());
+        const vClast = parseFloat(lastCols[2]?.replace(/"/g, "").trim());
+        if (isFinite(vCfirst) && isFinite(vClast)) diffKwh = vClast - vCfirst;
+      }
+
+      if (!isFinite(diffKwh) || diffKwh < 0) diffKwh = 0;
+      if (!isFinite(diffMinutes) || diffMinutes < 0) diffMinutes = 0;
+
+      // Conversion minutes → HH:MM
+      const hours = Math.floor(diffMinutes / 60);
+      const minutes = Math.floor(diffMinutes % 60);
+      const hh = String(hours).padStart(2, "0");
+      const mm = String(minutes).padStart(2, "0");
+      const dureeFormatee = `${hh}:${mm}`;
+
+      const roundedKwh = diffKwh.toFixed(0);
+
+      const btns = tdAction.querySelectorAll(".gaz-btn");
+      const btnKwh = btns[0];
+      const btnHeures = btns[1];
+
+      // ⚡ KWH
+      if (btnKwh) {
+        btnKwh.textContent = `🔥 ${roundedKwh} kWh`;
+
+        const minScale = 0.85, maxScale = 1.4;
+        const normalized = Math.min(Math.max(diffKwh / 200000, 0), 1);
+        const scale = minScale + (maxScale - minScale) * normalized;
+        btnKwh.style.transform = `scale(${scale.toFixed(2)})`;
+        btnKwh.style.transition = "transform 0.6s ease-out";
+
+        if (diffKwh > 100000) {
+          btnKwh.style.background = "linear-gradient(180deg, #ffcc80, #f57c00)";
+          btnKwh.style.color = "#3e2723";
+        } else if (diffKwh > 50000) {
+          btnKwh.style.background = "linear-gradient(180deg, #ffe082, #ffb300)";
+          btnKwh.style.color = "#4e342e";
+        } else {
+          btnKwh.style.background = "linear-gradient(180deg, #fff176, #ffd54f)";
+          btnKwh.style.color = "#5d4037";
+        }
+      }
+
+      // ⏱ HEURES (format HH:MM)
+      if (btnHeures) {
+        btnHeures.textContent = `⏱ ${dureeFormatee}`;
+        btnHeures.style.background = "linear-gradient(180deg, #bbdefb, #64b5f6)";
+        btnHeures.style.color = "#0d47a1";
+        btnHeures.style.transform = "scale(0.95)";
+      }
+
+    } catch (e) {
+      console.warn("Erreur calcul Consommation Gaz :", f.name, e);
+      const btns = tdAction.querySelectorAll(".gaz-btn");
+      if (btns[0]) btns[0].textContent = "⚡ 0 kWh";
+      if (btns[1]) btns[1].textContent = "⏱ 00:00";
+    }
+  })();
+}
+
+
+
+
+
 
 
 
@@ -1253,9 +1597,6 @@ function sortTable(colIndex, type) {
   if (arrow) arrow.textContent = currentSort.asc ? "▲" : "▼";
 }
 
-/* ----------- Icônes calendrier cliquables ----------- */
-document.getElementById("iconStart").onclick=()=>document.getElementById("startDate").showPicker?.()||document.getElementById("startDate").focus();
-document.getElementById("iconEnd").onclick=()=>document.getElementById("endDate").showPicker?.()||document.getElementById("endDate").focus();
 
 /* ----------- Menu secret (thèmes) ----------- */
 document.getElementById("secretBtn").onclick=()=>{
@@ -1351,10 +1692,11 @@ async function scanSiteHotDays(siteId) {
       s.mimeType === 'application/vnd.google-apps.folder' &&
       (s.name.toLowerCase().includes("traça_temp") || s.name.toLowerCase().includes("traca_temp"))
     );
-    if (!tracatemp) {
-      console.warn(`[SCAN] Aucun dossier Traça_Temp trouvé pour le site ${siteId}`);
-      return hotDays;
-    }
+if (!tracatemp) {
+  console.warn(`[SCAN] Aucun dossier Traça_Temp trouvé pour le site ${siteId}`);
+  return hotDays;
+}
+
 
     const files = await fetchFolderContents(tracatemp.id);
     const csvFiles = files.filter(f => f.name.toLowerCase().endsWith(".csv"));
@@ -1409,10 +1751,15 @@ async function scanSiteHotDays(siteId) {
       }
     }
 
-    console.log(`[SCAN] 🔥 ${Object.keys(hotDays).length} jours chauds détectés pour le site`);
-    console.timeEnd(`[SCAN] Durée scanSiteHotDays (${siteId})`);
-    localStorage.setItem(`hotDays_${siteId}`, JSON.stringify(hotDays));
-    return hotDays;
+console.log(`[SCAN] 🔥 ${Object.keys(hotDays).length} jours chauds détectés pour le site`);
+console.timeEnd(`[SCAN] Durée scanSiteHotDays (${siteId})`);
+localStorage.setItem(`hotDays_${siteId}`, JSON.stringify(hotDays));
+
+// ✅ Recharge les calendriers maintenant que hotDaysMap est prêt
+initDatePickers();
+
+return hotDays;
+
 
   } catch (err) {
     console.error("[SCAN] Erreur générale scanSiteHotDays:", err);
@@ -1503,12 +1850,100 @@ function markFolderWithFlame(li) {
 
   if (!span.classList.contains("has-flame")) {
     span.classList.add("has-flame");
-    span.innerHTML = `<span class="flame-folder" title="Brûleur(s) actuellement en fonctionnement">🔥</span> ` + span.innerHTML;
+    span.innerHTML = `<span class="flame-folder" title="Brûleur(s) actuellement en fonctionnement">🔥&nbsp;&nbsp;</span> ` + span.innerHTML;
   }
 
   const parent = li.parentElement?.closest("li");
   if (parent) markFolderWithFlame(parent);
 }
+
+
+/* ----------- Datepickers enrichis (Flatpickr) ----------- */
+let fpStart = null;
+let fpEnd = null;
+
+function initDatePickers() {
+  const commonOpts = {
+    dateFormat: "Y-m-d",
+    locale: flatpickr.l10ns.fr, // ✅ langue française correcte
+    allowInput: true,
+    clickOpens: true,
+
+    // 💡 Dès l’ouverture → coloration immédiate des jours chauds
+    onOpen: function(selectedDates, dateStr, instance) {
+      recolorHotDays(instance);
+    },
+    onReady: function(selectedDates, dateStr, instance) {
+      recolorHotDays(instance);
+    },
+    onMonthChange: function(selectedDates, dateStr, instance) {
+      recolorHotDays(instance);
+    },
+    onYearChange: function(selectedDates, dateStr, instance) {
+      recolorHotDays(instance);
+    },
+
+    onChange: function(selectedDates, dateStr, instance) {
+      const parent = instance.input.closest(".date-field");
+      if (dateStr) parent.classList.add("has-date");
+      else parent.classList.remove("has-date");
+    },
+
+onDayCreate: function(dObj, dStr, fp, dayElem) {
+  const yyyymmdd = dayElem.dateObj.getFullYear().toString() +
+    String(dayElem.dateObj.getMonth() + 1).padStart(2, "0") +
+    String(dayElem.dateObj.getDate()).padStart(2, "0");
+  if (hotDaysMap && hotDaysMap[yyyymmdd]) {
+    dayElem.classList.add("hot-day");
+    dayElem.title = "Jour chaud détecté";
+  }
+}
+
+  };
+
+  // 🔄 Détruire les anciens calendriers pour forcer le redraw
+  if (fpStart) fpStart.destroy();
+  if (fpEnd) fpEnd.destroy();
+
+// 📅 Icônes calendrier (plus grandes) + positionnement localisé
+const iconStart = document.getElementById("iconStart");
+const iconEnd = document.getElementById("iconEnd");
+
+fpStart = flatpickr("#startDate", {
+  ...commonOpts,
+  positionElement: iconStart, // 👈 s’affiche collé à l’icône
+});
+fpEnd = flatpickr("#endDate", {
+  ...commonOpts,
+  positionElement: iconEnd,   // 👈 idem
+});
+
+// 📅 clic sur les icônes pour ouvrir le calendrier
+if (iconStart) iconStart.onclick = () => fpStart.open();
+if (iconEnd) iconEnd.onclick = () => fpEnd.open();
+
+}
+
+
+/* ----------- Coloration des jours chauds ----------- */
+function recolorHotDays(instance) {
+  const days = instance.calendarContainer.querySelectorAll(".flatpickr-day");
+  days.forEach(dayElem => {
+    const yyyymmdd = dayElem.dateObj.getFullYear().toString() +
+  String(dayElem.dateObj.getMonth() + 1).padStart(2, "0") +
+  String(dayElem.dateObj.getDate()).padStart(2, "0");
+
+    if (hotDaysMap && hotDaysMap[yyyymmdd]) {
+      dayElem.classList.add("hot-day");
+      dayElem.title = "Jour chaud détecté";
+    } else {
+      dayElem.classList.remove("hot-day");
+      dayElem.removeAttribute("title");
+    }
+  });
+}
+
+
 
 
 
@@ -1524,6 +1959,7 @@ window.onload=()=>{
   document.getElementById("downloadFolderBtn").style.display="none";
 
   loadRootFolders();
+  initDatePickers();
 const last = localStorage.getItem("lastFolderId");
 if (last) {
   // attendre un peu que l'arborescence soit rendue
@@ -1541,10 +1977,6 @@ if (last) {
 </script>
 </body>
 </html>
-
-
-
-
 
 
 
