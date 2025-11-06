@@ -61,15 +61,25 @@ body{
 @keyframes flicker{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 
 /* ===== Titre date/heure ===== */
-#datetimeLabel{
-  font-weight:bold; font-size:18px; text-align:center; color:var(--danger);
-  margin:8px auto 6px;
+#datetimeLabel {
+  font-weight: bold;
+  font-size: 18px;
+  text-align: center;
+  color: var(--danger);
+  margin: 10px auto 20px; /* ⬅️ augmenté pour espacer avant les tuiles */
 }
 
 /* ===== PAGE LAYOUT : main (3/4) + side (1/4) ===== */
 #pageWrap{
-  flex:1; display:flex; gap:10px; padding:10px 12px; overflow:hidden;
+  flex:1;
+  display:flex;
+  gap:10px;
+  padding:10px 12px;
+  overflow:hidden;
+  align-items:flex-start;   /* ✅ évite que la grille force le scroll vertical */
+  max-height:calc(100vh - 120px); /* ✅ limite le tout dans la fenêtre */
 }
+
 
 /* ===== Zone centrale : deux sous-grilles 22×6 centrées ===== */
 #mainCol{
@@ -81,13 +91,22 @@ body{
 }
 
 #gridWrap{
-  flex:1; display:flex; align-items:center; justify-content:center;
-  overflow:auto;
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;  /* ✅ pas de scrollbar dans la zone tuiles */
 }
-#grid{
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap: calc(var(--tile-size) * var(--split-gap)); /* espace vertical entre top/bottom */
+
+#grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--tile-size) * var(--split-gap));
+  margin-bottom: 16px; /* ⬅️ espace après la grille complète */
 }
+
 
 /* Sous-grilles 22 colonnes chacune */
 .grid-part{
@@ -105,9 +124,10 @@ body{
   box-shadow:0 2px 5px rgba(0,0,0,0.2); padding:6px;
   overflow:hidden;
 }
-.sonde .label{ font-size: clamp(10px, calc(var(--tile-size)*0.12), 14px); font-weight:bold; color:#000; margin-bottom:2px; }
-.sonde .consigne{ font-size: clamp(9px, calc(var(--tile-size)*0.10), 12px); color:#555; font-style:italic; }
-.sonde .val{ font-size: clamp(14px, calc(var(--tile-size)*0.18), 22px); font-weight:bold; color:#000; }
+.sonde .label{ font-size: clamp(9px, calc(var(--tile-size)*0.11), 13px); font-weight:bold; color:#000; margin-bottom:2px; }
+.sonde .consigne{ font-size: clamp(8px, calc(var(--tile-size)*0.09), 11px); color:#555; font-style:italic; }
+.sonde .val{ font-size: clamp(13px, calc(var(--tile-size)*0.16), 20px); font-weight:bold; color:#000; }
+
 
 /* ===== Cases spéciales ===== */
 .sonde.special {
@@ -121,22 +141,95 @@ body{
 }
 
 /* ===== Sidebar temporelle (en dessous de la grille) ===== */
-#bottomBar{
-  display:flex; align-items:center; justify-content:center; gap:16px;
-  padding:10px 0 14px;
+#bottomBar {
+  display: flex;
+  flex-direction: column; /* ⬅️ les éléments passent en colonne */
+  align-items: center;
+  justify-content: center;
+  gap: 12px; /* ⬅️ espace vertical entre le slider et le scaleBox */
+  padding: 10px 0 14px;
 }
+
+
 #timeBar{
   width: calc(var(--timebar-cols) * var(--tile-size) + (var(--timebar-cols) - 1) * var(--cell-gap));
   display:flex; align-items:center; justify-content:center;
 }
 #slider{ width:100%; height: calc(var(--tile-size) * 0.35); }
 
-#scaleBox{
-  background:var(--panel); border:1px solid #ddd; border-radius:8px;
-  padding:8px 10px; box-shadow:0 2px 8px rgba(0,0,0,0.12); font-size:13px; color:var(--text);
+/* 🎯 Boutons ⏮️ et ⏭️ : icônes simples sans contour */
+#timeBar button {
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  color: var(--accent-darker);
+  font-size: 26px;
+  cursor: pointer;
+  padding: 4px 6px;
+  transition: transform 0.1s ease, color 0.2s ease;
 }
-#scaleBox label{ margin-right:6px; }
-#scaleBox input{ width:70px; padding:4px; border:1px solid #ccc; border-radius:6px; }
+
+/* Survol : légère mise en avant */
+#timeBar button:hover {
+  transform: scale(1.2);
+  color: var(--accent);
+}
+
+/* Désactivé : gris clair, non cliquable */
+#timeBar button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ▶️ Bouton lecture automatique */
+#btnPlay {
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  color: var(--accent-darker);
+  font-size: 26px;
+  cursor: pointer;
+  padding: 4px 6px;
+  transition: transform 0.1s ease, color 0.2s ease;
+}
+
+#btnPlay:hover {
+  transform: scale(1.2);
+  color: var(--accent);
+}
+
+#btnPlay.active {
+  color: var(--accent);
+  transform: scale(1.1);
+  text-shadow: 0 0 6px var(--accent-muted);
+}
+
+
+
+
+  
+#scaleBox {
+  background: var(--panel);
+  border: 1px solid var(--accent-muted);
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+  min-width: 280px;
+}
+#scaleBox input {
+  width: 70px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  text-align: right;
+}
+
 
 /* Scrollbars (grille) */
 #gridWrap::-webkit-scrollbar{height:10px;width:10px;}
@@ -315,6 +408,17 @@ body{
   color: var(--text-dark) !important;
 }
 
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 10px var(--accent); }
+  100% { box-shadow: none; }
+}
+#timeBar.pulse {
+  animation: pulse 0.5s ease-out;
+}
+
+
+  
   
 </style>
 </head>
@@ -345,17 +449,34 @@ body{
     </div>
 
     <!-- ===== Sidebar temporelle + min/max ===== -->
-    <div id="bottomBar">
-      <div id="timeBar">
-        <input type="range" id="slider" min="0" max="0" value="0"/>
-      </div>
-      <div id="scaleBox" title="Réglage des bornes couleurs">
-        <label>Min</label><input type="number" id="minInput" step="0.1" value="30"/>
-        <label style="margin-left:10px;">Max</label><input type="number" id="maxInput" step="0.1" value="60"/>
-      </div>
-      <!-- Bouton optionnel plus tard : Fusion jours (désactivé par défaut) -->
-      <!-- <button id="mergeDaysBtn" style="margin-left:12px;">Fusionner jours</button> -->
+<div id="bottomBar">
+<div id="timeBar">
+<button id="btnPrevDay" title="Charger le jour précédent">⏮️</button>
+<input type="range" id="slider" min="0" max="0" value="0"/>
+<button id="btnNextDay" title="Charger le jour suivant">⏭️</button>
+<button id="btnPlay" title="Mode lecture automatique">▶️</button>
+
+</div>
+
+<!-- ✅ Indicateur optionnel des jours visibles -->
+<div id="loadedDaysLabel" style="text-align:center; font-size:12px; color:var(--accent-darker);"></div>
+
+<div id="scaleBoxWrap">
+  <div id="scaleBox" title="Réglage de l’échelle de couleur">
+    <div style="font-weight:600; color:var(--accent-darker); margin-bottom:4px;">
+      Échelle de température (°C)
     </div>
+    <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+      <label for="minInput">Min :</label>
+      <input type="number" id="minInput" step="0.1" value="30"/>
+      <label for="maxInput">Max :</label>
+      <input type="number" id="maxInput" step="0.1" value="60"/>
+    </div>
+  </div>
+</div>
+
+</div>
+
   </div>
 
   <!-- ===== SIDE (Z3 EVENTS) ===== -->
@@ -387,29 +508,43 @@ const fileId=params.get("fileId");
 const fileName=params.get("fileName");
 
 /* =================== Header dossier + flamme =================== */
-(function hydrateFolderHeader(){
-  let title="";
-  try{
-    const list = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
-    const f = list.find(x=>x.id===fileId);
-    if(f && f.parents && f.parents.length){
-      const parent = list.find(x=>x.id===f.parents[0]);
-      if(parent && parent.name){
-        title = parent.name;
-        if(parent.parents && parent.parents.length){
-          const root = list.find(x=>x.id===parent.parents[0]);
-          if(root && root.name) title = root.name+" / "+parent.name;
-        }
-      }
+(function hydrateFolderHeader() {
+  // 🔹 On récupère d’abord le chemin complet transmis par index.html
+  const urlParams = new URLSearchParams(window.location.search);
+  let title =
+    urlParams.get("folderPath") ||
+    localStorage.getItem("currentFolderPath") ||
+    localStorage.getItem("lastFolderPath") ||
+    localStorage.getItem("chemin") ||
+    localStorage.getItem("dossier") ||
+    "";
+
+  // 🔸 Si rien trouvé → tentative via csvFilesList (fallback)
+  if (!title) {
+    try {
+      const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+      const f = list.find(x => x.id === fileId);
+      if (f && f.folder) title = f.folder;
+    } catch (e) {
+      console.warn("Erreur lecture dossier parent :", e);
     }
-  }catch(e){}
-  if(!title) title = decodeURIComponent(fileName||"");
-  const flameTitle = title.replace(/🔥/g,'<span class="flame" title="Brûleur(s) en fonctionnement">🔥</span>');
-  const el=document.getElementById("currentFolderName");
-  if(el) el.innerHTML=flameTitle;
-  const fn=document.getElementById("fileName");
-  if(fn) fn.textContent = decodeURIComponent(fileName||"");
+  }
+
+  // 🔥 Conversion flammes animées
+  const flameTitle = title
+    ? title.replace(/🔥/g, '<span class="flame" title="Brûleur(s) en fonctionnement">🔥</span>')
+    : "";
+
+  // Gauche → dossier / chemin complet
+  const el = document.getElementById("currentFolderName");
+  if (el) el.innerHTML = flameTitle;
+
+  // Droite → nom du fichier seul
+  const fn = document.getElementById("fileName");
+  if (fn) fn.textContent = decodeURIComponent(fileName || "");
 })();
+
+
 
 /* =================== Plan depuis localStorage =================== */
 function loadPlan(){
@@ -936,28 +1071,28 @@ function decodeSmart(arrayBuffer) {
   } 
   // 2️⃣ Sinon, on le télécharge depuis le proxy Netlify (comme avant)
   else if (file && file.id) {
-    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${file.id}&name=${encodeURIComponent(file.name || "")}`;
-    try {
-const res = await fetch(url);
-if (!res.ok) throw new Error("Erreur proxy Drive");
+  const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${file.id}&name=${encodeURIComponent(file.name || "")}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Erreur proxy Drive");
 
-// ✅ Décodage intelligent UTF-8 / ISO-8859-1
-const buf = await res.arrayBuffer();
-text = decodeSmart(buf);
+    // ✅ Lecture et décodage du contenu
+    const buf = await res.arrayBuffer();
+    text = decodeSmart(buf);
+    console.log("🧾 Taille du fichier Drive :", text.length, "caractères");
 
+    console.log("🌐 CSV téléchargé depuis Drive :", file.name);
 
-      
-      console.log("🌐 CSV téléchargé depuis Drive :", file.name);
-
-      // On le sauvegarde dans le localStorage pour la prochaine fois
-      const updated = list.map(f => f.id === file.id ? { ...f, content: text } : f);
-      localStorage.setItem("csvFilesList", JSON.stringify(updated));
-    } catch (err) {
-      console.error("❌ Erreur chargement CSV :", err);
-      document.getElementById("gridTop").innerHTML = `<b style='color:red'>❌ Impossible de charger le CSV</b>`;
-      return;
-    }
-  } else {
+    // ✅ Sauvegarde pour usage futur
+    const updated = list.map(f => f.id === file.id ? { ...f, content: text } : f);
+    localStorage.setItem("csvFilesList", JSON.stringify(updated));
+  } catch (err) {
+    console.error("❌ Erreur chargement CSV :", err);
+    document.getElementById("gridTop").innerHTML = `<b style='color:red'>❌ Impossible de charger le CSV</b>`;
+    return;
+  }
+}
+ else {
     console.error("⚠️ Aucun fichier CSV valide trouvé.");
     document.getElementById("gridTop").innerHTML = `<b style='color:red'>❌ Aucun CSV valide trouvé</b>`;
     return;
@@ -999,7 +1134,7 @@ if (currentDay) mergedDays.add(currentDay);
   );
 
   const minInit = parseFloat(localStorage.getItem("scaleMin") || "30");
-  const maxInit = parseFloat(localStorage.getItem("scaleMax") || "60");
+  const maxInit = parseFloat(localStorage.getItem("scaleMax") || "55");
   document.getElementById("minInput").value = isNaN(minInit) ? 30 : minInit;
   document.getElementById("maxInput").value = isNaN(maxInit) ? 60 : maxInit;
 
@@ -1209,13 +1344,7 @@ document.getElementById("slider").max = csvData.length - 1;
 
   // Détection bord du slider → fusion
   const slider = e.target;
-  if (idx <= 0 && !isMerging) {
-    console.log("🕒 Maintien confirmé → chargement du jour précédent");
-    await mergeNeighborDay(-1); // jour précédent
-  } else if (idx >= slider.max && !isMerging) {
-    console.log("🕒 Maintien confirmé → chargement du jour suivant");
-    await mergeNeighborDay(1); // jour suivant
-  }
+
 });
 
 document.getElementById("minInput").addEventListener("change", ()=>{
@@ -1229,6 +1358,136 @@ document.getElementById("maxInput").addEventListener("change", ()=>{
   if(csvData.length) updateGrid(parseInt(document.getElementById("slider").value)||0);
 });
 
+/* =================== Boutons de navigation multi-jours =================== */
+document.getElementById("btnPrevDay").addEventListener("click", async () => {
+  await mergeNeighborDay(-1);
+  refreshLoadedDaysLabel();
+});
+
+document.getElementById("btnNextDay").addEventListener("click", async () => {
+  await mergeNeighborDay(1);
+  refreshLoadedDaysLabel();
+});
+
+/* 🎬 Mode LIVE (recharge depuis Google Drive sans F5) */
+const playBtn = document.getElementById("btnPlay");
+let liveInterval = null;
+let tickCount = 0; // ✅ compteur global ajouté
+
+playBtn.addEventListener("click", async () => {
+  const slider = document.getElementById("slider");
+
+  // Positionne sur la dernière ligne connue
+  slider.value = slider.max;
+  updateGrid(parseInt(slider.value));
+  highlightZ3Near(currentRowMinutes(slider.value));
+
+  // 🔁 Active / désactive le mode Live
+  if (liveInterval) {
+    clearInterval(liveInterval);
+    liveInterval = null;
+    playBtn.classList.remove("active");
+    playBtn.textContent = "▶️";
+    playBtn.title = "Mode lecture automatique (désactivé)";
+    console.log("⏹️ Mode Live désactivé");
+  } else {
+    playBtn.classList.add("active");
+    playBtn.textContent = "⏸️";
+    playBtn.title = "Lecture en direct — mise à jour Drive toutes les minutes";
+    console.log("▶️ Mode Live activé");
+
+    // Recharge immédiate une fois
+    await refreshFromDrive();
+
+    // Puis toutes les 5 secondes (pour test)
+    liveInterval = setInterval(async () => {
+      tickCount++;
+      console.log(`⏱️ Tick ${tickCount} — refreshFromDrive()`);
+      await refreshFromDrive();
+    }, 5000);
+  }
+});
+
+
+/* 📡 Mode LIVE intelligent : recharge uniquement les nouvelles lignes */
+async function refreshFromDrive() {
+  if (!fileId) return;
+  try {
+    console.log("🔄 Vérification du CSV sur Drive...");
+    const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}&name=${encodeURIComponent(fileName || "")}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Erreur proxy Drive");
+    const buf = await res.arrayBuffer();
+    const text = decodeSmart(buf);
+
+    // Même parsing que loadCSV (garde les bons noms de colonnes)
+    const seen = {};
+    const parsed = Papa.parse(text, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h) => {
+        h = (h || "").replace(/"/g, "").trim();
+        if (seen[h]) {
+          seen[h]++;
+          return h + "_" + seen[h];
+        } else {
+          seen[h] = 1;
+          return h + "_1";
+        }
+      },
+    });
+
+    const newData = parsed.data || [];
+    const newHeaders = parsed.meta.fields || [];
+
+    // Compare ancien / nouveau
+    const oldLen = csvData.length;
+    const newLen = newData.length;
+
+    if (newLen > oldLen) {
+      const added = newLen - oldLen;
+      const newRows = newData.slice(oldLen);
+      csvData.push(...newRows);
+      console.log(`🟢 ${added} nouvelles lignes ajoutées (${newLen} total)`);
+
+      // Met à jour le slider et la ligne count
+      const slider = document.getElementById("slider");
+      slider.max = csvData.length - 1;
+      slider.value = slider.max;
+      document.getElementById("lineCount").textContent = csvData.length + " lignes";
+
+      // Rafraîchit la grille
+      updateGrid(parseInt(slider.value));
+      highlightZ3Near(currentRowMinutes(slider.value));
+
+      // 💡 effet visuel léger sur la barre
+      const bar = document.getElementById("timeBar");
+      bar.classList.add("pulse");
+      setTimeout(() => bar.classList.remove("pulse"), 400);
+    } else {
+      console.log("⏸️ Aucune nouvelle ligne détectée.");
+    }
+
+    // En cas de changement de structure (très rare)
+    if (JSON.stringify(newHeaders) !== JSON.stringify(headers)) {
+      headers = newHeaders;
+      console.warn("⚠️ En-têtes modifiés, mise à jour forcée.");
+      updateGrid(parseInt(document.getElementById("slider").value));
+    }
+  } catch (err) {
+    console.error("❌ Erreur Live :", err);
+  }
+}
+
+
+
+  
+function refreshLoadedDaysLabel() {
+  const sorted = [...mergedDays].sort();
+  const label = sorted.map(d => `${d.slice(6,8)}/${d.slice(4,6)}`).join(" — ");
+  const el = document.getElementById("loadedDaysLabel");
+  if (el) el.textContent = "Jours visibles : " + label;
+}
 
 
 /* =================== INIT =================== */
@@ -1329,6 +1588,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadPlan();
   requestAnimationFrame(updateTileSize);
   loadCSV();
+  refreshLoadedDaysLabel();
   window.addEventListener("load", updateTileSize);
 });
 
@@ -1413,6 +1673,12 @@ async function mergeZ3ForDay(dayStr) {
       if (!res.ok) throw new Error("Erreur proxy Drive");
       const buf = await res.arrayBuffer();
       const text = decodeSmart(buf);
+
+
+// 🧾 Debug : taille du fichier récupéré sur Drive
+console.log("🧾 Taille du fichier Drive :", text.length, "caractères");
+
+      
       const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
       const startIndex = lines.findIndex(l => /trigger.?time|horodatage/i.test(l));
       const csvClean = lines.slice(startIndex >= 0 ? startIndex : 0).join("\n");
@@ -1455,6 +1721,15 @@ async function mergeZ3ForDay(dayStr) {
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
 
 
 
