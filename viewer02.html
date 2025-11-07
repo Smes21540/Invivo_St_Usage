@@ -6,7 +6,10 @@
   <!-- === PARTIE 1 : DOCTYPE + HEAD (Librairies) === -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Graphique CSV</title>
+  <title>Courbes</title>
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
+
 
   <!-- Librairies -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
@@ -196,7 +199,7 @@
       position: absolute;
       left: 10px;
       top: 10px;
-      font-size: 28px;           /* assez gros */
+      font-size: 22px;           /* assez gros */
       font-weight: bold;
       color: var(--accent);      /* couleur du thème */
       white-space: nowrap;
@@ -526,23 +529,55 @@ async function loadCSVFromDrive(){
   document.getElementById('exportPDF').style.display = "inline-block";
   document.getElementById('resetZoom').style.display = "inline-block";
 
-// 💾 Détermination du dossier courant uniquement
+// 💾 Détermination du dossier courant + chemin complet (identique à index03)
 try {
   const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
   const f = list.find(x => x.id === baseFileId);
 
+  // 🔹 Trouver l'ID du dossier parent
   if (f && Array.isArray(f.parents) && f.parents.length > 0) {
-    currentFolderId = f.parents[0]; // dossier exact du CSV
-    console.log("📁 Dossier courant (exact):", currentFolderId);
+    currentFolderId = f.parents[0];
   } else {
-    console.warn("⚠️ Aucun dossier trouvé pour ce fichier, currentFolderId = null");
-    currentFolderId = null;
+    currentFolderId = localStorage.getItem("lastFolderId") || null;
   }
 
-// affiche le nom du dossier courant et mémorise le "chemin" texte
-const folder = list.find(x => x.id === currentFolderId);
-const folderName = folder ? folder.name : "(Dossier inconnu)";
-document.getElementById("currentFolderName").textContent = folderName;
+  // 🔹 Retrouver le dossier parent pour le nom
+  const folderObj = list.find(x => x.id === currentFolderId);
+  let folderName = folderObj ? folderObj.name : "(Dossier inconnu)";
+
+  // 🔹 Récupérer chemin complet du dossier
+  let folderPath =
+    getParam("folderPath") ||
+    localStorage.getItem("currentFolderPath") ||
+    folderName;
+
+  // 🔹 On anime les flammes 🔥
+  const flameTitle = folderPath.replace(
+    /🔥/g,
+    '<span class="flame" title="Brûleur(s) en fonctionnement">🔥</span>'
+  );
+
+  const el = document.getElementById("currentFolderName");
+  if (el) el.innerHTML = flameTitle;
+
+  // 🔹 Maj du titre
+  document.title = `Courbes – ${folderName}`;
+
+  // 🔹 Mémorisation globale
+  currentFolderPath = folderPath;
+  localStorage.setItem("currentFolderPath", folderPath);
+  localStorage.setItem("lastFolderId", currentFolderId || "");
+
+  console.log("[Viewer02] Dossier affiché :", folderPath);
+} catch (e) {
+  console.warn("⚠️ Erreur récupération dossier courant :", e);
+}
+
+
+
+
+
+
 
 // 🧭 on conserve au moins le nom du dossier comme chemin texte
 currentFolderPath = getParam("folderPath") || (folder ? folder.name : "");
@@ -563,9 +598,7 @@ currentFolderPath = folderPath;
 
   
 
-} catch (e) {
-  console.warn("⚠️ Erreur récupération dossier courant", e);
-}
+
 
 
 
@@ -1487,14 +1520,47 @@ async function autoLoadDays(chart){
         titleText = `Historique Séchoir ${xx} - ${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
       }
     } else {
-      const match = csvName.match(/^SA(\d+)_([0-9]{8})/);
-      if (match) {
-        const num = parseInt(match[1],10);
-        const d = match[2];
-        titleText = num>0 ? `Séchoir ${num} - ${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}` : `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
-        const numTwoDigits = String(num).padStart(2,'0');
-        pdfFileName = num>0 ? `Séchoir-${numTwoDigits}_${d}.pdf` : `${d}.pdf`;
-      }
+const match = csvName.match(/^SA(\d+)_([0-9]{8})/);
+if (match) {
+  const num = parseInt(match[1], 10);
+  const d = match[2];
+
+  // 🔹 Récupération du nom du dossier principal (comme avant)
+  const folderEl = document.getElementById("currentFolderName");
+  let folderName = folderEl ? folderEl.textContent.trim() : "SansNom";
+
+// 🔹 Suppression de tout pictogramme type emoji (ex: 📈, 📊, etc.)
+folderName = folderName.replace(/[📈📊📉🔥🗒️🚨✨⬅️📄🔄]/g, "").trim();
+
+
+  const dateFR = `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
+  const numTxt = num > 0 ? `Séchoir ${num}` : "";
+
+  // 🔸 Titre affiché dans le PDF (propre, sans flammes)
+  titleText = titleText.replace(/[📈📊📉🔥🗒️🚨✨⬅️📄🔄]/g, "").trim();
+  titleText = num > 0
+    ? `${folderName} – ${numTxt} – ${dateFR}`
+    : `${folderName} – ${dateFR}`;
+
+  // 🔸 Nom de fichier PDF exporté (sécurisé)
+  const safeFolder = folderName
+    .replace(/[<>:"/\\|?*]/g, "_")
+    .replace(/\s+/g, "_");
+
+  pdfFileName = num > 0
+    ? `${safeFolder}_S${String(num).padStart(2, "0")}_${d}.pdf`
+    : `${safeFolder}_${d}.pdf`;
+
+  // 🔸 Métadonnées PDF
+  pdf.setProperties({
+    title: `Courbes – ${folderName}${numTxt ? " – " + numTxt : ""} – ${dateFR}`,
+    subject: 'Export graphique CSV Séchoir',
+    author: 'SMES Explorer'
+  });
+}
+
+
+
     }
 
     const danger = getCSSVar('--danger') || '#d84315';
@@ -2024,6 +2090,19 @@ function showConfirm(message, onConfirm) {
   
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
