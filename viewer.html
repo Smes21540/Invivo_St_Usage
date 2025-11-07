@@ -1,25 +1,12 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-YG4RV4W27S"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-YG4RV4W27S');
-</script>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Explorateur données séchoirs</title>
+<title>Tableau</title>
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
-
   
-<!-- Dépendances -->
-<script src="libs/jszip.min.js"></script>
-<script src="libs/FileSaver.min.js"></script>
-
 <style>
 :root{
   --bg:#fff5f5;
@@ -28,545 +15,148 @@
   --text:#333;
   --muted-text:#555;
   --shadow:rgba(0,0,0,0.1);
-  --overlay:rgba(0,0,0,0.8);
-  --table-border:#eee;
-  --thumb-border:#ccc;
-
-  /* Thème (orange par défaut) */
   --accent:#ff7043;
-  --accent-contrast:#fff;
   --accent-darker:#e64a19;
   --accent-muted:#ffccbc;
   --danger:#d84315;
-
-  /* Couleurs des lignes du tableau */
-  --row-even:#ffe5d9;
-  --row-odd:#fff5f5;
 }
 
-*{box-sizing:border-box}
-
+html,body{height:100%;margin:0;overflow:hidden;}
 body{
-  font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;
-  background:var(--bg);color:var(--text);margin:0;padding:0;
-  display:flex;height:100vh;overflow:hidden;
+  font-family:"Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background-color:var(--bg);
+  padding:5px 20px 7px 20px;
+  color:var(--danger);
+  font-size:14px;
+  display:flex; flex-direction:column;
 }
 
-/* Alerte réseau */
-#netAlert{
-  display:none;position:fixed;top:0;left:0;right:0;z-index:3000;
-  background:var(--accent-muted);color:var(--danger);
-  padding:8px;text-align:center;font-weight:bold;
-}
-
-/* Sidebar */
-#sidebar{
-  background:var(--sidebar-bg);border-right:2px solid var(--accent);
-  padding:20px 10px;overflow-y:auto;z-index:1000;
-  width:auto;min-width:200px;max-width:500px;
-}
-#sidebar h2{
-  color:var(--accent);font-size:18px;font-weight:bold;text-transform:uppercase;
-  margin:0 0 12px 0;padding-left:5px;display:flex;align-items:center;gap:6px;
-}
-#folderTree ul{list-style:none;padding-left:20px;margin:0;}
-#folderTree li{cursor:pointer;margin:5px 0;}
-.folder-toggle{font-weight:bold;margin-right:5px;cursor:pointer;color:var(--accent);}
-.folder-name{cursor:pointer;}
-.active-folder {
-  background: var(--accent-muted);
-  border-radius: 3px;
-  padding: 1px 4px;
-  font-weight: 600;
-  color: var(--accent-darker);
-  box-shadow: none;
-}
-
-
-
-/* Main */
-#main{flex:1;padding:10px 20px;display:flex;flex-direction:column;overflow:hidden;}
-.header{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:15px;}
-.header .logo{height:60px;width:auto;}
-#fileNameContainer{position:absolute;right:0;top:0;text-align:right;}
-#fileName,#lineCount{color:var(--danger);}
-#fileName{font-size:20px;font-weight:bold;white-space:nowrap;max-width:250px;overflow:hidden;text-overflow:ellipsis;display:none;}
-#lineCount{font-size:12px;display:none;}
-
-/* Contrôles */
-.controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;align-items:center;}
-.controls button{
-  background:var(--accent);color:var(--accent-contrast);
-  border:none;cursor:pointer;font-weight:bold;
-  padding:6px 12px;border-radius:6px;font-size:13px;transition:0.3s;
-}
-.controls button:hover{background:var(--accent-darker);transform:scale(1.05);}
-
-/* --- Champs date modernisés --- */
-.date-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--panel);
-  border: 2px solid var(--table-border);
-  border-radius: 8px;
-  padding: 6px 10px;
-  transition: all 0.3s ease;
-}
-
-/* 📅 Icône calendrier plus grande et cliquable */
-.date-field span {
-  font-size: 24px; /* plus visible */
-  color: var(--accent);
-  cursor: pointer;
-  user-select: none;
-  transition: transform 0.2s, color 0.2s;
-}
-.date-field span:hover {
-  transform: scale(1.2);
-  color: var(--accent-darker);
-}
-
-/* Masque le champ tant qu’aucune date n’est choisie */
-/* Flatpickr remplace les inputs type="date" par .flatpickr-input */
-.date-field .flatpickr-input {
-  display: none;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 15px;
-  color: var(--text);
-  padding: 6px 2px;
-}
-.date-field.has-date .flatpickr-input {
-  display: inline-block;
-}
-
-
-input[type="date"]::-webkit-calendar-picker-indicator {
-  display: none;
-  -webkit-appearance: none;
-}
-
-/* --- Style équilibré du calendrier Flatpickr --- */
-.flatpickr-calendar {
-  font-size: 1em !important;          /* ✅ police normale (plus de chevauchement) */
-  transform: scale(1.15);             /* ✅ zoom global du calendrier (plus grand sans grossir le texte) */
-  transform-origin: top left;         /* garde l’ouverture propre près de l’icône */
-  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-  border-radius: 12px;
-  z-index: 3000 !important;
-}
-
-.flatpickr-day {
-  width: 2.4em !important;
-  height: 2.4em !important;
-  line-height: 2.4em !important;
-  font-size: 0.95em !important;       /* ✅ jours un peu plus petits, lisibles */
-  font-weight: 500;
-}
-
-.flatpickr-months .flatpickr-month {
-  font-size: 1em;                     /* ✅ mois et navigation lisibles mais pas énormes */
-  font-weight: bold;
-}
-
-.flatpickr-weekday {
-  font-size: 0.85em;                  /* ✅ noms des jours ajustés */
-  color: var(--accent-darker);
-  font-weight: 600;
-}
-
-
-
-
-/* Tableau */
-#tableWrapper{flex:1;overflow:auto;}
-#tableContainer{overflow:auto;border-radius:8px;box-shadow:0 4px 12px var(--shadow);background:var(--panel);}
-table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;}
-thead th,tbody td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--table-border);white-space:nowrap;}
-thead th{
-  position:sticky;top:0;z-index:2;background:var(--accent);
-  color:var(--accent-contrast);font-weight:bold;text-transform:uppercase;cursor:pointer;
-}
-tbody tr:nth-child(even){background:var(--row-even);}
-tbody tr:nth-child(odd){background:var(--row-odd);}
-tbody tr:hover{background:var(--accent-muted);}
-.sort-arrow{margin-left:5px;font-size:11px;color:var(--accent-contrast);}
-
-/* Cellule actions + boutons survol */
-td.action-cell{display:flex;align-items:center;gap:8px;}
-.action-btn{
-  background:var(--accent);color:var(--accent-contrast);border:none;cursor:pointer;
-  font-weight:bold;padding:6px 12px;border-radius:6px;font-size:12px;transition:0.2s;
-  margin-right:6px;opacity:0;visibility:hidden;
-}
-tbody tr:hover .action-btn{opacity:1;visibility:visible;}
-.action-btn:hover{background:var(--accent-darker);transform:scale(1.05);}
-
-/* Miniatures JPG */
-#csvTable td img{
-  max-width:120px;
-  cursor:pointer;border-radius:6px;border:1px solid var(--thumb-border);
-  transition:transform 0.2s,box-shadow 0.2s;margin-right:6px;
-}
-#csvTable td img:hover{transform:scale(1.08);box-shadow:0 0 8px var(--shadow);}
-
-/* Flèche animée */
-@keyframes bounceLeft {0%,100% { transform: translateX(0);}50% { transform: translateX(-8px);} }
-.arrow-hint {display:inline-block;margin-right:8px;color:var(--accent-darker);
-  font-size:22px;animation:bounceLeft 1s infinite;}
-
-/* Spinner */
-#spinner{
-  display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:40px;height:40px;border:6px solid #f3f3f3;border-top:6px solid var(--accent);border-radius:50%;
-}
-
-/* Modale images */
-.modal{display:none;position:fixed;z-index:1300;padding-top:50px;left:0;top:0;width:100%;height:100%;background-color:var(--overlay);text-align:center;}
-.modal .close{position:absolute;top:15px;right:25px;color:#fff;font-size:30px;cursor:pointer;}
-.modal iframe{width:90%;height:80vh;border:none;border-radius:10px;background:#000;}
-.modal-actions{margin-top:15px;display:flex;justify-content:center;gap:10px;}
-.modal-actions button{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;font-weight:bold;}
-.modal-actions button:hover{background:var(--accent-darker);}
-
-/* Overlay ZIP */
-#zipOverlay{
-  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.4);z-index:1400;justify-content:center;align-items:center;
-}
-#zipBox{
-  background:var(--accent-muted);color:var(--text);padding:20px 25px;border-radius:12px;
-  text-align:center;width:300px;box-shadow:0 4px 12px rgba(0,0,0,0.3);position:relative;
-}
-#zipBox h2{margin:0 0 10px 0;color:var(--accent);font-size:18px;}
-#zipFileName{font-size:13px;margin-bottom:15px;color:var(--muted-text);word-break:break-word;}
-#zipProgressBar{width:100%;height:22px;background:#eee;border-radius:11px;overflow:hidden;}
-#zipProgress{
-  height:100%;width:0;background:var(--accent);transition:width 0.3s;
-  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:13px;
-}
-#zipCounter{margin-top:10px;font-size:12px;color:var(--text);}
-#zipTime{margin-top:5px;font-size:12px;color:var(--muted-text);}
-#zipClose{
-  position:absolute;top:8px;right:12px;font-size:18px;font-weight:bold;color:var(--accent);cursor:pointer;
-}
-#zipClose:hover{color:var(--accent-darker);}
-
-/* Menu secret (thèmes) */
-#secretBtn {
-  position: fixed;bottom: 10px;right: 10px;width: 25px;height: 25px;
-  opacity: 0;cursor: pointer;z-index: 2000;
-}
-#themeMenu {
-  display:none;position:fixed;bottom:50px;right:10px;background: var(--panel);
-  border:2px solid var(--accent);border-radius:8px;box-shadow:0 4px 12px var(--shadow);
-  padding:10px;z-index:2001;min-width:150px;
-}
-#themeMenu h3 {margin:0 0 8px 0;font-size:14px;color: var(--accent);}
-#themeMenu .closeMenu {position:absolute;top:5px;right:8px;font-size:14px;cursor:pointer;color:var(--accent);}
-#themeMenu .closeMenu:hover {color:var(--accent-darker);}
-#themeMenu button {
-  display:block;width:100%;margin:4px 0;padding:6px;border:none;border-radius:6px;
-  background: var(--accent);color: var(--accent-contrast);cursor:pointer;font-size:13px;
-}
-#themeMenu button:hover {background: var(--accent-darker);}
-.flame {
-  display: inline-flex;          /* 🔄 pour être sur la même ligne que 📝 */
-  justify-content: center;
-  align-items: center;
-  font-size: 20px;               /* taille harmonisée */
-  line-height: 1;
-  vertical-align: middle;
-  animation: flicker 0.6s infinite alternate,
-             sway 1.2s infinite ease-in-out;
-  text-shadow:
-    0 0 4px rgba(255, 140, 0, 0.8),
-    0 0 8px rgba(255, 80, 0, 0.7),
-    0 0 12px rgba(255, 30, 0, 0.5);
-}
-
-
-/* Petite flamme pour les dossiers dans l’arborescence */
-.flame-folder {
-  display: inline;               
-  font-size: 14px;               
-  margin-right: 1px;             
-  line-height: 1;                
-  vertical-align: middle;
-  text-shadow: 
-    0 0 3px rgba(255, 140, 0, 0.8),
-    0 0 6px rgba(255, 80, 0, 0.7);
-  animation: flicker 1s infinite alternate;
-  margin-right: 4px;
-}
-
-.note {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 20px;               /* même taille que 🔥 */
-  vertical-align: middle;
-  margin-left: 4px;              /* petit espace entre 🔥 et 📝 */
-  color: #1565c0;                /* bleu lisible */
-  text-shadow: 0 0 4px rgba(21, 101, 192, 0.5);
-}
-
-
-@keyframes sway {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(3px) rotate(3deg); }
-}
-
-
-#eventAlert {
-  display:none;
-  position:fixed;
-  top:40px; /* juste sous netAlert */
-  left:50%;
-  transform:translateX(-50%);
-  background:var(--accent);
-  color:#fff;
-  padding:8px 16px;
-  border-radius:6px;
-  font-weight:bold;
-  z-index:3000;
-  box-shadow:0 2px 8px rgba(0,0,0,0.2);
-}
-
-/* === Bouton Gaz (toujours visible, jaune) === */
-.gaz-btn {
-  background: linear-gradient(180deg, #ffd54f, #ffb300);
-  color: fcdc12;
-  border: none;
-  font-weight: bold;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  margin-right: 6px;
-  cursor: default;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
-.gaz-btn:nth-of-type(2) {
-  background: linear-gradient(180deg, #bbdefb, #64b5f6); /* bleu clair */
-  color: #0d47a1;
-}
-
-/* Conteneur des boutons gaz */
-.gaz-group {
-  display: flex;
-  justify-content: center;   /* centrage horizontal */
-  align-items: center;       /* centrage vertical */
-  gap: 12px;                 /* espace entre les deux boutons */
-  width: 100%;
-}
-
-/* Style général des boutons gaz */
-.gaz-btn {
-  background: linear-gradient(180deg, #ffd54f, #ffb300);
-  color: #5d4037;
-  border: none;
-  font-weight: bold;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: default;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-  opacity: 1 !important;
-  visibility: visible !important;
-  text-align: center;
-  transition: transform 0.3s ease, background 0.3s ease;
-  min-width: 110px;          /* largeur fixe pour un alignement parfait */
-}
-
-/* Deuxième bouton (heures) : bleu clair */
-.gaz-group .gaz-btn:nth-of-type(2) {
-  background: linear-gradient(180deg, #bbdefb, #64b5f6);
-  color: #0d47a1;
-}
-
-/* --- Jours chauds dans le calendrier --- */
-.hot-day {
-  background: var(--accent-muted) !important;
-  color: var(--danger) !important;
-  border-radius: 50% !important;
-  font-weight: bold !important;
-  box-shadow: 0 0 6px rgba(255, 100, 0, 0.6);
-}
-
-
-/* Cache le bloc de filtres de date tant qu’aucun dossier n’est sélectionné */
-.controls {
-  display: none;
-}
-
-
-/* === STRUCTURE DE L'ARBORESCENCE === */
-
-/* 🔥 Flamme ou icône à gauche, sans décaler le nom */
-.folder-name {
-  position: relative;
-  display: inline-block;
-  cursor: pointer;
-  user-select: none;
-  font-weight: 500;
-}
-
-/* ✅ Supprime complètement les points devant les dossiers */
-#folderTree li {
-  list-style-type: none;
-}
-  
-.flame-folder {
+/* Header */
+.header{position:relative; display:flex; align-items:center; justify-content:center; margin:0 0 10px 0;}
+.header .logo{height:60px; width:auto;}
+  #folderName {
   position: absolute;
-  left: -18px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 14px;
-  text-shadow:
-    0 0 3px rgba(255, 140, 0, 0.8),
-    0 0 6px rgba(255, 80, 0, 0.7);
-  animation: flicker 1s infinite alternate;
-  pointer-events: none;
-}
-
-/* 🟧 Cadre visuel du dossier actif */
-.active-folder {
-  background: var(--accent-muted);
-  border-left: 1px solid var(--accent);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-weight: 600;
-  color: var(--accent-darker);
-  display: inline-block;
-  box-shadow: 0 0 4px rgba(0,0,0,0.1);
-}
-
-/* 📂 Hiérarchie : indentation et ligne verticale */
-#folderTree ul ul {
-  margin-left: 46px;
-  border-left: 2px solid var(--accent-muted);
-  padding-left: 14px;
-}
-
-#folderTree li {
-  position: relative;
-  margin: 3px 0;
-}
-
-#folderTree li::before {
-  content: "";
-  position: absolute;
-  left: -10px;
+  left: 0;
   top: 0;
-  bottom: 0;
-  border-left: 1px dashed var(--accent-muted);
-  opacity: 0.4;
+  font-size: clamp(14px, 2vw, 26px);
+  font-weight: bold;
+  color: var(--accent);
+  padding: 5px 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 45vw;
 }
 
-  
+#fileNameContainer{position:absolute; right:0; top:0; text-align:right;}
+#fileName,#lineCount{color:var(--danger);}
+#fileName{font-size:24px; font-weight:bold; white-space:nowrap; max-width:300px; overflow:hidden; text-overflow:ellipsis; display:none;}
+#lineCount{font-size:12px; display:none;}
 
+/* Controls */
+.controls{display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin:5px 0;}
+button{background-color:var(--accent); color:#fff; border:none; cursor:pointer; font-weight:bold; padding:8px 12px; border-radius:6px; font-size:13px; transition:background-color .3s ease, transform .2s ease;}
+button:hover{background-color:var(--accent-darker); transform:scale(1.05);}
+button:disabled{background-color:#ccc; color:#666; cursor:not-allowed; transform:none;}
+#toggleColumnsBtn{padding:6px 10px; border-radius:6px; border:1px solid var(--accent-darker); background-color:var(--accent); color:#fff; cursor:pointer; font-size:13px;}
+#toggleColumnsBtn:hover{background-color:var(--accent-darker);}
+
+/* Table wrapper centered */
+#tableWrapper{
+  flex:1;
+  overflow:auto;               /* scroll si nécessaire */
+  display:flex;
+  justify-content:center;      /* centre horizontalement */
+  align-items:center;          /* centre verticalement */
+  padding:10px;
+}
+#tableContainer{
+  display:inline-block;
+  overflow:auto;
+  max-width:100%;
+  max-height:100%;
+  border-radius:8px;
+  box-shadow:0 4px 12px var(--shadow);
+  background:var(--panel);
+  text-align:center;
+}
+
+/* Table */
+table{width:auto; border-collapse:separate; border-spacing:0; table-layout:auto; font-size:13px;}
+thead th, tbody td{padding:10px 12px; text-align:left; border-bottom:1px solid var(--sidebar-bg); white-space:nowrap; transition:background-color .6s ease, color .6s ease;}
+thead th{position:sticky; top:0; z-index:2; background-color:var(--accent); color:#fff; font-weight:bold; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; user-select:none; font-size:12px;}
+thead th:hover{background-color:var(--accent-darker);}
+tbody tr:nth-child(even){background-color:var(--sidebar-bg);}
+tbody tr:nth-child(odd){background-color:var(--panel);}
+tbody tr:hover{background-color:var(--accent-muted); transition:background-color .3s ease;}
+thead th.sorted-asc::after{content:" ▲"; font-size:10px;}
+thead th.sorted-desc::after{content:" ▼"; font-size:10px;}
+
+/* Column toggles panel */
+#columnToggles{
+  display:none;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px;
+  margin:5px 0;
+}
+#columnToggles.open{ display:flex; }
+#columnToggles label{font-size:12px; cursor:pointer; margin-right:5px;}
+#columnToggles input[type="checkbox"]{width:14px; height:14px; vertical-align:middle; margin-right:3px;}
+
+/* Reset flash */
+.flash-red{animation:flashRed .6s ease;}
+@keyframes flashRed{0%{background-color:var(--accent-muted);}100%{background-color:var(--panel);}}
+
+/* Secret theme menu */
+#secretBtn{position:fixed; bottom:10px; right:10px; width:25px; height:25px; opacity:0; cursor:pointer; z-index:2000;}
+#themeMenu{display:none; position:fixed; bottom:50px; right:10px; background:var(--panel);
+  border:2px solid var(--accent); border-radius:8px; box-shadow:0 4px 12px var(--shadow);
+  padding:10px; z-index:2001; min-width:150px;}
+#themeMenu h3{margin:0 0 8px 0; font-size:14px; color:var(--accent);}
+#themeMenu .closeMenu{position:absolute; top:5px; right:8px; font-size:14px; cursor:pointer; color:var(--accent);}
+#themeMenu .closeMenu:hover{color:var(--accent-darker);}
+#themeMenu button{display:block; width:100%; margin:4px 0; padding:6px; border:none; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; font-size:13px;}
+#themeMenu button:hover{background:var(--accent-darker);}
+
+/* Overlay + Spinner */
+#loadingOverlay{position:fixed; inset:0; background:rgba(0,0,0,0.05); display:none; z-index:2500;}
+#spinner{position:absolute; top:50%; left:50%; width:40px; height:40px; margin:-20px 0 0 -20px; border:6px solid #f3f3f3; border-top:6px solid var(--accent); border-radius:50%; animation:spin .8s linear infinite;}
+@keyframes spin{from{transform:rotate(0deg);} to{transform:rotate(360deg);}}
 </style>
-
-<!-- Calendrier enrichi -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
-
-
-  
 </head>
 <body>
 
-<div id="netAlert">⚠️ Pas de connexion internet détectée. Vérifiez votre réseau.</div>
-<div id="eventAlert">✅ Événements chargés</div>
-<div id="spinner"></div>
-
-
-<!-- Sidebar dossiers -->
-<div id="sidebar">
-  <h2><span>🌽</span>Sites / Séchoirs</h2>
-  <ul id="folderTree"></ul>
-</div>
-
-<!-- Main -->
-<div id="main">
-  <div class="header">
-    <img src="img/logo.png" class="logo" id="mainLogo" alt="Logo"/>
-    <div id="fileNameContainer">
-      <div id="fileName"></div>
-      <div id="lineCount"></div>
-    </div>
-  </div>
-
-  <div class="controls">
-    Filtrer par date : 
-    <div class="date-field"><span id="iconStart">📅</span><input type="date" id="startDate"></div>
-    à
-    <div class="date-field"><span id="iconEnd">📅</span><input type="date" id="endDate"></div>
-    <button onclick="applyFilter()">Filtrer</button>
-    <button onclick="clearFilter()">Tout afficher</button>
-    <button id="downloadFolderBtn">Télécharger le dossier</button>
-  </div>
-
-  <div id="tableWrapper">
-    <div id="tableContainer">
-      <table id="csvTable">
-<thead>
-  <tr>
-    <th onclick="sortTable(0,'date')">Date <span class="sort-arrow"></span></th>
-    <th style="width:40px; text-align:center;"></th>
-
-    <th>Télécharger / Ouvrir</th>
-    <th>Nom du fichier</th>
-    <th>Dossier</th>
-    <th onclick="sortTable(5,'number')">Taille <span class="sort-arrow"></span></th>
-  </tr>
-</thead>
-
-
-        <tbody>
-          <tr>
-            <td colspan="5" style="text-align:left;">
-              <span class="arrow-hint">⬅</span> Sélectionner un dossier...
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+<div class="header">
+  <div id="folderName"></div>
+  <img src="img/logo.png" alt="Logo SMES France" class="logo" id="mainLogo"/>
+  <div id="fileNameContainer">
+    <div id="fileName"></div>
+    <div id="lineCount"></div>
   </div>
 </div>
 
-<!-- Modale image -->
-<div id="imageModal" class="modal" role="dialog" aria-modal="true">
-  <span class="close" onclick="closeModal()" aria-label="Fermer">&times;</span>
-  <!-- tabindex=-1 pour éviter que l'iframe vole le focus / bloque les flèches -->
-  <iframe id="modalFrame" tabindex="-1"></iframe>
-  <div class="modal-actions">
-    <button id="prevBtn">&larr; Précédent</button>
-    <button id="nextBtn">Suivant &rarr;</button>
-    <button id="downloadBtn">Télécharger</button>
-  </div>
+<div class="controls">
+  <button id="backBtn">⬅️ Retour</button>
+  <button id="prevFile">⬅️ Fichier précédent</button>
+  <button id="nextFile">Fichier suivant ➡️</button>
+  <input type="text" id="searchInput" placeholder="🔎 Rechercher..." />
+  <button id="exportExcel">📊 Export Excel</button>
+  <button id="exportPDF">📄 Export PDF</button>
+  <button id="toggleColumnsBtn">Afficher/Masquer colonnes</button>
+  <button id="resetBtn">♻️ Réinitialiser affichage</button>
 </div>
 
-<!-- Overlay ZIP -->
-<div id="zipOverlay">
-  <div id="zipBox">
-    <span id="zipClose">&times;</span>
-    <h2>Préparation du ZIP...</h2>
-    <div id="zipFileName"></div>
-    <div id="zipProgressBar"><div id="zipProgress">0%</div></div>
-    <div id="zipCounter">0 / 0 fichiers</div>
-    <div id="zipTime">Temps restant : --</div>
-  </div>
+<div id="columnToggles"></div>
+<div id="tableWrapper"><div id="tableContainer"></div></div>
+
+<!-- Overlay + spinner -->
+<div id="loadingOverlay" aria-hidden="true">
+  <div id="spinner" role="status" aria-label="Chargement"></div>
 </div>
 
-<!-- Bouton secret + menu thèmes -->
-<div id="secretBtn" title=" "></div>
+<!-- Menu secret -->
+<div id="secretBtn"></div>
 <div id="themeMenu">
   <span class="closeMenu" onclick="closeThemeMenu()">❌</span>
   <h3>Choisir un thème</h3>
@@ -577,1471 +167,573 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
   <button onclick="setTheme('bordeaux')">Bordeaux</button>
 </div>
 
+<script src="libs/papaparse.min.js"></script>
+<script src="libs/xlsx.full.min.js"></script>
+<script src="libs/jspdf.umd.min.js"></script>
+<script src="libs/jspdf.plugin.autotable.min.js"></script>
 <script>
-/* ----------- Config Drive ----------- */
-const ROOT_FOLDER_ID="1n2ETUlB6CfK27qsHvzCwAvDHtNCg5nnH";
-// ✅ Active/désactive les calculs de consommation gaz
-const ENABLE_GAZ_CALC = false;  // ← passe à false pour désactiver
+// === Variables globales ===
+const VIS_MEM_KEY = 'columnVisibilityMemory';
+let currentData=[], sortAsc=true, sortColIndex=null, visibleColumns={},
+    columnVisibilityMemory = JSON.parse(localStorage.getItem(VIS_MEM_KEY) || '{}'),
+    columnSortMemory={colName:null,asc:true}, lastSearchQuery="", lastColorizedColIndex=null;
 
-/* ----------- Config personnalisée ----------- */
-const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
-
-/* ----------- État ----------- */
-let imageFiles=[], currentImageIndex=0;
-let filterStartDate="", filterEndDate="";
 let themeMenuTimer;
-let cancelScan = false; // 🛑 permet d’arrêter le scan si on clique ailleurs
+let csvFilesList = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
+let currentIndex = parseInt(localStorage.getItem("csvFileIndex")||"0",10);
 
-
-/* ----------- Utilitaires UI ----------- */
-const spinner=document.getElementById('spinner');
-function showSpinner(){spinner.style.display='block';}
-function hideSpinner(){spinner.style.display='none';}
-
-function updateNetworkStatus(){
-  document.getElementById("netAlert").style.display = navigator.onLine ? "none" : "block";
-}
-window.addEventListener("online",updateNetworkStatus);
-window.addEventListener("offline",updateNetworkStatus);
-
-function formatSize(bytes){
-  if(!bytes) return "?";
-  const units=["o","Ko","Mo","Go"]; let i=0; let v=Number(bytes);
-  while(v>=1024 && i<units.length-1){ v/=1024; i++; }
-  return (i===0?Math.round(v):v.toFixed(1))+" "+units[i];
-}
-
-function showEventAlert(msg="✅ Événements chargés") {
-  const alertBox = document.getElementById("eventAlert");
-  alertBox.textContent = msg;
-  alertBox.style.display = "block";
-  setTimeout(()=>{ alertBox.style.display="none"; },2000);
-}
-
-
-/* ----------- Drive API ----------- */
-async function fetchFolderContents(folderId){
-  if(!navigator.onLine){updateNetworkStatus();return [];}
-  showSpinner();
-  try{
-    const res = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?list=true&id=${folderId}&site=Smes_Acces`);
-
-    // 🚫 Blocage abonnement
-    if (res.status === 403) {
-      alert("⛔ Accès suspendu : merci de régulariser votre abonnement.");
-      hideSpinner();
-      return [];
-    }
-
-    // 🔎 Autre erreur HTTP
-    if (!res.ok) {
-      console.error("Erreur proxy Drive:", res.status, res.statusText);
-      alert("Erreur réseau ou proxy. Vérifie ta connexion ou ton accès.");
-      hideSpinner();
-      return [];
-    }
-
-    // ✅ Lecture JSON si tout va bien
-    const data = await res.json();
-    if (data.error) {
-      console.error("Erreur Google Drive API:", data.error);
-      alert("Erreur Drive (proxy). Ouvre la console pour le détail.");
-      hideSpinner();
-      return [];
-    }
-
-    return data.files || [];
-
-  } catch(e){
-    console.error("Erreur Drive:", e);
-    alert("Erreur interne ou blocage d’accès (proxy).");
-    return [];
-  } finally{
-    hideSpinner();
-  }
-}
-
-
-
-
-async function loadRootFolders(){
-  const files = await fetchFolderContents(ROOT_FOLDER_ID);
-  const rootUL = document.getElementById('folderTree');
-  rootUL.innerHTML = '';
-
-// 🔒 Cacher les filtres quand on revient à la racine
-document.querySelector(".controls").style.display = "none";
-
-  
-  files
-  .filter(f => f.mimeType === 'application/vnd.google-apps.folder')
-  .sort((a,b) => a.name.localeCompare(b.name, 'fr', { sensitivity:'base' }))
-  .forEach(f => {
-
-    const li = document.createElement('li'); 
-    li.dataset.id = f.id;
-
-    const toggle = document.createElement('span'); 
-    toggle.className = 'folder-toggle'; 
-    toggle.textContent = '';
-    toggle.onclick = () => toggleFolder(li);
-
-const span = document.createElement('span');
-span.className = 'folder-name';
-
-const lowerName = f.name.toLowerCase();
-
-if (lowerName.includes("gaz")) {
-  span.innerHTML = `⛽ ${f.name}`;
-} else if (lowerName.includes("echantillonnage")) {
-  span.innerHTML = `📖 ${f.name}`;
-} else if (lowerName.includes("capture")) {
-  span.innerHTML = `🖼️ ${f.name}`;
-} else if (lowerName.includes("rapport")) {
-  span.innerHTML = `📄 ${f.name}`;
-} else if (lowerName.includes("historique")) {
-  span.innerHTML = `🗂️ ${f.name}`;
-} else if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
-  span.innerHTML = `📈 ${f.name}`;
-} else {
-  span.textContent = f.name;
-}
-
-
-
-
-span.onclick = (e) => loadFolderFilesOnClick(li, e);
-
-
-
-
-
-    li.appendChild(toggle); 
-    li.appendChild(span); 
-    rootUL.appendChild(li);
-  });
-
-  // 🔥 Vérifier automatiquement deux crans plus bas sans ouvrir visuellement
-  setTimeout(async () => {
-    const siteFolders = document.querySelectorAll("#folderTree > li");
-
-    for (const siteLi of siteFolders) {
-      const subFolders = await fetchChildren(siteLi.dataset.id);
-      for (const sub of subFolders) {
-        if (sub.name.includes("Temp")) {
-          await checkTraçaTempToday(siteLi, sub.id); 
-        }
-      }
-    }
-  }, 1000);
-}
-
-async function toggleFolder(li){
-  const toggle=li.querySelector('.folder-toggle');
-if(li.dataset.loaded==='true'){
-  const ul = li.querySelector('ul');
-  // ✅ Ne replie pas le parent si on clique un sous-dossier
-  if (!ul) return;
-  if (event && event.target && !event.target.classList.contains('folder-name')) return;
-  ul.style.display = ul.style.display === 'none' ? 'block' : 'none';
-  return;
-}
-
-  toggle.textContent='…';
-  const files=await fetchFolderContents(li.dataset.id);
-  const ul=document.createElement('ul');
-  const folders = files
-  .filter(f => f.mimeType === 'application/vnd.google-apps.folder')
-  .sort((a,b) => a.name.localeCompare(b.name, 'fr', { sensitivity:'base' }));
-
-for (const f of folders) {
-
-    const childLi=document.createElement('li'); 
-    childLi.dataset.id=f.id;
-
-    const childToggle=document.createElement('span'); 
-    childToggle.className='folder-toggle'; 
-    childToggle.textContent='';
-    childToggle.onclick=()=>toggleFolder(childLi);
-
-const span = document.createElement('span');
-span.className = 'folder-name';
-
-const lowerName = f.name.toLowerCase();
-
-if (lowerName.includes("gaz")) {
-  span.innerHTML = `⛽ ${f.name}`;
-} else if (lowerName.includes("echantillonnage")) {
-  span.innerHTML = `📖 ${f.name}`;
-} else if (lowerName.includes("capture")) {
-  span.innerHTML = `🖼️ ${f.name}`;
-} else if (lowerName.includes("rapport")) {
-  span.innerHTML = `📄 ${f.name}`;
-} else if (lowerName.includes("historique")) {
-  span.innerHTML = `🗂️ ${f.name}`;
-} else if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
-  span.innerHTML = `📈 ${f.name}`;
-} else {
-  span.textContent = f.name;
-}
-
-
-
-span.onclick = (e) => loadFolderFilesOnClick(childLi, e);
-
-
-
-    childLi.appendChild(childToggle); 
-    childLi.appendChild(span); 
-    ul.appendChild(childLi);
-
-    // ✅ Cas spécial : si le dossier est Traça_Temp → précharger Historique
-    if (f.name.toLowerCase().includes("traça_temp") || f.name.toLowerCase().includes("traca_temp")) {
-      const siblings = await fetchFolderContents(li.dataset.id);
-      const hist = siblings.find(s => s.mimeType === 'application/vnd.google-apps.folder' && s.name.toLowerCase().includes("historique"));
-      if (hist) {
-        const histFiles = await fetchFolderContents(hist.id);
-        const z3Files = histFiles.filter(ff => ff.name.toUpperCase().startsWith("Z3") && ff.name.toLowerCase().endsWith(".csv"));
-localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-console.log("[Z3] Préchargés depuis Historique:", z3Files.length);
-showEventAlert();
-
-      }
-    }
-
-    // ✅ Vérif Temp (flamme 🔥)
-    if(f.name.includes("Temp")){ checkTraçaTempToday(li, f.id); }
-  }
-  li.appendChild(ul); 
-  li.dataset.loaded='true'; 
-  toggle.textContent='';
-}
-
-
-// Fonction utilitaire pour récupérer les sous-dossiers sans modifier l'affichage
-async function fetchChildren(folderId){
-  const files = await fetchFolderContents(folderId);
-  return files.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
-}
-
-async function loadFolderFilesOnClick(li, event){
-
-  await toggleFolder(li);
-
-// 🔄 Réinitialiser la sélection visuelle
-document.querySelectorAll('#folderTree li span.folder-name').forEach(s => s.classList.remove('active-folder'));
-
-// ✅ Surligne le dossier cliqué
-const nameSpan = li.querySelector('span.folder-name');
-if (nameSpan) nameSpan.classList.add('active-folder');
-
-// ✅ Surligne aussi tous les parents (chemin hiérarchique)
-let parentLi = li.parentElement.closest('li');
-while (parentLi) {
-  const parentSpan = parentLi.querySelector('span.folder-name');
-  if (parentSpan) parentSpan.classList.add('active-folder');
-  parentLi = parentLi.parentElement.closest('li');
-}
-
-  localStorage.setItem('lastFolderId', li.dataset.id);
-
-// 📂 Sauvegarde du chemin complet (ex: Voreppe/Traça_Temp)
-function buildFullFolderPath(li) {
-  const parts = [];
-  let current = li;
-  while (current) {
-    const nameSpan = current.querySelector(".folder-name");
-    if (nameSpan) parts.unshift(nameSpan.textContent.trim());
-    current = current.parentElement.closest("li");
-  }
-  return parts.join("/");
-}
-
-const fullPath = buildFullFolderPath(li);
-localStorage.setItem("lastFolderPath", fullPath);
-console.log("[Folder] Chemin complet enregistré :", fullPath);
-
-  
-  const folderName = nameSpan ? nameSpan.textContent.toLowerCase() : "";
-
-  // ⚡ Gestion spéciale Z3
-  if (folderName.includes("traça_temp") || folderName.includes("traca_temp")) {
-    // récupérer le dossier parent (= site)
-    const siteLi = li.parentElement.closest("li");
-    if (siteLi && siteLi.dataset.id) {
-      const siblings = await fetchFolderContents(siteLi.dataset.id);
-      const hist = siblings.find(s => 
-        s.mimeType === 'application/vnd.google-apps.folder' && 
-        s.name.toLowerCase().includes("historique")
-      );
-
-      if (hist) {
-        const histFiles = await fetchFolderContents(hist.id);
-        const z3Files = histFiles.filter(ff => 
-          ff.name.toUpperCase().startsWith("Z3") && 
-          ff.name.toLowerCase().endsWith(".csv")
-        );
-        localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-        console.log("[Z3] Préchargés depuis Historique voisin:", z3Files.length);
-      } else {
-        localStorage.removeItem("csvZ3Files");
-        console.warn("[Z3] Aucun dossier Historique trouvé pour", nameSpan.textContent);
-      }
-    }
-  } 
-  else if (folderName.includes("historique")) {
-    // directement charger les Z3 de ce dossier
-    const histFiles = await fetchFolderContents(li.dataset.id);
-    const z3Files = histFiles.filter(ff => 
-      ff.name.toUpperCase().startsWith("Z3") && 
-      ff.name.toLowerCase().endsWith(".csv")
-    );
-    localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
-    console.log("[Z3] Préchargés directement (Historique):", z3Files.length);
-  } 
-  else {
-    // Sinon → effacer le cache Z3
-    localStorage.removeItem("csvZ3Files");
-    console.log("[Z3] Cache vidé (hors Traça_Temp / Historique)");
-  }
-
-  // Charger fichiers CSV/JPG classiques du dossier
-  const files = await fetchFolderContents(li.dataset.id);
-const filtered = files.filter(f => 
-  f.name.toLowerCase().endsWith('.csv') || 
-  f.name.toLowerCase().endsWith('.jpg') || 
-  f.name.toLowerCase().endsWith('.jpeg') ||
-  f.name.toLowerCase().endsWith('.json') ||
-  f.name.toLowerCase().endsWith('.pdf')
-);
-
-
-
-
-
-
-// 🧭 Détermination du site courant
-const siteLi = li.parentElement.closest("li");
-let siteId = siteLi?.dataset.id || null;
-
-if (siteId && siteId !== currentSiteId) {
-  clearSiteHotDays();
-  currentSiteId = siteId;
-  console.log(`[SITE] Changement de site → ${siteLi.querySelector(".folder-name")?.textContent}`);
-  
-// 🔥 Lancer le scan en arrière-plan sans bloquer l'affichage
-scanSiteHotDays(siteId).then(map => {
-  hotDaysMap = map;
-  console.log(`[CACHE] 🔥 ${Object.keys(hotDaysMap).length} jours chauds détectés et chargés pour ${siteLi.querySelector(".folder-name")?.textContent}`);
-
-// 🪄 Rafraîchir seulement les flammes dans le tableau actuel sans supprimer les notes 📝
-document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
-  const nameCell = tr.cells[3];
-  const flameCell = tr.cells[1];
-  if (!nameCell || !flameCell) return;
-
-  const fname = nameCell.textContent.trim();
-  const m = fname.match(/(\d{8})\.csv$/i);
-  if (m && hotDaysMap[m[1]]) {
-    const hadNote = flameCell.innerHTML.includes("📝");
-    flameCell.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
-    if (hadNote) flameCell.innerHTML += ` <span class="note" title="Note associée">📝</span>`;
-  }
-});
-
-});
-
-} else if (siteId && Object.keys(hotDaysMap).length === 0) {
-  hotDaysMap = loadSiteHotDays(siteId);
-  if (Object.keys(hotDaysMap).length === 0) {
-    console.log(`[CACHE] Aucun cache trouvé pour ${siteLi.querySelector(".folder-name")?.textContent}, relance du scan...`);
-    scanSiteHotDays(siteId).then(map => {
-      hotDaysMap = map;
-      console.log(`[CACHE] 🔥 ${Object.keys(hotDaysMap).length} jours chauds détectés et chargés pour ${siteLi.querySelector(".folder-name")?.textContent}`);
-      const active = document.querySelector('#folderTree .active-folder');
-      if (active) active.click();
-    });
-  } else {
-    console.log(`[CACHE] ${Object.keys(hotDaysMap).length} jours chauds chargés depuis cache`);
-  }
-}
-
-imageFiles = filtered.filter(f => /\.(jpg|jpeg)$/i.test(f.name)); 
-displayFiles(filtered, nameSpan ? nameSpan.textContent : '');
-
-
-// 🪄 Applique immédiatement les flammes du cache si déjà chargé pour ce site
-if (Object.keys(hotDaysMap).length > 0) {
-  document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
-    const nameCell = tr.cells[3]; // colonne Nom du fichier
-    const flameCell = tr.cells[1]; // colonne flamme
-    if (!nameCell || !flameCell) return;
-
-    const m = nameCell.textContent.match(/(\d{8})\.csv$/i);
-    if (m && hotDaysMap[m[1]]) {
-      flameCell.innerHTML = `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
-    }
-  });
-}
-
-
-
-async function displayFiles(files, folderName){
-
-  const tbody=document.querySelector('#csvTable tbody');
-  const downloadBtn=document.getElementById('downloadFolderBtn');
-  tbody.innerHTML='';
-
-  // ✅ Afficher les filtres uniquement dans un dossier final (contenant des fichiers)
-document.querySelector(".controls").style.display = "flex";
-
-
-  if(files.length===0){
-    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;">Aucun fichier</td></tr>';
-    downloadBtn.style.display="none";
-    return;
-  }
-  
-
-  downloadBtn.style.display="inline-block";
-
-downloadBtn.style.display="inline-block";
-
-// 🔍 Prépare la liste des dates ayant un JSON "actif"
-const jsonDates = new Set();
-
-await Promise.all(files
-  .filter(f => f.name.toLowerCase().endsWith(".json"))
-  .map(async (file) => {
-    const m = file.name.match(/(\d{8})/);
-    if (!m) return;
-
-    try {
-      const res = await fetch(
-        `https://smes21540.netlify.app/.netlify/functions/drive?id=${file.id}&name=${encodeURIComponent(file.name)}&site=Smes_Acces`
-      );
-      if (!res.ok) return;
-      const text = await res.text();
-
-try {
-  const data = JSON.parse(text);
-  if (data?.[0]?.status?.toLowerCase() === "active") {
-    jsonDates.add(m[1]);
-  }
-} catch (e) {
-  // Si le JSON n'est pas bien formé, on ignore sans planter
-  console.warn("⚠️ JSON mal formé :", file.name);
-}
-
-    } catch (err) {
-      console.warn("Erreur lecture JSON :", file.name, err);
-    }
-  })
-);
-
-
-// ➕ Helpers pour ajouter sans écraser
-function addFlame(cell){
-  if (!cell.innerHTML.includes("🔥")) {
-    cell.innerHTML += (cell.innerHTML ? " " : "") + `<span class="flame" title="Brûleur actif ce jour-là">🔥</span>`;
-  }
-}
-function addNote(cell){
-  if (!cell.innerHTML.includes("📝")) {
-    cell.innerHTML += (cell.innerHTML ? " " : "") + `<span class="note" title="Note associée">📝</span>`;
-  }
-}
-
-
-
-
-for(const f of files){
-    // ❌ On n'affiche pas les .json : ils servent juste à poser 📝
-    if (f.name.toLowerCase().endsWith(".json")) continue;
-
-    // Date
-    let date='';
-
-    const m=f.name.match(/(\d{8})\.csv$/i);
-    if(m){ date=`${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`; }
-    else if(/\.(jpg|jpeg)$/i.test(f.name)){
-      if(f.modifiedTime) date=f.modifiedTime.slice(0,10);
-      else if(f.createdTime) date=f.createdTime.slice(0,10);
-    }
-
-    if((filterStartDate && date<filterStartDate) || (filterEndDate && date>filterEndDate)) continue;
-
-const tr=document.createElement('tr');
-
-    const tdFlame = document.createElement('td');
-tdFlame.style.textAlign = "center";
-tdFlame.style.width = "26px";
-tdFlame.textContent = "";
-
-    
-
-// 🔥 Application flamme si le fichier correspond à un jour chaud
-const match = f.name.match(/(\d{8})\.csv$/i);
-if (match) {
-  const dateKey = match[1];
-
-  if (hotDaysMap[dateKey]) {
-    addFlame(tdFlame);
-  } else {
-    setTimeout(() => {
-      if (hotDaysMap[dateKey]) addFlame(tdFlame);
-    }, 1000);
-  }
-}
-
-// 📝 Ajoute une icône si un JSON de la même date est présent (persiste même après réaffichage)
-if (match && jsonDates.has(match[1])) {
-  addNote(tdFlame);
-  tdFlame.dataset.hasNote = "true"; // marquage persistant
-}
-
-
-
-
-
-// Bloc DATE avec affichage du jour
-const tdDate=document.createElement('td');
-if (date) {
-  const d = new Date(date);
-  const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
-  const jourNom = jours[d.getDay()];
-  tdDate.textContent = `${date} ${jourNom}`;
-
-  // Week-end → rouge + gras
-  if (d.getDay() === 0 || d.getDay() === 6) {
-    tdDate.style.color = "var(--danger)";
-    tdDate.style.fontWeight = "bold";
-  }
-} else {
-  tdDate.textContent = '';
-}
-
-const tdName = document.createElement('td');
-tdName.textContent = f.name;
-
-// === FLAMME FILE (avec cancelScan) ===
-if (f.name.toLowerCase().endsWith(".csv") &&
-    (folderName.toLowerCase().includes("traça_temp") || folderName.toLowerCase().includes("traca_temp"))) {
-  
-  // Message provisoire
-  tdName.innerHTML = `${f.name}&nbsp;&nbsp;&nbsp;<span style="color:gray;font-size:11px;">(scan en cours...)</span>`;
-
-  (async () => {
-    try {
-      if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop si demandé
-
-      const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`;
-
-      const res = await fetch(url);
-      if (!res.ok) { tdName.innerHTML = f.name; return; }
-
-      const text = await res.text();
-      if (cancelScan) { tdName.innerHTML = f.name; return; } // 🛑 stop si demandé
-
-      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-      if (lines.length < 2) { tdName.innerHTML = f.name; return; }
-
-      const headers = lines[0].split(",").map(h => h.replace(/"/g,"").trim().toLowerCase());
-      let idxInf = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac inf"))[1]?.i;
-      let idxSup = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac sup"))[1]?.i;
-
-      if (idxInf === undefined && idxSup === undefined) { tdName.innerHTML = f.name; return; }
-
-      let countFlame = 0;
-for (let i = 1; i < lines.length; i++) {
-  const cols = lines[i].split(",").map(c => c.replace(/"/g,"").trim());
-
-  // 🕔 Vérifie l’heure (colonne 0 supposée être l’heure du point)
-  const timeStr = cols[0];
-  if (timeStr && /^(\d{2}):(\d{2})/.test(timeStr)) {
-    const [_, hh, mm] = timeStr.match(/^(\d{2}):(\d{2})/);
-    const hour = parseInt(hh, 10);
-
-    // ⏰ Ignore les valeurs avant 5h ou après 23h59
-    if (hour < 5 || hour >= 24) continue;
-  }
-
-  const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
-  const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
-
-  if ((isFinite(vInf) && vInf > FLAME_THRESHOLD) ||
-      (isFinite(vSup) && vSup > FLAME_THRESHOLD)) {
-    countFlame++;
-  }
-}
-
-
-if (countFlame >= 1) {
-  // 🔥 Ajoute la flamme tout en préservant la note existante
-  const hadNote = tdFlame.innerHTML.includes("📝");
-  tdFlame.innerHTML = `<span class="flame" title="Brûleur actif détecté ce jour !">🔥</span>`;
-  if (hadNote) tdFlame.innerHTML += ` <span class="note" title="Note associée">📝</span>`;
-}
-
-
-// 📝 Si un JSON de la même date existe → conserver même si scan flamme réécrit
-const mNote = f.name.match(/(\d{8})\.csv$/i);
-if (mNote && jsonDates.has(mNote[1])) {
-  if (!tdFlame.innerHTML.includes("📝")) addNote(tdFlame);
-  tdFlame.dataset.hasNote = "true";
-}
-
-
-tdName.textContent = f.name;
-
-
-    } catch(e) {
-      console.error("Erreur flamme fichier:", f.name, e);
-      tdName.innerHTML = f.name;
-    }
-  })();
-}
-// === FIN FLAMME FILE ===
-
-
-
-const tdFolder=document.createElement('td'); tdFolder.textContent=folderName;
-
-    const tdSize = document.createElement('td');
-    if (f.size) {
-      tdSize.textContent = formatSize(f.size);
-      if (parseInt(f.size) < 200) {
-        tdSize.style.color = "#999";
-        tdSize.textContent += " (vide)";
-      } else {
-        tdSize.style.color = "inherit";
-      }
-    } else {
-      tdSize.textContent = '?';
-    }
-
-    const tdAction=document.createElement('td'); tdAction.className='action-cell';
-    let html='';
-if(f.name.toLowerCase().endsWith('.csv')){
-  html+=`<a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank"><button class="action-btn">Télécharger</button></a>`;
-  html+=`<button class="action-btn" onclick="openViewer('viewer.html','${f.id}','${f.name}')">Tableau</button>`;
-
-  // 👇 bouton Courbes seulement si on n'est PAS dans Historique
-  if (!folderName.toLowerCase().includes("historique")) {
-    html+=`<button class="action-btn" onclick="openViewer('viewer02.html','${f.id}','${f.name}')">Courbes</button>`;
-  }
-
-  // 👇 bouton Sondes uniquement si on est dans Traça_Temp
-  if (folderName.toLowerCase().includes("traça_temp") || folderName.toLowerCase().includes("traca_temp")) {
-    html+=`<button class="action-btn" onclick="openViewer('index03.html','${f.id}','${f.name}')">Sondes</button>`;
-  }
-}
-
-// === Si on est dans "Consommation Gaz", calcul du delta sur colonnes 2 (heure HH:MM:SS) et 3 (kWh) ===
-if (ENABLE_GAZ_CALC && folderName.toLowerCase().includes("consommation gaz") && f.name.toLowerCase().endsWith(".csv")) {
-
-html += `
-  <div class="gaz-group">
-    <button class="gaz-btn" disabled>⏳ Calcul...</button>
-    <button class="gaz-btn" disabled>⏳ Heures...</button>
-  </div>
-`;
-
-
-  (async () => {
-    try {
-      const resGaz = await fetch(
-        `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
-      );
-      const textGaz = await resGaz.text();
-      const lines = textGaz.split(/\r?\n/).filter(l => l.trim() !== "");
-
-      let diffKwh = 0;
-      let diffMinutes = 0;
-
-      if (lines.length > 2) {
-        const firstCols = lines[1].split(",");
-        const lastCols = lines[lines.length - 1].split(",");
-
-        // --- Colonne 2 : heure (format HH:MM:SS)
-        const hStart = firstCols[1]?.replace(/"/g, "").trim();
-        const hEnd = lastCols[1]?.replace(/"/g, "").trim();
-
-        function parseHeureToMinutes(h) {
-          const m = h.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-          if (!m) return NaN;
-          const hh = parseInt(m[1]);
-          const mm = parseInt(m[2]);
-          const ss = parseInt(m[3] || "0");
-          return hh * 60 + mm + ss / 60;
-        }
-
-        const startMin = parseHeureToMinutes(hStart);
-        const endMin = parseHeureToMinutes(hEnd);
-
-        if (isFinite(startMin) && isFinite(endMin)) {
-          diffMinutes = endMin - startMin;
-          if (diffMinutes < 0) diffMinutes += 24 * 60; // passage minuit
-        }
-
-        // --- Colonne 3 : compteur kWh ---
-        const vCfirst = parseFloat(firstCols[2]?.replace(/"/g, "").trim());
-        const vClast = parseFloat(lastCols[2]?.replace(/"/g, "").trim());
-        if (isFinite(vCfirst) && isFinite(vClast)) diffKwh = vClast - vCfirst;
-      }
-
-      if (!isFinite(diffKwh) || diffKwh < 0) diffKwh = 0;
-      if (!isFinite(diffMinutes) || diffMinutes < 0) diffMinutes = 0;
-
-      // Conversion minutes → HH:MM
-      const hours = Math.floor(diffMinutes / 60);
-      const minutes = Math.floor(diffMinutes % 60);
-      const hh = String(hours).padStart(2, "0");
-      const mm = String(minutes).padStart(2, "0");
-      const dureeFormatee = `${hh}:${mm}`;
-
-      const roundedKwh = diffKwh.toFixed(0);
-
-      const btns = tdAction.querySelectorAll(".gaz-btn");
-      const btnKwh = btns[0];
-      const btnHeures = btns[1];
-
-if (diffKwh > 400000) {
-  const btns = tdAction.querySelectorAll(".gaz-btn");
-  const btnKwh = btns[0];
-  if (btnKwh) {
-    btnKwh.textContent = `⚠️ ${diffKwh.toFixed(0)} kWh (valeur anormale)`;
-    btnKwh.style.background = "linear-gradient(180deg, #ffccbc, #d32f2f)";
-    btnKwh.style.color = "#fff";
-    btnKwh.style.transform = "scale(1)";
-  }
-  return; // 🔴 on arrête ici, pas d'animation ni de couleur normale
-}
-
-      
-// ⚡ KWH (couleur douce selon consommation)
-if (btnKwh) {
-  btnKwh.textContent = `🔥 ${roundedKwh} kWh`;
-  btnKwh.style.transition = "background 0.8s ease-out, color 0.8s ease-out";
-
-  // Limiter la valeur pour éviter les extrêmes
-  const v = Math.min(Math.max(diffKwh, 0), 200000);
-
-  let bg = "";
-  let textColor = "#1b5e20"; // vert foncé par défaut
-
-  if (v <= 10000) {
-    // vert clair → jaune
-    const ratio = v / 10000;
-    const g = Math.round(230 - 60 * ratio);
-    const r = Math.round(200 + 55 * ratio);
-    bg = `linear-gradient(180deg, rgb(${r},${g},100), rgb(${r + 20},${g + 20},120))`;
-    textColor = "#2e7d32";
-  } else {
-    // jaune → rouge
-    const ratio = (v - 10000) / 190000;
-    const r = Math.round(255);
-    const g = Math.round(235 - 155 * ratio);
-    bg = `linear-gradient(180deg, rgb(${r},${g},80), rgb(${r - 20},${g - 30},60))`;
-    textColor = "#3e2723";
-  }
-
-  btnKwh.style.background = bg;
-  btnKwh.style.color = textColor;
-}
-
-
-
-      // ⏱ HEURES (format HH:MM)
-      if (btnHeures) {
-        btnHeures.textContent = `⏱ ${dureeFormatee}`;
-        btnHeures.style.background = "linear-gradient(180deg, #bbdefb, #64b5f6)";
-        btnHeures.style.color = "#0d47a1";
-        btnHeures.style.transform = "scale(0.95)";
-      }
-
-    } catch (e) {
-      console.warn("Erreur calcul Consommation Gaz :", f.name, e);
-      const btns = tdAction.querySelectorAll(".gaz-btn");
-      if (btns[0]) btns[0].textContent = "⚡ 0 kWh";
-      if (btns[1]) btns[1].textContent = "⏱ 00:00";
-    }
-  })();
-}
-
-
-
-
-
-
-
-
-    if(/\.(jpg|jpeg)$/i.test(f.name)){
-      html+=`<img src="https://drive.google.com/thumbnail?id=${f.id}" onclick="openModal('${f.id}')" alt="aperçu">`;
-      html+=`<a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank"><button class="action-btn">Télécharger</button></a>`;
-    }
-
-// === PDF ===
-if (f.name.toLowerCase().endsWith(".pdf")) {
-  html += `
-    <a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank">
-      <button class="action-btn">Télécharger</button>
-    </a>
-    <button class="action-btn" onclick="openModal('${f.id}', 'pdf')">Ouvrir</button>
-  `;
-}
-
-  
-    tdAction.innerHTML=html;
-
-
-tr.appendChild(tdDate);
-    tr.appendChild(tdFlame);
-tr.appendChild(tdAction);
-tr.appendChild(tdName);
-tr.appendChild(tdFolder);
-tr.appendChild(tdSize);
-
-
-    tbody.appendChild(tr);
-  }
-}
-}
-
-/* ----------- Open viewer (CSV list + index) ----------- */
-async function openViewer(viewer, id, name){
-  cancelScan = true; // 🛑 stoppe immédiatement tous les scans
-
-  const active = document.querySelector('#folderTree .active-folder');
-  if (!active) { alert("Sélectionnez un dossier !"); return; }
-
-  const folderId = localStorage.getItem('lastFolderId');
-
-  // 📂 Charger tous les fichiers du dossier courant
-  const files = await fetchFolderContents(folderId);
-
-  // 🧩 Séparer les fichiers CSV et JSON
-  const saFiles = files.filter(f =>
-    f.name.toUpperCase().startsWith("SA") &&
-    f.name.toLowerCase().endsWith(".csv")
-  );
-  const jsonFiles = files.filter(f =>
-    f.name.toLowerCase().endsWith(".json")
-  );
-
-  // 🔗 Récupérer les Z3 préchargés
-  const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
-
-  // 🗒️ Ajouter les fichiers .json dans le cache
-  if (jsonFiles.length > 0) {
-    console.log(`[Notes] ${jsonFiles.length} fichiers .json ajoutés au cache`);
-    jsonFiles.forEach(jf => {
-      if (!jf.parents) jf.parents = [folderId];
-      if (!jf.mimeType) jf.mimeType = "application/json";
-    });
-  }
-
-  // 🧠 Fusionner le tout
-  const allCsv = [...saFiles, ...z3Files, ...jsonFiles];
-
-  function addFolderHierarchy(li, acc){
-    if (!li) return;
-    const nameSpan = li.querySelector('.folder-name');
-    const folderObj = { id: li.dataset.id, name: nameSpan ? nameSpan.textContent : '', parents: [] };
-    const parentLi = li.parentElement.closest('li');
-    if (parentLi) {
-      folderObj.parents.push(parentLi.dataset.id);
-      addFolderHierarchy(parentLi, acc);
-    }
-    if (!acc.find(x => x.id === folderObj.id)) {
-      acc.push(folderObj);
-    }
-  }
-
-  const activeLi = active.closest('li');
-  addFolderHierarchy(activeLi, allCsv);
-  allCsv.forEach(f => {
-    if (!f.parents) f.parents = [];
-    if (!f.parents.includes(activeLi.dataset.id)) {
-      f.parents.push(activeLi.dataset.id);
-    }
-  });
-
-  localStorage.setItem("csvFilesList", JSON.stringify(allCsv));
-  const index = allCsv.findIndex(f => f.id === id);
-  localStorage.setItem("csvFileIndex", index);
-
-  // 🔍 Vérifier plan_sondes.csv
-  const planFile = files.find(f => f.name.toLowerCase() === "plan_sondes.csv");
-  let url = `${viewer}?fileId=${id}&fileName=${encodeURIComponent(name)}`;
-
-const folderPath = localStorage.getItem("lastFolderPath") || "";
-url += `&folderPath=${encodeURIComponent(folderPath)}`;
-console.log("[Viewer] Dossier ajouté à l’URL :", folderPath);
-  // 🔹 Sauvegarde explicite du chemin pour le viewer02
-localStorage.setItem("currentFolderPath", folderPath);
-
-
-  
-  if (planFile) {
-    try {
-      const respPlan = await fetch(`https://smes21540.netlify.app/.netlify/functions/drive?id=${planFile.id}&name=${encodeURIComponent(planFile.name)}&site=Smes_Acces`);
-      const textPlan = await respPlan.text();
-      localStorage.setItem("planSondes", textPlan);
-    } catch (e) {
-      console.error("❌ Erreur lors du chargement du plan_sondes.csv", e);
-    }
-  } else {
-    localStorage.removeItem("planSondes");
-  }
-
-
-
-
-  window.open(url,'_blank');
-  setTimeout(() => { cancelScan = false; }, 1000);
-}
-
-
-
-
-/* ----------- Filtres ----------- */
-function applyFilter(){
-  filterStartDate=document.getElementById('startDate').value;
-  filterEndDate=document.getElementById('endDate').value;
-  const active=document.querySelector('#folderTree .active-folder');
-  if(active) active.click();
-}
-function clearFilter(){
-  filterStartDate=''; filterEndDate='';
-  document.getElementById('startDate').value=''; document.getElementById('endDate').value='';
-  const active=document.querySelector('#folderTree .active-folder');
-  if(active) active.click();
-}
-
-/* ----------- Modale images + navigation clavier ----------- */
-function openModal(id, type = "image") {
-  const modal = document.getElementById('imageModal');
-  modal.style.display = 'block';
-  const frame = document.getElementById('modalFrame');
-
-  // 🔍 Détermine le mode d'affichage selon le type
-  if (type === "pdf") {
-    frame.src = `https://drive.google.com/file/d/${id}/preview#toolbar=0`; // ouvre le PDF dans l'iframe
-  } else {
-    frame.src = `https://drive.google.com/file/d/${id}/preview`;
-  }
-
-  currentImageIndex = imageFiles.findIndex(f => f.id === id);
-
-  // 🔽 Bouton de téléchargement
-  document.getElementById('downloadBtn').onclick = () =>
-    window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank');
-}
-
-function closeModal(){document.getElementById('imageModal').style.display='none';}
-
-document.getElementById('prevBtn').onclick=()=>{if(currentImageIndex>0) openModal(imageFiles[--currentImageIndex].id);};
-document.getElementById('nextBtn').onclick=()=>{if(currentImageIndex<imageFiles.length-1) openModal(imageFiles[++currentImageIndex].id);};
-window.addEventListener('click',e=>{if(e.target===document.getElementById('imageModal')) closeModal();});
-
-// Navigation clavier quand la modale est ouverte
-window.addEventListener('keydown', e=>{
-  const modal=document.getElementById('imageModal');
-  if(modal.style.display==='block'){
-    if(e.key==='ArrowLeft' && currentImageIndex>0){ openModal(imageFiles[--currentImageIndex].id); }
-    if(e.key==='ArrowRight' && currentImageIndex<imageFiles.length-1){ openModal(imageFiles[++currentImageIndex].id); }
-    if(e.key==='Escape'){ closeModal(); }
-  }
-});
-
-/* ----------- ZIP overlay + progression + annulation ----------- */
-const zipOverlay=document.getElementById('zipOverlay');
-const zipProgress=document.getElementById('zipProgress');
-const zipCounter=document.getElementById('zipCounter');
-const zipFileName=document.getElementById('zipFileName');
-const zipTime=document.getElementById('zipTime');
-const zipClose=document.getElementById('zipClose');
-let zipCancelled=false, zipStartTime=0;
-
-function sanitizeFileName(name){ return name.replace(/[\/\:*?"<>|]/g,"_"); }
-
-function showZipOverlay(name){
-  zipCancelled=false;
-  zipOverlay.style.display='flex';
-  zipFileName.textContent=name;
-  zipProgress.style.width='0%';
-  zipProgress.textContent='0%';
-  zipCounter.textContent='0 / 0 fichiers';
-  zipTime.textContent='Temps restant : --';
-  zipStartTime=Date.now();
-}
-function hideZipOverlay(){zipOverlay.style.display='none';}
-function updateZipProgress(pct,current,total,sizeAccum){
-  zipProgress.style.width=pct+'%';
-  zipProgress.textContent=pct+'%';
-  zipCounter.textContent=`${current} / ${total} fichiers`;
-  if(current>0){
-    const elapsed=(Date.now()-zipStartTime)/1000;
-    const speedFiles=current/elapsed;
-    const speedKB=(sizeAccum/1024)/elapsed;
-    const remainingFiles=total-current;
-    const remainingTime=remainingFiles/Math.max(speedFiles,0.0001);
-    const mins=Math.floor(remainingTime/60);
-    const secs=Math.round(remainingTime%60);
-    zipTime.textContent=`Temps restant : ${mins>0?mins+'m ':''}${secs}s (${speedFiles.toFixed(1)} fichiers/s, ${Math.max(0,speedKB).toFixed(0)} Ko/s)`;
-  }
-}
-zipClose.onclick=()=>{zipCancelled=true;hideZipOverlay();alert("Préparation ZIP annulée.");};
-
-document.getElementById('downloadFolderBtn').onclick=async()=>{
-  const active=document.querySelector('#folderTree .active-folder');
-  if(!active){alert("Sélectionnez un dossier !"); return;}
-  const folderId=localStorage.getItem('lastFolderId');
-  const folderName=active.textContent.trim();
-  showZipOverlay(folderName+".zip");
-  const files=await fetchFolderContents(folderId);
-  if(!files||files.length===0){hideZipOverlay();alert("Aucun fichier dans ce dossier."); return;}
-  const zip=new JSZip(); let count=0; let doneSize=0;
-  for(const f of files){
-    if(zipCancelled) return;
-    try{
-const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`;
-
-const res = await fetch(url);
-
-      if(!res.ok) throw new Error('Fetch media failed: '+res.status);
-      const blob=await res.blob();
-      zip.file(sanitizeFileName(f.name), blob);
-      count++; doneSize += f.size ? parseInt(f.size) : 0;
-      updateZipProgress(Math.round((count/files.length)*100), count, files.length, doneSize);
-    }catch(e){console.error("Erreur sur",f.name,e);}
-  }
-  if(zipCancelled) return;
-  const content=await zip.generateAsync({type:"blob"});
-  saveAs(content, folderName+".zip");
-  hideZipOverlay();
-};
-
-/* ----------- Tri tableau + recolorisation ----------- */
-let currentSort = { col: null, asc: true };
-
-function sortTable(colIndex, type) {
-  const table = document.getElementById("csvTable");
-  const tbody = table.tBodies[0];
-  const rows = Array.from(tbody.querySelectorAll("tr"));
-
-  if (currentSort.col === colIndex) {
-    currentSort.asc = !currentSort.asc;
-  } else {
-    currentSort.col = colIndex;
-    currentSort.asc = true;
-  }
-
-  rows.sort((a, b) => {
-    let aText = a.cells[colIndex]?.textContent.trim() || "";
-    let bText = b.cells[colIndex]?.textContent.trim() || "";
-    if (type === "number") {
-      aText = parseFloat(aText) || 0;
-      bText = parseFloat(bText) || 0;
-    } else if (type === "date") {
-      aText = new Date(aText).getTime() || 0;
-      bText = new Date(bText).getTime() || 0;
-    }
-    if (aText < bText) return currentSort.asc ? -1 : 1;
-    if (aText > bText) return currentSort.asc ? 1 : -1;
-    return 0;
-  });
-
-  tbody.innerHTML = "";
-  rows.forEach(r => tbody.appendChild(r));
-
-  // mise à jour des flèches
-  document.querySelectorAll("thead th .sort-arrow").forEach(span => span.textContent = "");
-  const arrow = table.tHead.rows[0].cells[colIndex].querySelector(".sort-arrow");
-  if (arrow) arrow.textContent = currentSort.asc ? "▲" : "▼";
-}
-
-
-/* ----------- Menu secret (thèmes) ----------- */
-document.getElementById("secretBtn").onclick=()=>{
-  const menu=document.getElementById("themeMenu");
-  if(menu.style.display==="block"){ closeThemeMenu(); }
-  else { menu.style.display="block"; resetThemeMenuTimer(); }
-};
-function resetThemeMenuTimer(){ clearTimeout(themeMenuTimer); themeMenuTimer=setTimeout(closeThemeMenu,10000); }
-function closeThemeMenu(){ document.getElementById("themeMenu").style.display="none"; clearTimeout(themeMenuTimer); }
-
-/* ----------- Thèmes + persistance (+ lignes du tableau) ----------- */
+// === Thèmes ===
 function setTheme(theme){
   const r=document.documentElement;
-  const logo=document.getElementById("mainLogo");
-  logo.style.display=(theme==="orange")?"block":"none";
-  localStorage.setItem("selectedTheme",theme);
+  localStorage.setItem("selectedTheme", theme);
 
-  if(theme==="orange"){
-    r.style.setProperty("--accent","#ff7043");
-    r.style.setProperty("--accent-darker","#e64a19");
-    r.style.setProperty("--accent-muted","#ffccbc");
-    r.style.setProperty("--bg","#fff5f5");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#ffe5d9");
-    r.style.setProperty("--danger","#d84315");
-    r.style.setProperty("--text","#333");
-    r.style.setProperty("--row-even","#ffe5d9");
-    r.style.setProperty("--row-odd","#fff5f5");
-  }
-  if(theme==="blue"){
-    r.style.setProperty("--accent","#2196f3");
-    r.style.setProperty("--accent-darker","#1976d2");
-    r.style.setProperty("--accent-muted","#bbdefb");
-    r.style.setProperty("--bg","#e3f2fd");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#bbdefb");
-    r.style.setProperty("--danger","#0d47a1");
-    r.style.setProperty("--text","#0d47a1");
-    r.style.setProperty("--row-even","#bbdefb");
-    r.style.setProperty("--row-odd","#e3f2fd");
-  }
-  if(theme==="green"){
-    r.style.setProperty("--accent","#4caf50");
-    r.style.setProperty("--accent-darker","#2e7d32");
-    r.style.setProperty("--accent-muted","#c8e6c9");
-    r.style.setProperty("--bg","#f1f8e9");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#c8e6c9");
-    r.style.setProperty("--danger","#1b5e20");
-    r.style.setProperty("--text","#1b5e20");
-    r.style.setProperty("--row-even","#c8e6c9");
-    r.style.setProperty("--row-odd","#f1f8e9");
-  }
-  if(theme==="purple"){
-    r.style.setProperty("--accent","#9c27b0");
-    r.style.setProperty("--accent-darker","#6a1b9a");
-    r.style.setProperty("--accent-muted","#e1bee7");
-    r.style.setProperty("--bg","#f3e5f5");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#e1bee7");
-    r.style.setProperty("--danger","#4a148c");
-    r.style.setProperty("--text","#4a148c");
-    r.style.setProperty("--row-even","#e1bee7");
-    r.style.setProperty("--row-odd","#f3e5f5");
-  }
-  if(theme==="bordeaux"){
-    r.style.setProperty("--accent","#800020");
-    r.style.setProperty("--accent-darker","#4b0014");
-    r.style.setProperty("--accent-muted","#d7a1a9");
-    r.style.setProperty("--bg","#fff0f2");
-    r.style.setProperty("--panel","#ffffff");
-    r.style.setProperty("--sidebar-bg","#f3cdd3");
-    r.style.setProperty("--danger","#600018");
-    r.style.setProperty("--text","#4b0014");
-    r.style.setProperty("--row-even","#f3cdd3");
-    r.style.setProperty("--row-odd","#fff0f2");
-  }
+  if(theme==="orange"){r.style.setProperty("--accent","#ff7043");r.style.setProperty("--accent-darker","#e64a19");r.style.setProperty("--accent-muted","#ffccbc");r.style.setProperty("--bg","#fff5f5");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#ffe5d9");r.style.setProperty("--danger","#d84315");r.style.setProperty("--text","#333");}
+  if(theme==="blue"){r.style.setProperty("--accent","#2196f3");r.style.setProperty("--accent-darker","#1976d2");r.style.setProperty("--accent-muted","#bbdefb");r.style.setProperty("--bg","#e3f2fd");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#bbdefb");r.style.setProperty("--danger","#0d47a1");r.style.setProperty("--text","#0d47a1");}
+  if(theme==="green"){r.style.setProperty("--accent","#4caf50");r.style.setProperty("--accent-darker","#2e7d32");r.style.setProperty("--accent-muted","#c8e6c9");r.style.setProperty("--bg","#f1f8e9");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#c8e6c9");r.style.setProperty("--danger","#1b5e20");r.style.setProperty("--text","#1b5e20");}
+  if(theme==="purple"){r.style.setProperty("--accent","#9c27b0");r.style.setProperty("--accent-darker","#6a1b9a");r.style.setProperty("--accent-muted","#e1bee7");r.style.setProperty("--bg","#f3e5f5");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#e1bee7");r.style.setProperty("--danger","#4a148c");r.style.setProperty("--text","#4a148c");}
+  if(theme==="bordeaux"){r.style.setProperty("--accent","#800020");r.style.setProperty("--accent-darker","#4b0014");r.style.setProperty("--accent-muted","#d7a1a9");r.style.setProperty("--bg","#fff0f2");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#f3cdd3");r.style.setProperty("--danger","#600018");r.style.setProperty("--text","#4b0014");}
 }
 
-/* ----------- 🔥 Gestion des jours chauds par site ----------- */
-const FLAME_MIN_LINES = 5;
-let currentSiteId = null;
-let hotDaysMap = {}; // { 'YYYYMMDD': true }
+document.getElementById("secretBtn").onclick=()=>{const menu=document.getElementById("themeMenu"); if(menu.style.display==="block"){closeThemeMenu();}else{menu.style.display="block";resetThemeMenuTimer();}};
+function resetThemeMenuTimer(){clearTimeout(themeMenuTimer);themeMenuTimer=setTimeout(closeThemeMenu,10000);}
+function closeThemeMenu(){document.getElementById("themeMenu").style.display="none";clearTimeout(themeMenuTimer);}
 
-async function scanSiteHotDays(siteId) {
-  const hotDays = {};
-  console.time(`[SCAN] Durée scanSiteHotDays (${siteId})`);
-  console.log(`[SCAN] Scan du site ${siteId} → dossier Traça_Temp`);
-
-  try {
-    const siblings = await fetchFolderContents(siteId);
-    const tracatemp = siblings.find(s => 
-      s.mimeType === 'application/vnd.google-apps.folder' &&
-      (s.name.toLowerCase().includes("traça_temp") || s.name.toLowerCase().includes("traca_temp"))
-    );
-if (!tracatemp) {
-  console.warn(`[SCAN] Aucun dossier Traça_Temp trouvé pour le site ${siteId}`);
-  return hotDays;
+// === Navigation fichiers ===
+function updateNavButtons(){
+  document.getElementById("prevFile").disabled = (currentIndex >= csvFilesList.length-1);
+  document.getElementById("nextFile").disabled = (currentIndex <= 0);
 }
+document.getElementById("prevFile").onclick=()=>{ if(currentIndex < csvFilesList.length-1){ const f=csvFilesList[currentIndex+1]; if(f){localStorage.setItem("csvFileIndex",currentIndex+1);window.location.href=`viewer.html?fileId=${f.id}&fileName=${encodeURIComponent(f.name)}`;}}};
+document.getElementById("nextFile").onclick=()=>{ if(currentIndex > 0){ const f=csvFilesList[currentIndex-1]; if(f){localStorage.setItem("csvFileIndex",currentIndex-1);window.location.href=`viewer.html?fileId=${f.id}&fileName=${encodeURIComponent(f.name)}`;}}};
+document.getElementById("backBtn").onclick=()=>window.close();
 
+// === Spinner ===
+function showLoading(){ document.getElementById('loadingOverlay').style.display='block'; }
+function hideLoading(){ document.getElementById('loadingOverlay').style.display='none'; }
 
-    const files = await fetchFolderContents(tracatemp.id);
-    const csvFiles = files.filter(f => f.name.toLowerCase().endsWith(".csv"));
-    console.log(`[SCAN] ${csvFiles.length} CSV trouvés dans ${tracatemp.name}`);
+// === Charger CSV ===
+async function loadCSV(){
+  const fileId = new URLSearchParams(window.location.search).get('fileId');
+  const fileName = new URLSearchParams(window.location.search).get('fileName');
+// 🔹 Déterminer le dossier parent comme dans viewer02 / index03
+try {
+  const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+  const fileEntry = list.find(f => f.id === fileId);
 
-    for (const f of csvFiles) {
-      try {
-        const res = await fetch(
-          `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
-        );
-        if (!res.ok) continue;
+  // Plusieurs sources possibles pour le chemin du dossier
+  let folderPath =
+    new URLSearchParams(window.location.search).get("folderPath") || // si transmis dans l’URL
+    (fileEntry && (fileEntry.folder || fileEntry.folderPath)) ||     // si stocké dans csvFilesList
+    localStorage.getItem("currentFolderPath") ||                     // dernier dossier ouvert
+    "";
 
-        const text = await res.text();
-        const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-        if (lines.length < 2) continue;
+  // Afficher dans le header
+  const folderNameEl = document.getElementById("folderName");
+  if (folderNameEl) folderNameEl.textContent = folderPath || "";
 
-        const headers = lines[0].split(",").map(h => h.replace(/"/g, "").trim().toLowerCase());
-
-        // 🔍 2ème occurrence (comme ton ancien index)
-        let idxInf = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac inf"))[1]?.i;
-        let idxSup = headers.map((h,i)=>({h,i})).filter(o=>o.h.includes("sonde ac sup"))[1]?.i;
-        if (idxInf === undefined && idxSup === undefined) continue;
-
-        let countFlame = 0;
-        for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(",").map(c => c.replace(/"/g, "").trim());
-
-          // 🕔 ignore la nuit (<5h)
-          const timeStr = cols[0];
-          if (timeStr && /^(\d{2}):(\d{2})/.test(timeStr)) {
-            const [_, hh] = timeStr.match(/^(\d{2}):/);
-            const hour = parseInt(hh, 10);
-            if (hour < 5) continue;
-          }
-
-          const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
-          const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
-
-          if ((isFinite(vInf) && vInf > FLAME_THRESHOLD) ||
-              (isFinite(vSup) && vSup > FLAME_THRESHOLD)) {
-            countFlame++;
-          }
-        }
-
-        if (countFlame >= 1) {
-          const m = f.name.match(/(\d{8})\.csv$/i);
-          if (m) hotDays[m[1]] = true;
-        }
-
-      } catch (e) {
-        console.warn(`[SCAN] Erreur lecture fichier ${f.name}:`, e);
-      }
-    }
-
-console.log(`[SCAN] 🔥 ${Object.keys(hotDays).length} jours chauds détectés pour le site`);
-console.timeEnd(`[SCAN] Durée scanSiteHotDays (${siteId})`);
-localStorage.setItem(`hotDays_${siteId}`, JSON.stringify(hotDays));
-
-// ✅ Recharge les calendriers maintenant que hotDaysMap est prêt
-initDatePickers();
-
-return hotDays;
-
-
-  } catch (err) {
-    console.error("[SCAN] Erreur générale scanSiteHotDays:", err);
-    console.timeEnd(`[SCAN] Durée scanSiteHotDays (${siteId})`);
-    return hotDays;
-  }
-}
-
-
-function loadSiteHotDays(siteId) {
-  const data = localStorage.getItem(`hotDays_${siteId}`);
-  return data ? JSON.parse(data) : {};
-}
-
-
-function clearSiteHotDays() {
-  if (currentSiteId) {
-    localStorage.removeItem(`hotDays_${currentSiteId}`);
-  }
-  hotDaysMap = {};
-  currentSiteId = null;
-}
-
-
+// 🔹 Met à jour le titre de l’onglet navigateur
+document.title = `Tableau – ${folderPath || fileName || "CSV"}`;
 
   
-/* ----------- 🔥 Vérif CSV du jour pour "Temp" ----------- */
-async function checkTraçaTempToday(parentLi, tracatempId) {
-  const today = new Date();
-  const yyyymmdd =
-    today.getFullYear().toString() +
-    String(today.getMonth() + 1).padStart(2, "0") +
-    String(today.getDate()).padStart(2, "0");
+} catch (e) {
+  console.warn("Impossible de déterminer le dossier :", e);
+}
 
-  const files = await fetchFolderContents(tracatempId);
-  // accepter tout CSV contenant la date du jour
-  const todayFile = files.find(f => f.name.includes(yyyymmdd) && f.name.endsWith(".csv"));
-  if (!todayFile) return;
 
+  const fileNameDiv = document.getElementById('fileName');
+  const lineCountDiv = document.getElementById('lineCount');
+  const container = document.getElementById('tableContainer');
+  if (!fileId) return;
+
+  fileNameDiv.textContent = fileName || '';
+  fileNameDiv.style.display = 'block';
+  lineCountDiv.style.display = 'block';
+
+  // ✅ Utilisation du proxy Netlify sécurisé
+  const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}&name=${encodeURIComponent(fileName || "")}`;
+
+  showLoading();
   try {
-const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${todayFile.id}&name=${encodeURIComponent(todayFile.name)}&t=${Date.now()}&site=Smes_Acces`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
 
-const res = await fetch(url);
-
-    const text = await res.text();
-
-    // lire les dernières lignes
-    const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-    const lastLine = lines[lines.length - 1];
-    if (!lastLine) return;
-
-    // Nettoyage : enlever guillemets et espaces
-    const headers = lines[0].split(",").map(h => h.replace(/"/g, "").trim());
-    const cols = lastLine.split(",").map(c => c.replace(/"/g, "").trim());
-
-    // Trouver la 2ème occurrence de "Sonde AC Sup"
-    let supIndices = headers
-      .map((h, i) => ({ h, i }))
-      .filter(o => o.h.toLowerCase().includes("sonde ac sup"));
-    let idxSup = supIndices.length >= 2 ? supIndices[1].i : supIndices[0]?.i;
-
-    // Trouver la 2ème occurrence de "Sonde AC Inf"
-    let infIndices = headers
-      .map((h, i) => ({ h, i }))
-      .filter(o => o.h.toLowerCase().includes("sonde ac inf"));
-    let idxInf = infIndices.length >= 2 ? infIndices[1].i : infIndices[0]?.i;
-
-    // Valeurs
-    const vSup = idxSup !== undefined ? parseFloat(cols[idxSup]) : NaN;
-    const vInf = idxInf !== undefined ? parseFloat(cols[idxInf]) : NaN;
-
-    // 🔥 seuil
-    if ((vSup && vSup > FLAME_THRESHOLD) || (vInf && vInf > FLAME_THRESHOLD)) {
-      markFolderWithFlame(parentLi);
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    let text;
+    try { 
+      text = new TextDecoder('windows-1252').decode(arrayBuffer); 
+    } catch { 
+      text = new TextDecoder('utf-8').decode(arrayBuffer); 
     }
 
+    const results = Papa.parse(text, { header: false, skipEmptyLines: true });
+    currentData = results.data;
+    const rowCount = currentData.length > 1 ? currentData.length - 1 : 0;
+    lineCountDiv.textContent = rowCount + " ligne" + (rowCount !== 1 ? "s" : "");
+    renderTable(currentData);
 
-  } catch (e) {
-    console.error("Erreur lecture CSV dans Temp", e);
+    // === Tri automatique sur la colonne TIME (descendant) ===
+    const baseName = (fileName || "").split(/[\\/]/).pop();
+    const isZfile = baseName.startsWith("Z");
+    const headerRowIndex = isZfile ? 2 : 0;
+    const header = currentData[headerRowIndex].map(c => (c ?? "").toString().toUpperCase());
+
+    const timeColIndex = header.findIndex(h => h.includes("TIME"));
+    if (timeColIndex >= 0) {
+      sortAsc = false;
+      sortTable(timeColIndex);
+    }
+
+  } catch (err) {
+    console.error("Erreur:", err);
+    container.innerHTML = `
+      <div style="padding:20px; background:#ffccbc; color:#d84315; border-radius:8px; font-weight:bold;">
+        ⚠️ Impossible de charger le fichier CSV.<br>
+        Restriction Google Drive: Réessayer plus tard<br>
+        <button id="retryBtn" style="margin-top:10px; background:#e64a19; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">
+          🔄 Réessayer
+        </button>
+      </div>`;
+    const retry = document.getElementById("retryBtn");
+    if (retry) retry.onclick = () => { container.innerHTML = "⏳ Nouvelle tentative..."; loadCSV(); };
+  } finally {
+    hideLoading();
+    updateNavButtons();
   }
 }
 
-function markFolderWithFlame(li) {
-  if (!li) return; // sécurité
 
-  const span = li.querySelector(".folder-name");
-  if (!(span instanceof HTMLElement)) return; // évite les erreurs de type
+// === Utils ===
+function escapeHtml(str){ return (str==null?'':String(str)).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
 
-  if (!span.classList.contains("has-flame")) {
-    span.classList.add("has-flame");
-    span.innerHTML = `<span class="flame-folder" title="Brûleur(s) actuellement en fonctionnement">🔥</span> ` + span.innerHTML;
+// === Rendu tableau + toggles colonnes ===
+function renderTable(data){
+  let html='<table id="csvTable">';
+
+  // Détecter si c’est un fichier Z...
+  const fileName=document.getElementById('fileName').textContent||"";
+  const isZfile=fileName.startsWith("Z");
+
+  // Ligne d’en-tête : index 2 pour Z..., sinon index 0
+  const headerRowIndex=isZfile?2:0;
+
+  if(data.length>headerRowIndex){
+    html+='<thead><tr>';
+    data[headerRowIndex].forEach((cell,index)=>{
+      const cls=(index===sortColIndex)?(sortAsc?"sorted-desc":"sorted-asc"):"";
+      html+=`<th class="${cls}" onclick="sortTable(${index})">${escapeHtml((cell??'').toString().trim())}</th>`;
+    });
+    html+='</tr></thead>';
   }
 
-  const parent = li.parentElement?.closest("li");
-  if (parent) markFolderWithFlame(parent);
+  html+='<tbody>';
+html+='<tbody>';
+for(let i=data.length-1; i>headerRowIndex; i--){   // on part de la fin
+  html+='<tr>';
+  data[i].forEach((cell,index)=> {
+    html+=`<td>${escapeHtml((cell??'').toString().trim())}</td>`;
+  });
+  html+='</tr>';
 }
+html+='</tbody></table>';
 
+  document.getElementById('tableContainer').innerHTML=html;
 
-/* ----------- Datepickers enrichis (Flatpickr) ----------- */
-let fpStart = null;
-let fpEnd = null;
+  // Panneau de toggles colonnes (reconstruit à chaque rendu)
+  const toggleContainer=document.getElementById('columnToggles');
+  toggleContainer.innerHTML=`<label style="font-weight:bold;"><input type="checkbox" id="selectAll" /> Tout</label>
+                             <label style="font-weight:bold;"><input type="checkbox" id="selectNone" /> Aucune</label>`;
+  visibleColumns = {};
 
-function initDatePickers() {
-  const commonOpts = {
-    dateFormat: "Y-m-d",
-    locale: flatpickr.l10ns.fr, // ✅ langue française correcte
-    allowInput: true,
-    clickOpens: true,
+  if(data.length>headerRowIndex){
+    data[headerRowIndex].forEach((cell,index)=>{
+      const colName=(cell??'').toString().trim();
+      const id=`colToggle${index}`;
+      const checked = (columnVisibilityMemory[colName] !== false); 
+      visibleColumns[index]=checked;
+      toggleContainer.innerHTML += `<label><input type="checkbox" id="${id}" data-col="${index}" ${checked?"checked":""} /> ${escapeHtml(colName)}</label>`;
+    });
 
-    // 💡 Dès l’ouverture → coloration immédiate des jours chauds
-    onOpen: function(selectedDates, dateStr, instance) {
-      recolorHotDays(instance);
-    },
-    onReady: function(selectedDates, dateStr, instance) {
-      recolorHotDays(instance);
-    },
-    onMonthChange: function(selectedDates, dateStr, instance) {
-      recolorHotDays(instance);
-    },
-    onYearChange: function(selectedDates, dateStr, instance) {
-      recolorHotDays(instance);
-    },
+    // === RÈGLE SPÉCIALE POUR LES FICHIERS Z ===
+    if(isZfile){
+      const allowed=[0,1,2,8]; // colonnes 1,2,3,9 visibles par défaut
+      Object.keys(visibleColumns).forEach(i=>{
+        const keep=allowed.includes(Number(i));
+        visibleColumns[i]=keep;
+        const headerName=(currentData[headerRowIndex][i]??'').toString().trim();
+        columnVisibilityMemory[headerName]=keep;
+        const cb=document.getElementById(`colToggle${i}`);
+        if(cb) cb.checked=keep;
+      });
+      localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+    }
+    // === FIN RÈGLE SPÉCIALE ===
 
-    onChange: function(selectedDates, dateStr, instance) {
-      const parent = instance.input.closest(".date-field");
-      if (dateStr) parent.classList.add("has-date");
-      else parent.classList.remove("has-date");
-    },
+    // Écouteurs toggles individuels
+    toggleContainer.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+      const colIndex=cb.dataset.col;
+      if(colIndex!==undefined){
+        cb.addEventListener('change',()=>{
+          toggleColumn(Number(colIndex), cb.checked);
+          const headerName=(currentData[headerRowIndex][colIndex]??'').toString().trim();
+          columnVisibilityMemory[headerName]=cb.checked;
+          localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+        });
+      }
+    });
 
-onDayCreate: function(dObj, dStr, fp, dayElem) {
-  const yyyymmdd = dayElem.dateObj.getFullYear().toString() +
-    String(dayElem.dateObj.getMonth() + 1).padStart(2, "0") +
-    String(dayElem.dateObj.getDate()).padStart(2, "0");
-  if (hotDaysMap && hotDaysMap[yyyymmdd]) {
-    dayElem.classList.add("hot-day");
-    dayElem.title = "Jour chaud détecté";
+    // Tout / Aucune
+    const all=document.getElementById('selectAll');
+    const none=document.getElementById('selectNone');
+    if(all){
+      all.addEventListener('change',e=>{
+        const on=e.target.checked;
+        document.querySelectorAll('#columnToggles input[type="checkbox"]').forEach(cb=>{
+          if(cb.dataset.col!==undefined){
+            cb.checked=on;
+            const idx=Number(cb.dataset.col);
+            toggleColumn(idx,on);
+            const headerName=(currentData[headerRowIndex][idx]??'').toString().trim();
+            columnVisibilityMemory[headerName]=on;
+          }
+        });
+        localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+        if(none) none.checked=false;
+      });
+    }
+    if(none){
+      none.addEventListener('change',e=>{
+        const off=e.target.checked;
+        document.querySelectorAll('#columnToggles input[type="checkbox"]').forEach(cb=>{
+          if(cb.dataset.col!==undefined){
+            cb.checked=!off;
+            const idx=Number(cb.dataset.col);
+            toggleColumn(idx,!off);
+            const headerName=(currentData[headerRowIndex][idx]??'').toString().trim();
+            columnVisibilityMemory[headerName]=!off;
+          }
+        });
+        localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+        if(all) all.checked=false;
+      });
+    }
+  }
+
+  // Appliquer visibilité mémorisée
+  Object.keys(visibleColumns).forEach(i=>toggleColumn(Number(i), visibleColumns[i], true));
+
+  // Si une colonne numérique a été colorisée précédemment, réappliquer
+  if(lastColorizedColIndex!=null){
+    if(currentData[headerRowIndex] && currentData[headerRowIndex][lastColorizedColIndex]!==undefined){
+      colorizeColumn(lastColorizedColIndex);
+    }
+  }
+
+  // Réappliquer filtre si présent
+  if(lastSearchQuery!==""){
+    const q=lastSearchQuery;
+    document.getElementById("searchInput").value=q;
+    document.querySelectorAll("#csvTable tbody tr").forEach(row=>{
+      row.style.display=row.textContent.toLowerCase().includes(q)?'':'none';
+    });
   }
 }
 
-  };
 
-  // 🔄 Détruire les anciens calendriers pour forcer le redraw
-  if (fpStart) fpStart.destroy();
-  if (fpEnd) fpEnd.destroy();
-
-// 📅 Icônes calendrier (plus grandes) + positionnement localisé
-const iconStart = document.getElementById("iconStart");
-const iconEnd = document.getElementById("iconEnd");
-
-fpStart = flatpickr("#startDate", {
-  ...commonOpts,
-  positionElement: iconStart, // 👈 s’affiche collé à l’icône
-});
-fpEnd = flatpickr("#endDate", {
-  ...commonOpts,
-  positionElement: iconEnd,   // 👈 idem
-});
-
-// 📅 clic sur les icônes pour ouvrir le calendrier
-if (iconStart) iconStart.onclick = () => fpStart.open();
-if (iconEnd) iconEnd.onclick = () => fpEnd.open();
-
+function toggleColumn(colIndex, visible, skipMemoryUpdate=false){
+  visibleColumns[colIndex]=visible;
+  const table=document.getElementById('csvTable');
+  if(!table) return;
+  table.querySelectorAll('tr').forEach(row=>{
+    const cell=row.children[colIndex];
+    if(cell) cell.style.display=visible?'':'none';
+  });
+  if(!skipMemoryUpdate){
+    const headerName=(currentData[0][colIndex]??'').toString().trim();
+    columnVisibilityMemory[headerName]=visible;
+    localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+  }
 }
 
+// === Détection type ===
+function detectType(val){
+  if(val===null || val===undefined) return 'string';
+  const s=String(val).trim();
+  if(s!=='' && !isNaN(Number(s))) return 'number';
+  const d=new Date(s);
+  if(!isNaN(d.getTime())) return 'date';
+  return 'string';
+}
 
-/* ----------- Coloration des jours chauds ----------- */
-function recolorHotDays(instance) {
-  const days = instance.calendarContainer.querySelectorAll(".flatpickr-day");
-  days.forEach(dayElem => {
-    const yyyymmdd = dayElem.dateObj.getFullYear().toString() +
-  String(dayElem.dateObj.getMonth() + 1).padStart(2, "0") +
-  String(dayElem.dateObj.getDate()).padStart(2, "0");
+// === Colorisation colonne numérique (15-70, colonnes contenant "SONDE", "TEMP" ou "T°C") ===
+function colorizeColumn(colIndex) {
+  const table = document.getElementById("csvTable");
+  if (!table) return;
 
-    if (hotDaysMap && hotDaysMap[yyyymmdd]) {
-      dayElem.classList.add("hot-day");
-      dayElem.title = "Jour chaud détecté";
+  // Vérifier le nom d'en-tête
+  const headerName = (currentData[0][colIndex] ?? "").toString().toUpperCase();
+  if (
+    !headerName.includes("SONDE") &&
+    !headerName.includes("TEMP") &&
+    !headerName.includes("T°C")
+  ) {
+    return; // pas de coloration si le titre n'a aucun mot clé
+  }
+
+  const cells = [...table.querySelectorAll("tbody tr")].map(r => r.children[colIndex]).filter(Boolean);
+
+  const minVal = 15;
+  const maxVal = 70;
+
+  cells.forEach(cell => {
+    const v = parseFloat(cell.textContent.replace(",", "."));
+    if (!isNaN(v)) {
+      // Normaliser entre 0 et 1 sur la plage 15–70
+      let t = (v - minVal) / (maxVal - minVal);
+      t = Math.max(0, Math.min(1, t));
+
+      let r, g, b;
+
+      if (t < 0.5) {
+        // 15 → 42 : bleu clair → vert
+        const ratio = t / 0.5;
+        r = 0;
+        g = Math.round(150 + (255 - 150) * ratio);
+        b = Math.round(255 - 255 * ratio);
+      } else if (t < 0.75) {
+        // 42 → 56 : vert → jaune
+        const ratio = (t - 0.5) / 0.25;
+        r = Math.round(255 * ratio);
+        g = 255;
+        b = 0;
+      } else if (t < 0.9) {
+        // 56 → 63 : jaune → orange
+        const ratio = (t - 0.75) / 0.15;
+        r = 255;
+        g = Math.round(255 - 90 * ratio);
+        b = 0;
+      } else {
+        // 63 → 70 : orange → rouge
+        const ratio = (t - 0.9) / 0.1;
+        r = 255;
+        g = Math.round(165 - 165 * ratio);
+        b = 0;
+      }
+
+      cell.style.backgroundColor = `rgb(${r},${g},${b})`;
+      cell.style.color = "#000"; // noir pour contraste
     } else {
-      dayElem.classList.remove("hot-day");
-      dayElem.removeAttribute("title");
+      cell.style.backgroundColor = "";
+      cell.style.color = "";
     }
   });
+
+  lastColorizedColIndex = colIndex;
 }
 
 
 
 
+// === Tri (avec coloration auto si numérique) ===
+function sortTable(colIndex){
+  const header=currentData[0];
+  const body=currentData.slice(1);
+  const firstVal = body.find(r=>r[colIndex]!=null)?.[colIndex] ?? '';
+  const type=detectType(firstVal);
+
+  body.sort((a,b)=>{
+    let valA=a[colIndex]??'', valB=b[colIndex]??'';
+    if(type==='number'){ return sortAsc? (Number(valA)-Number(valB)) : (Number(valB)-Number(valA)); }
+    if(type==='date'){ return sortAsc? new Date(valA)-new Date(valB): new Date(valB)-new Date(valA); }
+    valA=String(valA).toLowerCase(); valB=String(valB).toLowerCase();
+    return sortAsc? valA.localeCompare(valB): valB.localeCompare(valA);
+  });
+
+  columnSortMemory.colName=(header[colIndex]??'').toString().trim();
+  columnSortMemory.asc=sortAsc;
+
+  sortAsc=!sortAsc; sortColIndex=colIndex; currentData=[header,...body];
+  renderTable(currentData);
+
+  if(type==='number'){ colorizeColumn(colIndex); } else { lastColorizedColIndex=null; }
+}
+
+// === Recherche ===
+document.getElementById("searchInput").addEventListener("input",function(){
+  lastSearchQuery=this.value.toLowerCase();
+  document.querySelectorAll("#csvTable tbody tr").forEach(row=>{
+    row.style.display=row.textContent.toLowerCase().includes(lastSearchQuery)?'':'none';
+  });
+});
+
+// === Réinitialiser ===
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  document.getElementById("searchInput").value=""; lastSearchQuery="";
+  sortAsc=true; sortColIndex=null; columnSortMemory={colName:null,asc:true};
+  columnVisibilityMemory={}; localStorage.removeItem(VIS_MEM_KEY);
+  lastColorizedColIndex=null;
+
+  if(currentData.length>0){
+    currentData=[currentData[0], ...currentData.slice(1)];
+    renderTable(currentData);
+  }
+  const tableContainer=document.getElementById("tableContainer");
+  tableContainer.classList.remove("flash-red"); void tableContainer.offsetWidth; tableContainer.classList.add("flash-red");
+});
+
+// === Afficher / Masquer colonnes (persistance panneau) ===
+const toggleBtn=document.getElementById('toggleColumnsBtn');
+const toggles=document.getElementById('columnToggles');
+toggleBtn.setAttribute('aria-controls','columnToggles');
+if(localStorage.getItem('columnTogglesOpen')==='1'){ toggles.classList.add('open'); toggleBtn.setAttribute('aria-expanded','true'); }
+else{ toggleBtn.setAttribute('aria-expanded','false'); }
+toggleBtn.addEventListener('click',()=>{
+  const isOpen=toggles.classList.toggle('open');
+  toggleBtn.setAttribute('aria-expanded', isOpen ? 'true':'false');
+  localStorage.setItem('columnTogglesOpen', isOpen ? '1':'0');
+});
+
+// === Export Excel ===
+document.getElementById("exportExcel").addEventListener("click",()=>{
+  if(currentData.length===0) return;
+  let csvName=(document.getElementById('fileName').textContent||'').replace(/\.csv$/i,"");
+  let excelFileName=csvName+".xlsx";
+  const match=csvName.match(/^SA(\d+)_([0-9]{8})$/);
+  if(match){
+    const numRaw=match[1]; const numTwoDigits=parseInt(numRaw,10).toString().padStart(2,"0");
+    const dateRaw=match[2]; excelFileName=`Séchoir-${numTwoDigits}_${dateRaw}.xlsx`;
+  }
+  const ws=XLSX.utils.aoa_to_sheet(currentData);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
+  XLSX.writeFile(wb,excelFileName);
+});
+
+// === Export PDF ===
+document.getElementById("exportPDF").addEventListener("click",()=>{
+  if(currentData.length===0) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation:"l", unit:"pt", format:"a4"});
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Récupérer le chemin complet depuis l’URL
+  let fullPath = new URLSearchParams(window.location.search).get('fileName') || "";
+  let parts = fullPath.split(/[\\/]/);
+  let csvName = parts.pop() || "";
+
+  // Extraire 2 dossiers parents si dispos
+  let parents = "";
+  if(parts.length >= 2){
+    parents = parts.slice(-2).join(" / ");
+  } else if(parts.length === 1){
+    parents = parts[0];
+  }
+
+// 🔹 Construction du titre et du nom de fichier PDF (identique à viewer02)
+let titleText = "";
+let pdfFileName = "";
+let folderName = (document.getElementById("folderName")?.textContent || "").trim();
+folderName = folderName.replace(/[📈📊📉🔥🗒️🚨✨⬅️📄🔄]/g, "").trim(); // nettoyage emoji & symboles
+
+if (csvName.startsWith("Z")) {
+  // === Fichier type Historique Z ===
+  const matchZ = csvName.match(/^Z\d+(\d{2})_(\d{8})/);
+  if (matchZ) {
+    const num = parseInt(matchZ[1], 10);
+    const d = matchZ[2];
+    const dateFR = `${d.slice(6, 8)}/${d.slice(4, 6)}/${d.slice(0, 4)}`;
+    titleText = `Historique Séchoir ${num} – ${dateFR}`;
+    pdfFileName = `Z3_S${String(num).padStart(2, "0")}_${d}.pdf`;
+  } else {
+    titleText = csvName.replace(/\.csv$/i, "");
+    pdfFileName = csvName.replace(/\.csv$/i, ".pdf");
+  }
+} else {
+  // === Fichier type Séchoir SA ===
+  const match = csvName.match(/^SA(\d+)_([0-9]{8})/);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    const d = match[2];
+    const dateFR = `${d.slice(6, 8)}/${d.slice(4, 6)}/${d.slice(0, 4)}`;
+    const numTxt = num > 0 ? `Séchoir ${num}` : "";
+    titleText = folderName
+      ? `${folderName} – ${numTxt} – ${dateFR}`
+      : `${numTxt} – ${dateFR}`;
+    const safeFolder = folderName.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_");
+    pdfFileName = num > 0
+      ? `${safeFolder}_S${String(num).padStart(2, "0")}_${d}.pdf`
+      : `${safeFolder}_${d}.pdf`;
+  } else {
+    titleText = csvName.replace(/\.csv$/i, "");
+    pdfFileName = csvName.replace(/\.csv$/i, ".pdf");
+  }
+}
 
 
+  // Couleur danger du thème actif
+  function getCSSVar(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function hexToRgb(hex){
+    hex = hex.replace("#","");
+    if(hex.length===3){hex = hex.split("").map(c=>c+c).join("");}
+    const bigint = parseInt(hex,16);
+    return {r:(bigint>>16)&255, g:(bigint>>8)&255, b:bigint&255};
+  }
+  const danger = getCSSVar('--danger') || '#d84315';
+  const {r,g,b} = hexToRgb(danger);
 
-/* ----------- Init ----------- */
+  // Écrire titre + 2 parents si présents
+  doc.setFontSize(14);
+  doc.setTextColor(r,g,b);
+
+  let finalTitle = titleText;
+  if(parents){
+    finalTitle = parents + " / " + titleText;
+  }
+
+  const lines = doc.splitTextToSize(finalTitle, pageWidth - 40);
+  doc.text(lines, 40, 40);
+
+  // Contenu du tableau
+  const visibleIdx = Object.keys(visibleColumns)
+    .filter(i => visibleColumns[i])
+    .map(i => parseInt(i));
+
+  let head, body;
+  if (csvName.startsWith("Z")) {
+    // Pour Z... : en-têtes sur la 3ème ligne (index 2)
+    head = [ visibleIdx.map(i => String(currentData[2][i] ?? "")) ];
+    body = currentData.slice(3).map(r => visibleIdx.map(i => String(r[i] ?? "")) );
+  } else {
+    // Cas normal : en-têtes sur la 1ère ligne (index 0)
+    head = [ visibleIdx.map(i => String(currentData[0][i] ?? "")) ];
+    body = currentData.slice(1).map(r => visibleIdx.map(i => String(r[i] ?? "")) );
+  }
+
+  doc.autoTable({
+    head,
+    body,
+    startY:60,
+    styles:{fontSize:8, cellPadding:3},
+    headStyles:{fillColor:[r,g,b]}  // couleur thème
+  });
+
+  doc.save(pdfFileName);
+});
+// === Init ===
 window.onload=()=>{
-  updateNetworkStatus();
-  const savedTheme=localStorage.getItem("selectedTheme")||"orange";
+  const savedTheme=localStorage.getItem("selectedTheme")||"orange"; 
   setTheme(savedTheme);
-
-  // bouton "Télécharger le dossier" caché par défaut tant qu'aucun contenu
-  document.getElementById("downloadFolderBtn").style.display="none";
-
-  loadRootFolders();
-  initDatePickers();
-const last = localStorage.getItem("lastFolderId");
-if (last) {
-  // attendre un peu que l'arborescence soit rendue
-  setTimeout(() => {
-    const li = document.querySelector(`#folderTree li[data-id="${last}"]`);
-    if (li) {
-      loadFolderFilesOnClick(li);
-    } else {
-      console.warn("[INIT] Impossible de retrouver le dernier dossier ouvert :", last);
-    }
-  }, 1200);
-}
-
+  loadCSV();
+  updateNavButtons();
 };
 </script>
 </body>
 </html>
+
+
 
 
 
