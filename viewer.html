@@ -245,7 +245,7 @@ try {
 
   // Afficher dans le header
   const folderNameEl = document.getElementById("folderName");
-if (folderNameEl) folderNameEl.textContent = cleanText(folderPath || "");
+if (folderNameEl) folderNameEl.textContent = folderPath || "";
 document.title = `Tableau – ${cleanText(folderPath || fileName || "CSV")}`;
 
 
@@ -756,6 +756,7 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
 
 
 
