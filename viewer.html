@@ -650,7 +650,8 @@ document.getElementById("exportPDF").addEventListener("click",()=>{
 let titleText = "";
 let pdfFileName = "";
 let folderName = (document.getElementById("folderName")?.textContent || "").trim();
-folderName = cleanText(folderName);
+// ne pas nettoyer : on veut garder le chiffre intact
+
 
 
 if (csvName.startsWith("Z")) {
@@ -758,6 +759,7 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
 
 
 
