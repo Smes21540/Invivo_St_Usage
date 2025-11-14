@@ -211,20 +211,13 @@ document.getElementById("backBtn").onclick=()=>window.close();
 function showLoading(){ document.getElementById('loadingOverlay').style.display='block'; }
 function hideLoading(){ document.getElementById('loadingOverlay').style.display='none'; }
 
-// === Nettoyage universel des pictogrammes et caractères spéciaux ===
 function cleanText(str = "") {
-  try {
-    // Décode les séquences %F0... d'URL si présentes
-    const decoded = decodeURIComponent(str);
-    // Supprime tous les emojis, pictogrammes et variantes Unicode FE0F
-    const emojiRegex = /[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu;
-    return decoded.replace(emojiRegex, "").trim();
-  } catch {
-    // Si erreur dans decodeURIComponent (texte déjà décodé)
-    const emojiRegex = /[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu;
-    return str.replace(emojiRegex, "").trim();
-  }
+  // Supprime uniquement les emojis et FE0F
+  // → ne touche jamais aux chiffres, lettres, accents
+  const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu;
+  return str.replace(emojiRegex, "").trim();
 }
+
 
   
 // === Charger CSV ===
@@ -759,6 +752,7 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
 
 
 
