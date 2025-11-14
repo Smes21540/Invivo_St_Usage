@@ -165,7 +165,7 @@
   width: 220px;
 }
 
-    }
+    
     .y-columns::-webkit-scrollbar{width:6px;}
     .y-columns::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px;}
     .y-columns::-webkit-scrollbar-track{background:#f0f0f0;}
@@ -488,6 +488,20 @@ function applyThemeVars(vars){
     return capitalizeFirst(nd.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}));
   }
 
+// === AJOUT (pas d'AVANT) : couleur déterministe par auteur ===
+function hashStr(s){
+  s = String(s||"");
+  let h = 0;
+  for (let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i))|0; }
+  return Math.abs(h);
+}
+function colorFromAuthor(name){
+  const palette = ["#ff7043","#e64a19","#3380ff","#4caf50","#8e44ad","#ff33a6","#33cccc","#ffc300"];
+  const h = hashStr(name);
+  return palette[h % palette.length];
+}
+
+
   /* ===================== FETCH CSV ===================== */
 // 🔒 Version sécurisée — plus de clé API exposée
 async function loadCSVByFileId(fileId){
@@ -566,7 +580,7 @@ try {
   // 🔹 Mémorisation globale
   currentFolderPath = folderPath;
   localStorage.setItem("currentFolderPath", folderPath);
-  localStorage.setItem("lastFolderId", currentFolderId || "");
+
 
   console.log("[Viewer02] Dossier affiché :", folderPath);
 } catch (e) {
@@ -578,9 +592,6 @@ try {
 
 
 
-
-// 🧭 on conserve au moins le nom du dossier comme chemin texte
-currentFolderPath = getParam("folderPath") || (folder ? folder.name : "");
 
 // 🔹 Récupération du chemin complet du dossier
 let folderPath = new URLSearchParams(window.location.search).get("folderPath");
@@ -595,6 +606,7 @@ console.log("[Viewer02] Chemin dossier récupéré :", folderPath);
 
 // 🔹 On synchronise la variable globale
 currentFolderPath = folderPath;
+
 
   
 
@@ -866,6 +878,28 @@ const z3LinesPlugin = {
   }
 };
 
+// 🔒 (dés)active temporairement zoom/pan/drag de chartjs-zoom
+function setZoomSuspended(suspended){
+  if(!chart || !chart.options?.plugins?.zoom) return;
+
+  if (suspended) {
+    // sauvegarder l'état une seule fois
+    if (!chart.$zoomBackup) {
+      chart.$zoomBackup = JSON.parse(JSON.stringify(chart.options.plugins.zoom));
+    }
+    chart.options.plugins.zoom.zoom.wheel.enabled = false;
+    chart.options.plugins.zoom.zoom.pinch.enabled = false;
+    chart.options.plugins.zoom.zoom.drag.enabled  = false;
+    chart.options.plugins.zoom.pan.enabled        = false;
+  } else {
+    if (chart.$zoomBackup) {
+      chart.options.plugins.zoom = JSON.parse(JSON.stringify(chart.$zoomBackup));
+    }
+  }
+  chart.update('none');
+}
+
+    
 const notesPlugin = {
   id: "notesPlugin",
   afterDatasetsDraw(chart) {
@@ -913,22 +947,22 @@ const notesPlugin = {
       const boxWidth = Math.min(maxWidth, Math.max(...lines.map(l => ctx.measureText(l).width)) + paddingX * 2);
       const boxHeight = lines.length * 16 + paddingY * 2;
 
-      // 🎨 Fond blanc semi-transparent + léger contour
-      const panel = getCSSVar("--panel") || "#fff";
-      const accent = getCSSVar("--accent") || "#000";
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.roundRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 4);
-      ctx.fill();
-      ctx.stroke();
+     const panel = getCSSVar("--panel") || "#fff";
+const noteColor = n.color || colorFromAuthor(n.author || "Anonyme");
+ctx.fillStyle = "rgba(255,255,255,0.85)";
+ctx.strokeStyle = noteColor;
+ctx.lineWidth = 0.5;
+ctx.beginPath();
+ctx.roundRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 4);
+ctx.fill();
+ctx.stroke();
 
-      // ✏️ Texte sur plusieurs lignes
-      ctx.fillStyle = getCSSVar("--danger") || "red";
-      lines.forEach((l, i) => {
-        ctx.fillText(l, x, y - (boxHeight / 2) + paddingY + 8 + i * 14);
-      });
+// ✏️ Texte sur plusieurs lignes teinté par la couleur de la note
+ctx.fillStyle = noteColor;
+lines.forEach((l, i) => {
+  ctx.fillText(l, x, y - (boxHeight / 2) + paddingY + 8 + i * 14);
+});
+
 
       // 🧭 Sauvegarde zone de clic (pour survol / ouverture)
       chart.$noteHitZones.push({
@@ -974,6 +1008,96 @@ const notesPlugin = {
         chart.update("none");
       });
     }
+
+// === DRAG & DROP DES NOTES (AJOUT) — version avec suspension du zoom ===
+if (!chart.$dragHandlersAttached) {
+  chart.$dragHandlersAttached = true;
+  chart.$draggingNote = null;
+  chart.$justDragged = false;
+
+  // 🛑 Bloque la molette si on est en plein drag
+  chart.canvas.addEventListener('wheel', (ev)=>{
+    if (chart.$draggingNote) { ev.preventDefault(); }
+  }, { passive:false });
+
+  // mousedown → démarrage drag si sur une note
+  canvas.addEventListener("mousedown", (ev) => {
+    if (!notesVisible || !chart.$noteHitZones) return;
+    const r = canvas.getBoundingClientRect();
+    const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+
+    for (const zone of chart.$noteHitZones) {
+      if (mx >= zone.x1 && mx <= zone.x2 && my >= zone.y1 && my <= zone.y2) {
+        chart.$draggingNote = { note: zone.note, startX: mx, startY: my };
+        chart.$justDragged = false;
+
+        // ⛔ suspendre zoom/pan/drag pendant le déplacement de la note
+        setZoomSuspended(true);
+        canvas.style.cursor = 'grabbing';
+
+        ev.preventDefault();
+        return;
+      }
+    }
+  });
+
+  // mousemove → déplacement live
+  canvas.addEventListener("mousemove", (ev) => {
+    if (!chart.$draggingNote) return;
+    const r = canvas.getBoundingClientRect();
+    const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+
+    const dx = Math.abs(mx - chart.$draggingNote.startX);
+    const dy = Math.abs(my - chart.$draggingNote.startY);
+    if (dx < 2 && dy < 2) return;
+
+    const xScale = chart.scales.x, yScale = chart.scales.y;
+    chart.$draggingNote.note.x = xScale.getValueForPixel(mx);
+    chart.$draggingNote.note.y = yScale.getValueForPixel(my);
+
+    chart.$justDragged = true;
+    chart.update("none");
+  });
+
+  // mouseup → fin drag + sauvegarde côté serveur
+  canvas.addEventListener("mouseup", async () => {
+    if (!chart.$draggingNote) return;
+    const n = chart.$draggingNote.note;
+    chart.$draggingNote = null;
+
+    // ✅ réactiver zoom/pan/drag
+    setZoomSuspended(false);
+    canvas.style.cursor = 'default';
+
+    if (!chart.$justDragged) return; // simple clic
+    chart.$justDragged = false;
+
+    try {
+      await fetch(
+        "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            status: "update",
+            csvName: baseFileName,
+            folderId: localStorage.getItem("lastFolderId"),
+            createdAt: n.createdAt,
+            x: n.x,
+            y: n.y,
+            color: n.color || colorFromAuthor(n.author || "Anonyme")
+          })
+        }
+      );
+      showToast("📌 Position de la note mise à jour");
+    } catch (e) {
+      showToast("⚠️ Erreur mise à jour : " + e.message);
+    }
+  });
+}
+
+
+    
   },
 };
 
@@ -1161,12 +1285,15 @@ if (!isNaN(dt.getTime())) {
   const canvas = chart.canvas;
 
   // auto-load jours au zoom/dézoom/pan
-  canvas.addEventListener('wheel', async (e)=>{
-    if (e.ctrlKey) {
-      console.log("Détection zoom molette+Ctrl");
-      await autoLoadDays(chart);
-    }
-  });
+canvas.addEventListener('wheel', async (e)=>{
+  // 🔕 pas de zoom/autoLoad pendant drag de note
+  if (chart.$draggingNote) { e.preventDefault(); return; }
+  if (e.ctrlKey) {
+    console.log("Détection zoom molette+Ctrl");
+    await autoLoadDays(chart);
+  }
+}, { passive:false });
+
   canvas.addEventListener('mouseup', async ()=>{
     console.log("Détection fin zoom/pan drag");
     await autoLoadDays(chart);
@@ -1186,9 +1313,16 @@ if (!isNaN(dt.getTime())) {
   });
 
 // === Gestion clic sur une note existante ===
-
+// ⚠️ Important : si un drag vient d’avoir lieu, on ignore le clic « fantôme »
 canvas.addEventListener("click", (ev) => {
   if (!notesData.length) return;
+
+  // ⬇️ Ajout clé : neutralise l’ouverture de popup juste après un drag
+  if (chart.$justDragged) { 
+    chart.$justDragged = false; 
+    return; 
+  }
+
   const rect = canvas.getBoundingClientRect();
   const xClick = ev.clientX - rect.left;
   const yClick = ev.clientY - rect.top;
@@ -1198,7 +1332,8 @@ canvas.addEventListener("click", (ev) => {
   let nearest = null;
   let minDist = 18;
 
-  notesData.forEach(n => {
+  for (const n of notesData) {
+    if (n.status !== "active") continue;
     const x = xScale.getPixelForValue(n.x);
     const y = yScale.getPixelForValue(n.y);
     const d = Math.hypot(x - xClick, y - yClick);
@@ -1206,12 +1341,13 @@ canvas.addEventListener("click", (ev) => {
       nearest = n;
       minDist = d;
     }
-  });
+  }
 
   if (nearest) {
     showNotePopup(nearest);
   }
 });
+
 
    
   chart.update();
@@ -1635,14 +1771,16 @@ try {
 
       // 🔧 Conversion et nettoyage des données avant affichage
 notesData = notes.map(n => ({
-  id: n.id || crypto.randomUUID(),               // 🆔 on garde l'identifiant
+  id: n.id || crypto.randomUUID(),
   x: typeof n.x === "string" ? Number(n.x) || new Date(n.x).getTime() : n.x,
   y: typeof n.y === "string" ? parseFloat(n.y) : n.y,
   text: n.note,
   author: n.author,
   createdAt: n.createdAt,
-  status: n.status || "active"
+  status: n.status || "active",
+  color: n.color || colorFromAuthor(n.author || "Anonyme")
 }));
+
 
 
       // 🧹 On garde uniquement les notes valides
@@ -1718,8 +1856,13 @@ const waitForChart = setInterval(() => {
   <div class="note-content">
     <h3>Nouvelle note</h3>
     <p id="noteCoords" style="font-size:12px;color:gray;"></p>
-    <input id="noteAuthor" type="text" placeholder="Votre nom (facultatif)" style="width:100%;padding:6px;margin-bottom:6px;">
-    <textarea id="noteText" placeholder="Écrire une remarque..." style="width:100%;height:120px;"></textarea>
+<input id="noteAuthor" type="text" placeholder="Votre nom (facultatif)" style="width:100%;padding:6px;margin-bottom:6px;">
+<label style="font-size:12px;display:block;margin:6px 0;">Couleur :
+  <input type="color" id="noteColor" value="#ff7043">
+</label>
+<textarea id="noteText" placeholder="Écrire une remarque..." style="width:100%;height:120px;"></textarea>
+
+
     <div class="note-actions">
       <button id="saveNoteBtn">Enregistrer</button>
       <button id="cancelNoteBtn">Annuler</button>
@@ -1818,6 +1961,9 @@ document.getElementById("saveNoteBtn").addEventListener("click", async () => {
   try {
     const createdAt = new Date().toISOString();
 
+    const pickedColor = document.getElementById("noteColor")?.value || colorFromAuthor(authorInput.value || "Anonyme");
+
+
     // 🔍 Log des données envoyées au Script Google
     const payload = {
       id: crypto.randomUUID(),
@@ -1853,20 +1999,22 @@ const response = await fetch(
   {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      id: crypto.randomUUID(),
-      csvName: baseFileName || "inconnu.csv",
-      fileId: baseFileId,
-      folderId: localStorage.getItem("lastFolderId"),
-      author: authorInput.value || "Anonyme",
-      note: content,
-      x: clickedPoint ? clickedPoint.x : "",
-      y: clickedPoint ? clickedPoint.y : "",
-      createdAt,
-      status: "active",
-      dossier: currentFolderPath || "",
-      ip // ✅ ajout de l’IP ici
-    })
+body: new URLSearchParams({
+  id: crypto.randomUUID(),
+  csvName: baseFileName || "inconnu.csv",
+  fileId: baseFileId,
+  folderId: localStorage.getItem("lastFolderId"),
+  author: authorInput.value || "Anonyme",
+  note: content,
+  x: clickedPoint ? clickedPoint.x : "",
+  y: clickedPoint ? clickedPoint.y : "",
+  createdAt,
+  status: "active",
+  dossier: currentFolderPath || "",
+  color: pickedColor,     // ⬅️ ajouté
+  ip
+})
+
   }
 );
 
@@ -1876,14 +2024,16 @@ const response = await fetch(
     status.textContent = "✅ Note enregistrée !";
 
 notesData.push({
-  id: crypto.randomUUID(),                       // 🆔 identifiant local
+  id: crypto.randomUUID(),
   x: clickedPoint.x,
   y: clickedPoint.y,
   text: content,
   author: authorInput.value || "Anonyme",
   createdAt: createdAt,
   status: "active",
+  color: pickedColor
 });
+
 
 
     if (chart) chart.update("none");
@@ -1909,22 +2059,60 @@ function showNotePopup(note) {
     ? new Date(note.createdAt).toLocaleString()
     : "Date inconnue";
 
-  popup.innerHTML = `
-    <div style="background:#fff;padding:20px;border-radius:10px;max-width:400px;">
-      <h3>🗒️ Note</h3>
-      <p><strong>Auteur :</strong> ${note.author || "Anonyme"}</p>
-      <p><strong>Créée le :</strong> ${dateStr}</p>
-      <hr>
-      <p style="white-space:pre-wrap;">${note.text || note.note}</p>
-      <div style="text-align:right;margin-top:10px;">
-        <button id="deleteNoteBtn" style="background:#d84315;color:white;border:none;border-radius:6px;padding:6px 12px;">Supprimer</button>
-        <button id="closeNoteBtn" style="margin-left:6px;">Fermer</button>
-      </div>
+popup.innerHTML = `
+  <div style="background:#fff;padding:20px;border-radius:10px;max-width:420px;">
+    <h3>🗒️ Note</h3>
+    <p><strong>Auteur :</strong> ${note.author || "Anonyme"}</p>
+    <p><strong>Créée le :</strong> ${dateStr}</p>
+    <label style="display:block;margin:8px 0;font-size:12px;">Couleur :
+      <input type="color" id="noteColorEdit" value="${note.color || colorFromAuthor(note.author || "Anonyme")}">
+    </label>
+    <hr>
+    <p style="white-space:pre-wrap;">${note.text || note.note}</p>
+    <div style="text-align:right;margin-top:10px;display:flex;gap:6px;justify-content:flex-end;">
+      <button id="updateNoteBtn" style="background:#1976d2;color:white;border:none;border-radius:6px;padding:6px 12px;">Mettre à jour</button>
+      <button id="deleteNoteBtn" style="background:#d84315;color:white;border:none;border-radius:6px;padding:6px 12px;">Supprimer</button>
+      <button id="closeNoteBtn">Fermer</button>
     </div>
-  `;
+  </div>
+`;
+
 
   document.body.appendChild(popup);
 
+// Mise à jour de la couleur
+popup.querySelector("#updateNoteBtn").onclick = async () => {
+  const newColor = popup.querySelector("#noteColorEdit").value || note.color;
+  try {
+    // MAJ locale
+    note.color = newColor;
+    if (chart) chart.update("none");
+
+    // MAJ serveur
+    const resp = await fetch(
+      "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          status: "update",
+          folderId: localStorage.getItem("lastFolderId"),
+          csvName: baseFileName,
+          createdAt: note.createdAt,
+          x: note.x,
+          y: note.y,
+          color: newColor
+        })
+      }
+    );
+    console.log("Update color:", await resp.text());
+    showToast("🎨 Couleur mise à jour");
+  } catch (e) {
+    showToast("⚠️ Erreur maj couleur : " + e.message);
+  }
+};
+
+  
   // 🔹 Fermer la popup
   popup.querySelector("#closeNoteBtn").onclick = () => popup.remove();
 
@@ -2090,6 +2278,9 @@ function showConfirm(message, onConfirm) {
   
 </body>
 </html>
+
+
+
 
 
 
