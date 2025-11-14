@@ -644,6 +644,7 @@ let titleText = "";
 let pdfFileName = "";
 let folderName = (document.getElementById("folderName")?.textContent || "").trim();
 // ne pas nettoyer : on veut garder le chiffre intact
+let folderNamePDF = cleanText(folderName);  // on enlève uniquement emojis/FE0F
 
 
 
@@ -668,10 +669,12 @@ if (csvName.startsWith("Z")) {
     const d = match[2];
     const dateFR = `${d.slice(6, 8)}/${d.slice(4, 6)}/${d.slice(0, 4)}`;
     const numTxt = num > 0 ? `Séchoir ${num}` : "";
-    titleText = folderName
-      ? `${folderName} – ${numTxt} – ${dateFR}`
-      : `${numTxt} – ${dateFR}`;
-    const safeFolder = folderName.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_");
+titleText = folderNamePDF
+  ? `${folderNamePDF} – ${numTxt} – ${dateFR}`
+  : `${numTxt} – ${dateFR}`;
+
+const safeFolder = folderNamePDF.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_");
+
     pdfFileName = num > 0
       ? `${safeFolder}_S${String(num).padStart(2, "0")}_${d}.pdf`
       : `${safeFolder}_${d}.pdf`;
@@ -752,6 +755,7 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
 
 
 
