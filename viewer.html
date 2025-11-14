@@ -710,7 +710,8 @@ if (csvName.startsWith("Z")) {
     finalTitle = parents + " / " + titleText;
   }
 
-doc.setProperties({ title: cleanText(finalTitle) });
+doc.setProperties({ title: finalTitle });
+
 
   
   const lines = doc.splitTextToSize(finalTitle, pageWidth - 40);
@@ -740,8 +741,9 @@ doc.setProperties({ title: cleanText(finalTitle) });
     headStyles:{fillColor:[r,g,b]}  // couleur thème
   });
 
-titleText = cleanText(titleText);
-pdfFileName = cleanText(pdfFileName);
+
+// pdfFileName reste tel quel
+
 
   
   doc.save(pdfFileName);
@@ -756,6 +758,7 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
 
 
 
