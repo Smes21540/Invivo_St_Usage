@@ -211,6 +211,22 @@ document.getElementById("backBtn").onclick=()=>window.close();
 function showLoading(){ document.getElementById('loadingOverlay').style.display='block'; }
 function hideLoading(){ document.getElementById('loadingOverlay').style.display='none'; }
 
+// === Nettoyage universel des pictogrammes et caractères spéciaux ===
+function cleanText(str = "") {
+  try {
+    // Décode les séquences %F0... d'URL si présentes
+    const decoded = decodeURIComponent(str);
+    // Supprime tous les emojis, pictogrammes et variantes Unicode FE0F
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu;
+    return decoded.replace(emojiRegex, "").trim();
+  } catch {
+    // Si erreur dans decodeURIComponent (texte déjà décodé)
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu;
+    return str.replace(emojiRegex, "").trim();
+  }
+}
+
+  
 // === Charger CSV ===
 async function loadCSV(){
   const fileId = new URLSearchParams(window.location.search).get('fileId');
@@ -229,10 +245,9 @@ try {
 
   // Afficher dans le header
   const folderNameEl = document.getElementById("folderName");
-  if (folderNameEl) folderNameEl.textContent = folderPath || "";
+if (folderNameEl) folderNameEl.textContent = cleanText(folderPath || "");
+document.title = `Tableau – ${cleanText(folderPath || fileName || "CSV")}`;
 
-// 🔹 Met à jour le titre de l’onglet navigateur
-document.title = `Tableau – ${folderPath || fileName || "CSV"}`;
 
   
 } catch (e) {
@@ -245,7 +260,8 @@ document.title = `Tableau – ${folderPath || fileName || "CSV"}`;
   const container = document.getElementById('tableContainer');
   if (!fileId) return;
 
-  fileNameDiv.textContent = fileName || '';
+  fileNameDiv.textContent = cleanText(fileName || '');
+
   fileNameDiv.style.display = 'block';
   lineCountDiv.style.display = 'block';
 
@@ -634,7 +650,8 @@ document.getElementById("exportPDF").addEventListener("click",()=>{
 let titleText = "";
 let pdfFileName = "";
 let folderName = (document.getElementById("folderName")?.textContent || "").trim();
-folderName = folderName.replace(/[📈📊📉🔥🗒️🚨✨⬅️📄🔄]/g, "").trim(); // nettoyage emoji & symboles
+folderName = cleanText(folderName);
+
 
 if (csvName.startsWith("Z")) {
   // === Fichier type Historique Z ===
@@ -693,6 +710,9 @@ if (csvName.startsWith("Z")) {
     finalTitle = parents + " / " + titleText;
   }
 
+doc.setProperties({ title: cleanText(finalTitle) });
+
+  
   const lines = doc.splitTextToSize(finalTitle, pageWidth - 40);
   doc.text(lines, 40, 40);
 
@@ -720,6 +740,10 @@ if (csvName.startsWith("Z")) {
     headStyles:{fillColor:[r,g,b]}  // couleur thème
   });
 
+titleText = cleanText(titleText);
+pdfFileName = cleanText(pdfFileName);
+
+  
   doc.save(pdfFileName);
 });
 // === Init ===
@@ -732,6 +756,7 @@ window.onload=()=>{
 </script>
 </body>
 </html>
+
 
 
 
