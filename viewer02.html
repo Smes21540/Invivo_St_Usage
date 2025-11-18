@@ -1767,26 +1767,35 @@ document.getElementById('exportPDF').onclick = () => {
         const chartX = (pageWidth - canvas.width * scale) / 2;
         const chartY = titleY + 8 + lines.length * 5;
 
-        // Canvas HD
-        const hd = document.createElement("canvas");
-        hd.width = canvas.width * 3;
-        hd.height = canvas.height * 3;
+// Canvas HD
+const hd = document.createElement("canvas");
+hd.width = canvas.width * 3;
+hd.height = canvas.height * 3;
 
-        const hctx = hd.getContext("2d");
-        hctx.scale(3, 3);
-        hctx.imageSmoothingEnabled = false;
-        hctx.drawImage(canvas, 0, 0);
+const hctx = hd.getContext("2d");
 
-        const imgData = hd.toDataURL("image/png");
+// 🔹 Ajout obligatoire : fond blanc
+hctx.fillStyle = "#ffffff";
+hctx.fillRect(0, 0, hd.width, hd.height);
 
-        pdf.addImage(
-            imgData,
-            "PNG",
-            chartX,
-            chartY,
-            canvas.width * scale,
-            canvas.height * scale
-        );
+hctx.scale(3, 3);
+hctx.imageSmoothingEnabled = false;
+
+// copie du graphe
+hctx.drawImage(canvas, 0, 0);
+
+const imgData = hd.toDataURL("image/jpeg", 0.92);
+ 
+
+
+pdf.addImage(
+    imgData,
+    "JPEG",
+    chartX,
+    chartY,
+    canvas.width * scale,
+    canvas.height * scale
+);
 
         /* ============ LABELS DE DATE ============ */
         const dateLabels = document.getElementById('dateLabels')?.textContent || "";
@@ -2358,6 +2367,7 @@ function showConfirm(message, onConfirm) {
   
 </body>
 </html>
+
 
 
 
