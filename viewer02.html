@@ -365,9 +365,16 @@
     <button id="backBtn">⬅️ Retour</button>
     <button id="exportPDF" style="display:none;">📄 Exporter PDF</button>
     <button id="resetZoom" style="display:none;">🔄 Réinitialiser zoom</button>
-    <button id="smoothBtn" style="display:none;">✨ Lissage OFF</button>
-    <button id="toggleZ3" style="display:none;">🚨 Événements Z3 OFF</button>
-    <button id="toggleNotes" style="display:none;">🗒️ Notes ON</button>
+    <button id="smoothBtn" style="display:none;" title="Active un lissage visuel de la courbe">✨ Lissage OFF</button>
+    <button id="toggleZ3" style="display:none;"
+        title="Affiche ou masque les événements détectés">🚨 Événements Z3 OFF</button>
+
+    <button id="toggleNotes" style="display:none;"
+        title="Affiche les notes associées à cette journée">🗒️ Notes ON</button>
+
+    <button id="filterParasites" style="display:none;" title="Active ou désactive le filtre des valeurs parasites">🧹 Parasites OFF</button>
+
+
 
   </div>
 
@@ -754,6 +761,62 @@ setTimeout(() => {
     return result;
   }
 
+/* ====== FILTRE VALEURS PARASITES ====== */
+let parasiteFilterEnabled = false;
+
+function filterParasites(points) {
+  if (!points.length) return points;
+
+  const filtered = [];
+  const win = 5;              // médiane centrée 5 points
+  const half = Math.floor(win / 2);
+  const threshold = 0.10;      // 10 %
+
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+
+    // 🔒 Protéger 0 → valeur ou valeur → 0
+    const prev = points[i - 1]?.y;
+    const next = points[i + 1]?.y;
+
+    const isZeroJump =
+      (prev === 0 && p.y !== 0) ||
+      (p.y !== 0 && next === 0);
+
+    if (isZeroJump) {
+      filtered.push(p);
+      continue;
+    }
+
+    // Calcul médiane locale
+    const local = [];
+    for (let j = i - half; j <= i + half; j++) {
+      if (j >= 0 && j < points.length && points[j].y !== 0) {
+        local.push(points[j].y);
+      }
+    }
+
+    if (local.length < 3) {
+      filtered.push(p);
+      continue;
+    }
+
+    const med = local.sort((a, b) => a - b)[Math.floor(local.length / 2)];
+
+    // Test parasite
+    const diff = Math.abs(p.y - med) / med;
+
+    if (diff <= threshold) {
+      filtered.push(p);
+    }
+    // sinon : éliminé (parasite)
+  }
+
+  return filtered;
+}
+
+
+    
   // === LISSAGE : buildDatasets avec mémorisation
   function buildDatasets(){
     const smooth = localStorage.getItem("smooth") === "1";
@@ -764,6 +827,12 @@ setTimeout(() => {
         const y = r[yCol];
         return (Number.isFinite(x) && typeof y === 'number') ? {x,y} : null;
       }).filter(Boolean);
+
+      // 🔍 Filtre parasites
+if (parasiteFilterEnabled) {
+  pts = filterParasites(pts);
+}
+
 
       // valeurs affichées
       if (smooth) pts = movingAverage(pts, 10);
@@ -1482,6 +1551,20 @@ document.getElementById('toggleNotes').onclick = () => {
   if (chart) chart.update('none');
 };
 
+// === Parasite filter ON/OFF ===
+document.getElementById("filterParasites").onclick = () => {
+  parasiteFilterEnabled = !parasiteFilterEnabled;
+
+  const btn = document.getElementById("filterParasites");
+  btn.textContent = parasiteFilterEnabled ? "🧹 Parasites ON" : "🧹 Parasites OFF";
+  btn.style.background = parasiteFilterEnabled
+    ? getCSSVar("--accent-darker")
+    : getCSSVar("--accent");
+
+  if (currentY.length) drawChart();
+};
+
+
 
 /* ===================== EXTEND / PAN ===================== */
 async function loadDayIfAvailable(yyyymmdd){
@@ -1828,6 +1911,8 @@ pdf.addImage(
     // initialiser état lissage
     if (!localStorage.getItem("smooth")) localStorage.setItem("smooth","0");
     document.getElementById("smoothBtn").style.display="inline-block";
+    document.getElementById("filterParasites").style.display = "inline-block";
+
     updateSmoothBtnUI();
 
     await loadCSVFromDrive();
@@ -2367,6 +2452,9 @@ function showConfirm(message, onConfirm) {
   
 </body>
 </html>
+
+
+
 
 
 
