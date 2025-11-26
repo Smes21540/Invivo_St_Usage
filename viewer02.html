@@ -344,6 +344,13 @@
   to { transform: rotate(360deg); }
 }
 
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
     
 
   </style>
@@ -366,6 +373,7 @@
     <button id="exportPDF" style="display:none;">📄 Exporter PDF</button>
     <button id="resetZoom" style="display:none;">🔄 Réinitialiser zoom</button>
     <button id="smoothBtn" style="display:none;" title="Active un lissage visuel de la courbe">✨ Lissage OFF</button>
+    <button id="avgModeBtn" style="display:none;" title="Calculer une moyenne entre 2 points">📐 Moyenne</button>
     <button id="toggleZ3" style="display:none;"
         title="Affiche ou masque les événements détectés">🚨 Événements Z3 OFF</button>
 
@@ -452,12 +460,18 @@
   let customColors = {}; // mémorise les couleurs choisies par label
   let initialMin = null, initialMax = null;
 
+let avgState = "idle";  // idle | first | second
+let avgStart = null;
+   let avgMode = false; 
 
 
   // Z3
   let z3Events = []; // {time: Date, label: string}
   let z3Visible = false;
     let notesVisible = true;
+
+
+
 
 
   /* ===================== THEME ===================== */
@@ -545,6 +559,30 @@ function colorFromAuthor(name){
   return palette[h % palette.length];
 }
 
+function resetAvgCycle() {
+  avgMode = false;
+  avgState = "idle";
+  avgStart = null;
+  highlightAvgBtn(false);
+}
+
+
+
+function highlightAvgBtn(active) {
+  const b = document.getElementById("avgModeBtn");
+  if (active) {
+    b.style.background = "red";
+    b.style.animation = "pulse 0.7s infinite";
+  } else {
+    b.style.background = getCSSVar("--accent");
+    b.style.animation = "";
+  }
+}
+
+
+
+
+    
 
   /* ===================== FETCH CSV ===================== */
 // 🔒 Version sécurisée — plus de clé API exposée
@@ -834,6 +872,10 @@ if (parasiteFilterEnabled) {
 }
 
 
+      
+
+      
+
       // valeurs affichées
       if (smooth) pts = movingAverage(pts, 10);
 
@@ -842,6 +884,7 @@ const savedColor = customColors[baseLabel];
 const c = savedColor || colors[i % colors.length];
 
 return {
+  id: yCol,
   label: baseLabel + (smooth ? " (lissé)" : ""),
   data: pts,
   borderColor: c,
@@ -1009,203 +1052,161 @@ function setZoomSuspended(suspended){
 const notesPlugin = {
   id: "notesPlugin",
   afterDatasetsDraw(chart) {
-    if (!notesData.length) return;
-    if (!notesVisible) return;
+   if (!notesVisible || !notesData.length) return;
+
+
 
     const ctx = chart.ctx;
     const xScale = chart.scales.x;
     const yScale = chart.scales.y;
-    const canvas = chart.canvas;
 
-    ctx.save();
-    ctx.font = "12px Segoe UI";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    if (!xScale || !yScale) return;
 
-    // Liste des zones de clic calculées
     chart.$noteHitZones = [];
+    ctx.save();
+    ctx.font = "11px sans-serif";
+    ctx.textBaseline = "top";
 
-    notesData.forEach(n => {
-      if (n.status !== "active") return;
+    for (const n of notesData) {
+      if (n.status !== "active") continue;
+      if (n.type === "avg") continue;
+
       const x = xScale.getPixelForValue(n.x);
       const y = yScale.getPixelForValue(n.y);
-      if (x < xScale.left || x > xScale.right) return;
-      if (y < yScale.top || y > yScale.bottom) return;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
 
-      const text = n.text || n.note || "(note vide)";
+      // MULTI-LIGNES
+      const lines = String(n.note || "").split(/\r?\n/);
+      const lh = 14;
+      const padX = 8;
+      const padY = 6;
 
-      // 🌿 Gestion des retours à la ligne automatiques
-      const maxWidth = 160; // largeur max de l’étiquette
-      const words = text.split(" ");
-      const lines = [];
-      let line = "";
-      for (let w of words) {
-        const test = line ? line + " " + w : w;
-        if (ctx.measureText(test).width > maxWidth) {
-          lines.push(line);
-          line = w;
-        } else line = test;
+      let textW = 0;
+      for (const l of lines) {
+        const w = ctx.measureText(l).width;
+        if (w > textW) textW = w;
       }
-      if (line) lines.push(line);
 
-      const paddingX = 8;
-      const paddingY = 4;
-      const boxWidth = Math.min(maxWidth, Math.max(...lines.map(l => ctx.measureText(l).width)) + paddingX * 2);
-      const boxHeight = lines.length * 16 + paddingY * 2;
+      const boxW = textW + padX * 2;
+      const boxH = lines.length * lh + padY * 2;
 
-     const panel = getCSSVar("--panel") || "#fff";
-const noteColor = n.color || colorFromAuthor(n.author || "Anonyme");
-ctx.fillStyle = "rgba(255,255,255,0.85)";
-ctx.strokeStyle = noteColor;
-ctx.lineWidth = 0.5;
-ctx.beginPath();
-ctx.roundRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 4);
-ctx.fill();
-ctx.stroke();
+      const rx = x + 6;
+      const ry = y - boxH - 8;
 
-// ✏️ Texte sur plusieurs lignes teinté par la couleur de la note
-ctx.fillStyle = noteColor;
-lines.forEach((l, i) => {
-  ctx.fillText(l, x, y - (boxHeight / 2) + paddingY + 8 + i * 14);
-});
+      // fond couleur complète
+      ctx.fillStyle = n.color || "#ff7043";
+      ctx.beginPath();
+      ctx.roundRect(rx, ry, boxW, boxH, 6);
+      ctx.fill();
 
+// 🔹 Texte centré horizontalement et verticalement
+ctx.fillStyle = "#fff";
+ctx.textAlign = "center";
+ctx.textBaseline = "middle";
 
-      // 🧭 Sauvegarde zone de clic (pour survol / ouverture)
-      chart.$noteHitZones.push({
-        note: n,
-        x1: x - boxWidth / 2,
-        y1: y - boxHeight / 2,
-        x2: x + boxWidth / 2,
-        y2: y + boxHeight / 2
-      });
-    });
-
-    ctx.restore();
-
-    // ===== Gestion du survol et du curseur =====
-    const rect = canvas.getBoundingClientRect();
-    const mouse = chart.$mousePos;
-    let hovered = null;
-
-    if (mouse && chart.$noteHitZones) {
-      for (const zone of chart.$noteHitZones) {
-        const { x1, y1, x2, y2, note } = zone;
-        const x = mouse.x;
-        const y = mouse.y;
-        if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
-          hovered = note;
-          break;
-        }
-      }
-    }
-
-    canvas.style.cursor = hovered ? "pointer" : "default";
-
-    // Mise à jour position souris
-    if (!chart.$mousemoveHandlerAttached) {
-      chart.$mousemoveHandlerAttached = true;
-      canvas.addEventListener("mousemove", (ev) => {
-        const r = canvas.getBoundingClientRect();
-        chart.$mousePos = { x: ev.clientX - r.left, y: ev.clientY - r.top };
-        chart.update("none");
-      });
-      canvas.addEventListener("mouseleave", () => {
-        chart.$mousePos = null;
-        chart.update("none");
-      });
-    }
-
-// === DRAG & DROP DES NOTES (AJOUT) — version avec suspension du zoom ===
-if (!chart.$dragHandlersAttached) {
-  chart.$dragHandlersAttached = true;
-  chart.$draggingNote = null;
-  chart.$justDragged = false;
-
-  // 🛑 Bloque la molette si on est en plein drag
-  chart.canvas.addEventListener('wheel', (ev)=>{
-    if (chart.$draggingNote) { ev.preventDefault(); }
-  }, { passive:false });
-
-  // mousedown → démarrage drag si sur une note
-  canvas.addEventListener("mousedown", (ev) => {
-    if (!notesVisible || !chart.$noteHitZones) return;
-    const r = canvas.getBoundingClientRect();
-    const mx = ev.clientX - r.left, my = ev.clientY - r.top;
-
-    for (const zone of chart.$noteHitZones) {
-      if (mx >= zone.x1 && mx <= zone.x2 && my >= zone.y1 && my <= zone.y2) {
-        chart.$draggingNote = { note: zone.note, startX: mx, startY: my };
-        chart.$justDragged = false;
-
-        // ⛔ suspendre zoom/pan/drag pendant le déplacement de la note
-        setZoomSuspended(true);
-        canvas.style.cursor = 'grabbing';
-
-        ev.preventDefault();
-        return;
-      }
-    }
-  });
-
-  // mousemove → déplacement live
-  canvas.addEventListener("mousemove", (ev) => {
-    if (!chart.$draggingNote) return;
-    const r = canvas.getBoundingClientRect();
-    const mx = ev.clientX - r.left, my = ev.clientY - r.top;
-
-    const dx = Math.abs(mx - chart.$draggingNote.startX);
-    const dy = Math.abs(my - chart.$draggingNote.startY);
-    if (dx < 2 && dy < 2) return;
-
-    const xScale = chart.scales.x, yScale = chart.scales.y;
-    chart.$draggingNote.note.x = xScale.getValueForPixel(mx);
-    chart.$draggingNote.note.y = yScale.getValueForPixel(my);
-
-    chart.$justDragged = true;
-    chart.update("none");
-  });
-
-  // mouseup → fin drag + sauvegarde côté serveur
-  canvas.addEventListener("mouseup", async () => {
-    if (!chart.$draggingNote) return;
-    const n = chart.$draggingNote.note;
-    chart.$draggingNote = null;
-
-    // ✅ réactiver zoom/pan/drag
-    setZoomSuspended(false);
-    canvas.style.cursor = 'default';
-
-    if (!chart.$justDragged) return; // simple clic
-    chart.$justDragged = false;
-
-    try {
-      await fetch(
-        "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            status: "update",
-            csvName: baseFileName,
-            folderId: localStorage.getItem("lastFolderId"),
-            createdAt: n.createdAt,
-            x: n.x,
-            y: n.y,
-            color: n.color || colorFromAuthor(n.author || "Anonyme")
-          })
-        }
-      );
-      showToast("📌 Position de la note mise à jour");
-    } catch (e) {
-      showToast("⚠️ Erreur mise à jour : " + e.message);
-    }
-  });
+for (let i = 0; i < lines.length; i++) {
+  const lineY = ry + boxH / 2 + (i - (lines.length - 1) / 2) * lh;
+  ctx.fillText(lines[i], rx + boxW / 2, lineY);
 }
 
 
-    
-  },
+      // ZONE CLIQUABLE POUR EDIT
+      chart.$noteHitZones.push({
+        note: n,
+        x1: rx,
+        x2: rx + boxW,
+        y1: ry,
+        y2: ry + boxH
+      });
+    }
+
+    ctx.restore();
+  }
 };
+
+
+const avgPlugin = {
+  id: "avgPlugin",
+  afterDatasetsDraw(chart) {
+     
+ if (!notesData.length) return;
+
+
+    const ctx = chart.ctx;
+    const xScale = chart.scales.x;
+    const yScale = chart.scales.y;
+
+    if (!xScale || !yScale) return;
+
+    chart.$avgHitZones = [];
+    ctx.save();
+    ctx.font = "12px sans-serif";
+    ctx.textBaseline = "middle";
+
+    for (const n of notesData) {
+      if (n.type !== "avg" || n.status !== "active") continue;
+
+      const x1 = xScale.getPixelForValue(n.x1);
+      const x2 = xScale.getPixelForValue(n.x2);
+      const midX = (x1 + x2) / 2;
+
+      // ligne horizontale
+      const y = yScale.getPixelForValue(n.avg);
+      ctx.strokeStyle = n.color || "#0aa6e8";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y);
+      ctx.lineTo(x2, y);
+      ctx.stroke();
+
+      // texte
+// Texte centré
+const text = `Valeur moyenne : ${n.avg.toFixed(1)}`;
+ctx.font = "13px sans-serif";
+
+// Mesure largeur texte
+const textW = ctx.measureText(text).width;
+
+// Taille du cadre
+const padX = 10;
+const padY = 6;
+const boxW = textW + padX * 2;
+const boxH = 22 + padY * 2;
+
+// Rectangle
+const rx = midX - boxW / 2;
+const ry = y - boxH / 2;
+
+ctx.fillStyle = n.color;
+ctx.fillRect(rx, ry, boxW, boxH);
+
+// Texte centré
+ctx.fillStyle = "#fff";
+ctx.textAlign = "center";
+ctx.textBaseline = "middle";
+ctx.fillText(text, midX, ry + boxH / 2);
+
+
+      // ZONE CLIQUABLE
+chart.$avgHitZones.push({
+  note: n,
+  x1: rx,
+  x2: rx + boxW,
+  y1: ry,
+  y2: ry + boxH
+});
+
+    }
+    ctx.restore();
+  }
+};
+
+
+
+     
+
+
+
 
 
 
@@ -1283,7 +1284,14 @@ if (!isNaN(dt.getTime())) {
   }
 
  function drawChart(){
-  if(!csvData.length||!timeField||!currentY.length) return;
+    // 🧹 Empêche la duplication des événements sur le canvas
+  const oldCanvas = document.getElementById("myChart");
+  if (oldCanvas) {
+    const newCanvas = oldCanvas.cloneNode(true); // clone sans événements
+    oldCanvas.parentNode.replaceChild(newCanvas, oldCanvas);
+  }
+
+  // 🧠 Maintenant on repart proprement sur ce nouveau canvas
   const ctx=document.getElementById('myChart').getContext('2d');
 
   const allX=csvData.map(r=>r.__sortKey).filter(v=>Number.isFinite(v));
@@ -1323,7 +1331,7 @@ if (!isNaN(dt.getTime())) {
           onClick:(e,legendItem)=>{
             const datasetIndex = legendItem.datasetIndex;
             const ds = chart.data.datasets[datasetIndex];
-            const baseLabel = ds.label.replace(" (lissé)", "");
+            const baseId = ds.id;
             const picker = document.getElementById('colorPicker');
             picker.oninput = (ev)=>{
               const newColor = ev.target.value;
@@ -1384,7 +1392,14 @@ if (!isNaN(dt.getTime())) {
         y:{title:{display:true,text:'Valeurs'}}
       }
     },
-    plugins:[ChartDataLabels,dayBackgroundPlugin,z3LinesPlugin,notesPlugin]
+    plugins: [
+  ChartDataLabels,
+  dayBackgroundPlugin,
+  z3LinesPlugin,
+  notesPlugin,
+  avgPlugin
+]
+
 
   });
 
@@ -1414,28 +1429,118 @@ canvas.addEventListener('wheel', async (e)=>{
     chart.$z3Mouse = {x,y};
     chart.update('none');
   });
+
+// === SURVOL NOTES : curseur main ===
+canvas.addEventListener("mousemove", (ev) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = ev.clientX - rect.left;
+  const y = ev.clientY - rect.top;
+  const zones = chart.$noteHitZones || [];
+
+  let over = false;
+  for (const z of zones) {
+    if (x >= z.x1 && x <= z.x2 && y >= z.y1 && y <= z.y2) {
+      over = true;
+      break;
+    }
+  }
+  chart.canvas.style.cursor = over ? "pointer" : "default";
+});
+
+
+
+   
   canvas.addEventListener('mouseleave', ()=>{
     chart.$z3Mouse = null;
     chart.update('none');
   });
 
-// === Gestion clic sur une note existante ===
-// ⚠️ Important : si un drag vient d’avoir lieu, on ignore le clic « fantôme »
-canvas.addEventListener("click", (ev) => {
-  if (!notesData.length) return;
 
-  // ⬇️ Ajout clé : neutralise l’ouverture de popup juste après un drag
-  if (chart.$justDragged) { 
-    chart.$justDragged = false; 
-    return; 
-  }
+// === CLIC SUR UNE NOTE EXISTANTE ===
+canvas.addEventListener("click", (ev) => {
+  if (!chart) return;
+  const zones = chart.$noteHitZones || [];
+  if (!zones.length) return;
 
   const rect = canvas.getBoundingClientRect();
-  const xClick = ev.clientX - rect.left;
-  const yClick = ev.clientY - rect.top;
-  const xScale = chart.scales.x;
-  const yScale = chart.scales.y;
+  const x = ev.clientX - rect.left;
+  const y = ev.clientY - rect.top;
 
+  for (const z of zones) {
+    if (x >= z.x1 && x <= z.x2 && y >= z.y1 && y <= z.y2) {
+      showNotePopup(z.note);
+      ev.stopPropagation();
+      ev.preventDefault();
+      return; // 🔥 stop tout (empêche zoom/pan)
+    }
+  }
+});
+
+   
+// === Gestion clic sur une note existante ===
+canvas.addEventListener("click", (ev) => {
+  // 🚫 Si le mode moyenne est inactif, on sort
+  if (!avgMode) return;
+
+  ev.stopPropagation();
+  ev.preventDefault();
+
+  if (!chart) return;
+
+  const pts = chart.getElementsAtEventForMode(ev, "nearest", { intersect: false }, true);
+  if (!pts || !pts.length) {
+    showToast("⚠️ Clique sur un point existant.");
+    return;
+  }
+
+  const el = pts[0];
+  const ds = chart.data.datasets[el.datasetIndex];
+  const point = ds.data[el.index];
+  const curveId = ds.id; // identifiant stable
+
+  // 🟢 Premier clic
+  if (avgState === "first") {
+    avgStart = { id: curveId, x: point.x };
+    avgState = "second";
+    showToast(`🟡 Premier point sélectionné sur "${curveId}". Choisis le second.`);
+    return;
+  }
+
+  // 🟢 Deuxième clic
+  if (avgState === "second") {
+    if (curveId !== avgStart.id) {
+      showToast("❗ Les deux points doivent être sur la même courbe.");
+      resetAvgCycle();
+      return;
+    }
+
+    const min = Math.min(avgStart.x, point.x);
+    const max = Math.max(avgStart.x, point.x);
+    const dataset = chart.data.datasets.find(d => d.id === curveId);
+    if (!dataset) {
+      showToast("❗ Courbe introuvable.");
+      resetAvgCycle();
+      return;
+    }
+
+    const ptsAvg = dataset.data.filter(p => p.x >= min && p.x <= max);
+    if (!ptsAvg.length) {
+      showToast("❗ Aucun point entre ces deux positions.");
+      resetAvgCycle();
+      return;
+    }
+
+    const avg = ptsAvg.reduce((s, p) => s + p.y, 0) / ptsAvg.length;
+    createAverageNote(curveId, min, max, avg);
+
+    showToast(`📐 Moyenne : ${avg.toFixed(2)}`);
+
+    // 🔹 reset complet immédiatement après affichage
+    resetAvgCycle();
+
+  }
+
+  // === DÉTECTION DES NOTES CLASSIQUES ===
   let nearest = null;
   let minDist = 18;
 
@@ -1456,9 +1561,89 @@ canvas.addEventListener("click", (ev) => {
 });
 
 
+// === DRAG NOTES ===
+canvas.addEventListener("mousedown",(ev)=>{
+  if (!notesData.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const xClick = ev.clientX - rect.left;
+  const yClick = ev.clientY - rect.top;
+
+  for (const z of chart.$noteHitZones || []) {
+    if (
+      xClick>=z.x1 && xClick<=z.x2 &&
+      yClick>=z.y1 && yClick<=z.y2
+    ) {
+chart.$draggingNote = z.note;
+setZoomSuspended(true); // 🧩 suspend le zoom/pan pendant le drag
+return;
+
+    }
+  }
+});
+
+canvas.addEventListener("mousemove",(ev)=>{
+  if (!chart.$draggingNote) return;
+  const rect = canvas.getBoundingClientRect();
+  const xPix = ev.clientX-rect.left;
+  const yPix = ev.clientY-rect.top;
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+
+  chart.$draggingNote.x = xScale.getValueForPixel(xPix);
+  chart.$draggingNote.y = yScale.getValueForPixel(yPix);
+  chart.$justDragged = true;
+
+  chart.update('none');
+});
+
+canvas.addEventListener("mouseup", async () => {
+  if (chart.$draggingNote) {
+    const n = chart.$draggingNote;
+    chart.$draggingNote = null;
+    setZoomSuspended(false); // 🧩 réactive le zoom/pan une fois lâché
+
+    try {
+      // 🔹 envoi des nouvelles coordonnées au script Google
+      const resp = await fetch(
+        "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            status: "update",
+            folderId: localStorage.getItem("lastFolderId"),
+            csvName: baseFileName,
+            createdAt: n.createdAt,
+            x: n.x,
+            y: n.y,
+            color: n.color || colorFromAuthor(n.author || "Anonyme")
+          })
+        }
+      );
+
+      console.log("📤 Position mise à jour :", await resp.text());
+      showToast("📍 Position mise à jour !");
+    } catch (err) {
+      console.error("⚠️ Erreur MAJ position :", err);
+      showToast("❌ Erreur mise à jour");
+    }
+  }
+});
+
+
+ 
+
+
+  // Nettoyage complet du mode moyenne à chaque redessin
+  notesData = notesData.filter(n => n.type !== "avg");
+  resetAvgCycle();
+
+
    
   chart.update();
   applyAdaptiveTicks();
+   resetAvgCycle();
+
 }
 
 
@@ -1468,13 +1653,15 @@ canvas.addEventListener("click", (ev) => {
   document.getElementById('backBtn').onclick=()=>window.close();
 
   // Auto-affichage du graphique dès qu'une case Y est cochée/décochée
-  document.getElementById("yColumnsContainer").addEventListener("change", () => {
-    currentX = document.getElementById('xColumn').value;
-    currentY = Array.from(document.querySelectorAll("#yColumnsContainer input:checked")).map(cb => cb.value);
-    if (currentY.length) {
-      drawChart();
-    }
-  });
+document.getElementById("yColumnsContainer").addEventListener("change", () => {
+  resetAvgCycle(); // 🧹 Réinitialiser le mode moyenne proprement à chaque changement de courbe
+  currentX = document.getElementById('xColumn').value;
+  currentY = Array.from(document.querySelectorAll("#yColumnsContainer input:checked")).map(cb => cb.value);
+  if (currentY.length) {
+    drawChart();
+  }
+});
+
 
   // Ctrl+clic → changer la couleur du dataset le plus proche
   const colorPickerEl = document.getElementById('colorPicker');
@@ -1551,6 +1738,9 @@ document.getElementById('toggleNotes').onclick = () => {
   if (chart) chart.update('none');
 };
 
+
+
+    
 // === Parasite filter ON/OFF ===
 document.getElementById("filterParasites").onclick = () => {
   parasiteFilterEnabled = !parasiteFilterEnabled;
@@ -1912,6 +2102,24 @@ pdf.addImage(
     if (!localStorage.getItem("smooth")) localStorage.setItem("smooth","0");
     document.getElementById("smoothBtn").style.display="inline-block";
     document.getElementById("filterParasites").style.display = "inline-block";
+    document.getElementById("avgModeBtn").style.display="inline-block";
+
+// ======================= MODE MOYENNE =======================
+
+document.getElementById("avgModeBtn").onclick = () => {
+  if (!chart) return;
+
+  avgMode = true;       // <--- activation
+  avgState = "first";
+  avgStart = null;
+
+  highlightAvgBtn(true);
+  showToast("🟢 Sélectionne le PREMIER point sur une courbe.");
+};
+
+
+
+    
 
     updateSmoothBtnUI();
 
@@ -1943,14 +2151,15 @@ try {
       // 🔧 Conversion et nettoyage des données avant affichage
 notesData = notes.map(n => ({
   id: n.id || crypto.randomUUID(),
-  x: typeof n.x === "string" ? Number(n.x) || new Date(n.x).getTime() : n.x,
-  y: typeof n.y === "string" ? parseFloat(n.y) : n.y,
-  text: n.note,
+  x: Number(n.x),
+  y: Number(n.y),
+  note: n.note,      // ← c’est CE champ
   author: n.author,
   createdAt: n.createdAt,
   status: n.status || "active",
   color: n.color || colorFromAuthor(n.author || "Anonyme")
 }));
+
 
 
 
@@ -2120,7 +2329,6 @@ document.getElementById("cancelNoteBtn").addEventListener("click", () => {
   popup.classList.remove("active");
 });
 
-// 🟢 Étape 4 : envoyer la note au script Google
 document.getElementById("saveNoteBtn").addEventListener("click", async () => {
   const content = txt.value.trim();
   if (!content) {
@@ -2131,13 +2339,15 @@ document.getElementById("saveNoteBtn").addEventListener("click", async () => {
 
   try {
     const createdAt = new Date().toISOString();
+    const pickedColor =
+      document.getElementById("noteColor")?.value ||
+      colorFromAuthor(authorInput.value || "Anonyme");
 
-    const pickedColor = document.getElementById("noteColor")?.value || colorFromAuthor(authorInput.value || "Anonyme");
+    // 🔥 Un SEUL ID unique
+    const newId = crypto.randomUUID();
 
-
-    // 🔍 Log des données envoyées au Script Google
     const payload = {
-      id: crypto.randomUUID(),
+      id: newId,
       csvName: baseFileName || "inconnu.csv",
       fileId: baseFileId,
       folderId: localStorage.getItem("lastFolderId") || "",
@@ -2145,74 +2355,84 @@ document.getElementById("saveNoteBtn").addEventListener("click", async () => {
       note: content,
       x: clickedPoint ? clickedPoint.x : "",
       y: clickedPoint ? clickedPoint.y : "",
-      createdAt: createdAt,
+      createdAt,
       status: "active",
-      dossier: currentFolderPath || ""   // 🆕 chemin texte du dossier (simple texte)
+      dossier: currentFolderPath || "",
+      color: pickedColor
     };
+
     console.log("📤 Données envoyées au Script Google :", payload);
 
-    
-// 🌐 Récupération de l’adresse IP publique du visiteur
-let ip = "inconnue";
-try {
-  const ipRes = await fetch("https://api.ipify.org?format=json");
-  if (ipRes.ok) {
-    const ipData = await ipRes.json();
-    ip = ipData.ip || "inconnue";
+    // === IP utilisateur ===
+    let ip = "inconnue";
+    try {
+      const ipRes = await fetch("https://api.ipify.org?format=json");
+      if (ipRes.ok) {
+        const ipData = await ipRes.json();
+        ip = ipData.ip || "inconnue";
+      }
+    } catch {}
+
+    // === Envoi Google Script
+    await fetch(
+      "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          ...payload,
+          ip
+        })
+      }
+    );
+
+    // === AJOUT LOCAL (IMPORTANT)
+    notesData.push({
+      ...payload,
+      color: pickedColor
+    });
+
+    // Fermer popup + redraw
+    popup.classList.remove("active");
+    chart.update("none");
+    showToast("🗒️ Note enregistrée !");
+  } catch (e) {
+    console.error("Erreur création note", e);
+    status.textContent = "❌ Erreur réseau.";
   }
-} catch {
-  console.warn("Impossible de récupérer l’IP publique");
+});
+
+
+/* ===================== MOYENNES EN NOTES ===================== */
+
+function createAverageNote(label, x1, x2, avg) {
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+
+  const noteObj = {
+    id,
+    type: "avg",
+    dataset: label,   // <— l’identité de la courbe
+    x1,
+    x2,
+    avg,
+    color: "#0aa6e8",
+    createdAt,
+    status: "active"
+  };
+
+  notesData.push(noteObj);
+  if (chart) chart.update("none");
 }
 
-// 📨 Envoi au script Google
-const response = await fetch(
-  "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
-  {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-body: new URLSearchParams({
-  id: crypto.randomUUID(),
-  csvName: baseFileName || "inconnu.csv",
-  fileId: baseFileId,
-  folderId: localStorage.getItem("lastFolderId"),
-  author: authorInput.value || "Anonyme",
-  note: content,
-  x: clickedPoint ? clickedPoint.x : "",
-  y: clickedPoint ? clickedPoint.y : "",
-  createdAt,
-  status: "active",
-  dossier: currentFolderPath || "",
-  color: pickedColor,     // ⬅️ ajouté
-  ip
-})
-
-  }
-);
-
-
-    const textRes = await response.text();
-    console.log("Réponse serveur:", textRes);
-    status.textContent = "✅ Note enregistrée !";
-
-notesData.push({
-  id: crypto.randomUUID(),
-  x: clickedPoint.x,
-  y: clickedPoint.y,
-  text: content,
-  author: authorInput.value || "Anonyme",
-  createdAt: createdAt,
-  status: "active",
-  color: pickedColor
-});
 
 
 
-    if (chart) chart.update("none");
-    setTimeout(() => popup.classList.remove("active"), 800);
-  } catch (err) {
-    status.textContent = "⚠️ Erreur : " + err.message;
-  }
-});
+
+
+
+
+  
 </script>
 
 
@@ -2452,52 +2672,6 @@ function showConfirm(message, onConfirm) {
   
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
