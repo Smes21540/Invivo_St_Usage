@@ -1,33 +1,779 @@
-canvas.addEventListener("mouseup", async () => {
-  if (chart.$draggingNote) {
-    const n = chart.$draggingNote;
-    chart.$draggingNote = null;
-    setZoomSuspended(false); // 🧩 réactive le zoom/pan une fois lâché
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tableau</title>
 
-    try {
-      // 🔹 envoi des nouvelles coordonnées au script Google
-      const resp = await fetch(
-        "https://script.google.com/macros/s/AKfycbz9zcweeyv7GpC4ZCLnw57uVvuHEOWEmfbvnLHVaqZ8Php179viedbf7PX8Vmi8HhTX7Q/exec",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            status: "update",
-            folderId: localStorage.getItem("lastFolderId"),
-            csvName: baseFileName,
-            createdAt: n.createdAt,
-            x: n.x,
-            y: n.y,
-            color: n.color || colorFromAuthor(n.author || "Anonyme")
-          })
-        }
-      );
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
+  
+<style>
+:root{
+  --bg:#fff5f5;
+  --panel:#ffffff;
+  --sidebar-bg:#ffe5d9;
+  --text:#333;
+  --muted-text:#555;
+  --shadow:rgba(0,0,0,0.1);
+  --accent:#ff7043;
+  --accent-darker:#e64a19;
+  --accent-muted:#ffccbc;
+  --danger:#d84315;
+}
 
-      console.log("📤 Position mise à jour :", await resp.text());
-      showToast("📍 Position mise à jour !");
-    } catch (err) {
-      console.error("⚠️ Erreur MAJ position :", err);
-      showToast("❌ Erreur mise à jour");
+html,body{height:100%;margin:0;overflow:hidden;}
+body{
+  font-family:"Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background-color:var(--bg);
+  padding:5px 20px 7px 20px;
+  color:var(--danger);
+  font-size:14px;
+  display:flex; flex-direction:column;
+}
+
+/* Header */
+.header{position:relative; display:flex; align-items:center; justify-content:center; margin:0 0 10px 0;}
+.header .logo{height:60px; width:auto;}
+  #folderName {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: clamp(14px, 2vw, 26px);
+  font-weight: bold;
+  color: var(--accent);
+  padding: 5px 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 45vw;
+}
+
+#fileNameContainer{position:absolute; right:0; top:0; text-align:right;}
+#fileName,#lineCount{color:var(--danger);}
+#fileName{font-size:24px; font-weight:bold; white-space:nowrap; max-width:300px; overflow:hidden; text-overflow:ellipsis; display:none;}
+#lineCount{font-size:12px; display:none;}
+
+/* Controls */
+.controls{display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin:5px 0;}
+button{background-color:var(--accent); color:#fff; border:none; cursor:pointer; font-weight:bold; padding:8px 12px; border-radius:6px; font-size:13px; transition:background-color .3s ease, transform .2s ease;}
+button:hover{background-color:var(--accent-darker); transform:scale(1.05);}
+button:disabled{background-color:#ccc; color:#666; cursor:not-allowed; transform:none;}
+#toggleColumnsBtn{padding:6px 10px; border-radius:6px; border:1px solid var(--accent-darker); background-color:var(--accent); color:#fff; cursor:pointer; font-size:13px;}
+#toggleColumnsBtn:hover{background-color:var(--accent-darker);}
+
+/* Table wrapper centered */
+#tableWrapper{
+  flex:1;
+  overflow:auto;               /* scroll si nécessaire */
+  display:flex;
+  justify-content:center;      /* centre horizontalement */
+  align-items:center;          /* centre verticalement */
+  padding:10px;
+}
+#tableContainer{
+  display:inline-block;
+  overflow:auto;
+  max-width:100%;
+  max-height:100%;
+  border-radius:8px;
+  box-shadow:0 4px 12px var(--shadow);
+  background:var(--panel);
+  text-align:center;
+}
+
+/* Table */
+table{width:auto; border-collapse:separate; border-spacing:0; table-layout:auto; font-size:13px;}
+thead th, tbody td{padding:10px 12px; text-align:left; border-bottom:1px solid var(--sidebar-bg); white-space:nowrap; transition:background-color .6s ease, color .6s ease;}
+thead th{position:sticky; top:0; z-index:2; background-color:var(--accent); color:#fff; font-weight:bold; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; user-select:none; font-size:12px;}
+thead th:hover{background-color:var(--accent-darker);}
+tbody tr:nth-child(even){background-color:var(--sidebar-bg);}
+tbody tr:nth-child(odd){background-color:var(--panel);}
+tbody tr:hover{background-color:var(--accent-muted); transition:background-color .3s ease;}
+thead th.sorted-asc::after{content:" ▲"; font-size:10px;}
+thead th.sorted-desc::after{content:" ▼"; font-size:10px;}
+
+/* Column toggles panel */
+#columnToggles{
+  display:none;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px;
+  margin:5px 0;
+}
+#columnToggles.open{ display:flex; }
+#columnToggles label{font-size:12px; cursor:pointer; margin-right:5px;}
+#columnToggles input[type="checkbox"]{width:14px; height:14px; vertical-align:middle; margin-right:3px;}
+
+/* Reset flash */
+.flash-red{animation:flashRed .6s ease;}
+@keyframes flashRed{0%{background-color:var(--accent-muted);}100%{background-color:var(--panel);}}
+
+/* Secret theme menu */
+#secretBtn{position:fixed; bottom:10px; right:10px; width:25px; height:25px; opacity:0; cursor:pointer; z-index:2000;}
+#themeMenu{display:none; position:fixed; bottom:50px; right:10px; background:var(--panel);
+  border:2px solid var(--accent); border-radius:8px; box-shadow:0 4px 12px var(--shadow);
+  padding:10px; z-index:2001; min-width:150px;}
+#themeMenu h3{margin:0 0 8px 0; font-size:14px; color:var(--accent);}
+#themeMenu .closeMenu{position:absolute; top:5px; right:8px; font-size:14px; cursor:pointer; color:var(--accent);}
+#themeMenu .closeMenu:hover{color:var(--accent-darker);}
+#themeMenu button{display:block; width:100%; margin:4px 0; padding:6px; border:none; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; font-size:13px;}
+#themeMenu button:hover{background:var(--accent-darker);}
+
+/* Overlay + Spinner */
+#loadingOverlay{position:fixed; inset:0; background:rgba(0,0,0,0.05); display:none; z-index:2500;}
+#spinner{position:absolute; top:50%; left:50%; width:40px; height:40px; margin:-20px 0 0 -20px; border:6px solid #f3f3f3; border-top:6px solid var(--accent); border-radius:50%; animation:spin .8s linear infinite;}
+@keyframes spin{from{transform:rotate(0deg);} to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div id="folderName"></div>
+  <img src="img/logo.png" alt="Logo SMES France" class="logo" id="mainLogo"/>
+  <div id="fileNameContainer">
+    <div id="fileName"></div>
+    <div id="lineCount"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="backBtn">⬅️ Retour</button>
+  <button id="prevFile">⬅️ Fichier précédent</button>
+  <button id="nextFile">Fichier suivant ➡️</button>
+  <input type="text" id="searchInput" placeholder="🔎 Rechercher..." />
+  <button id="exportExcel">📊 Export Excel</button>
+  <button id="exportPDF">📄 Export PDF</button>
+  <button id="toggleColumnsBtn">Afficher/Masquer colonnes</button>
+  <button id="resetBtn">♻️ Réinitialiser affichage</button>
+</div>
+
+<div id="columnToggles"></div>
+<div id="tableWrapper"><div id="tableContainer"></div></div>
+
+<!-- Overlay + spinner -->
+<div id="loadingOverlay" aria-hidden="true">
+  <div id="spinner" role="status" aria-label="Chargement"></div>
+</div>
+
+<!-- Menu secret -->
+<div id="secretBtn"></div>
+<div id="themeMenu">
+  <span class="closeMenu" onclick="closeThemeMenu()">❌</span>
+  <h3>Choisir un thème</h3>
+  <button onclick="setTheme('orange')">Orange (défaut)</button>
+  <button onclick="setTheme('blue')">Bleu</button>
+  <button onclick="setTheme('green')">Vert</button>
+  <button onclick="setTheme('purple')">Violet</button>
+  <button onclick="setTheme('bordeaux')">Bordeaux</button>
+</div>
+
+<script src="libs/papaparse.min.js"></script>
+<script src="libs/xlsx.full.min.js"></script>
+<script src="libs/jspdf.umd.min.js"></script>
+<script src="libs/jspdf.plugin.autotable.min.js"></script>
+<script>
+// === Variables globales ===
+const VIS_MEM_KEY = 'columnVisibilityMemory';
+let currentData=[], sortAsc=true, sortColIndex=null, visibleColumns={},
+    columnVisibilityMemory = JSON.parse(localStorage.getItem(VIS_MEM_KEY) || '{}'),
+    columnSortMemory={colName:null,asc:true}, lastSearchQuery="", lastColorizedColIndex=null;
+
+let themeMenuTimer;
+let csvFilesList = JSON.parse(localStorage.getItem("csvFilesList")||"[]");
+let currentIndex = parseInt(localStorage.getItem("csvFileIndex")||"0",10);
+
+// === Thèmes ===
+function setTheme(theme){
+  const r=document.documentElement;
+  localStorage.setItem("selectedTheme", theme);
+
+  if(theme==="orange"){r.style.setProperty("--accent","#ff7043");r.style.setProperty("--accent-darker","#e64a19");r.style.setProperty("--accent-muted","#ffccbc");r.style.setProperty("--bg","#fff5f5");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#ffe5d9");r.style.setProperty("--danger","#d84315");r.style.setProperty("--text","#333");}
+  if(theme==="blue"){r.style.setProperty("--accent","#2196f3");r.style.setProperty("--accent-darker","#1976d2");r.style.setProperty("--accent-muted","#bbdefb");r.style.setProperty("--bg","#e3f2fd");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#bbdefb");r.style.setProperty("--danger","#0d47a1");r.style.setProperty("--text","#0d47a1");}
+  if(theme==="green"){r.style.setProperty("--accent","#4caf50");r.style.setProperty("--accent-darker","#2e7d32");r.style.setProperty("--accent-muted","#c8e6c9");r.style.setProperty("--bg","#f1f8e9");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#c8e6c9");r.style.setProperty("--danger","#1b5e20");r.style.setProperty("--text","#1b5e20");}
+  if(theme==="purple"){r.style.setProperty("--accent","#9c27b0");r.style.setProperty("--accent-darker","#6a1b9a");r.style.setProperty("--accent-muted","#e1bee7");r.style.setProperty("--bg","#f3e5f5");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#e1bee7");r.style.setProperty("--danger","#4a148c");r.style.setProperty("--text","#4a148c");}
+  if(theme==="bordeaux"){r.style.setProperty("--accent","#800020");r.style.setProperty("--accent-darker","#4b0014");r.style.setProperty("--accent-muted","#d7a1a9");r.style.setProperty("--bg","#fff0f2");r.style.setProperty("--panel","#ffffff");r.style.setProperty("--sidebar-bg","#f3cdd3");r.style.setProperty("--danger","#600018");r.style.setProperty("--text","#4b0014");}
+}
+
+document.getElementById("secretBtn").onclick=()=>{const menu=document.getElementById("themeMenu"); if(menu.style.display==="block"){closeThemeMenu();}else{menu.style.display="block";resetThemeMenuTimer();}};
+function resetThemeMenuTimer(){clearTimeout(themeMenuTimer);themeMenuTimer=setTimeout(closeThemeMenu,10000);}
+function closeThemeMenu(){document.getElementById("themeMenu").style.display="none";clearTimeout(themeMenuTimer);}
+
+// === Navigation fichiers ===
+function updateNavButtons(){
+  document.getElementById("prevFile").disabled = (currentIndex >= csvFilesList.length-1);
+  document.getElementById("nextFile").disabled = (currentIndex <= 0);
+}
+document.getElementById("prevFile").onclick=()=>{ if(currentIndex < csvFilesList.length-1){ const f=csvFilesList[currentIndex+1]; if(f){localStorage.setItem("csvFileIndex",currentIndex+1);window.location.href=`viewer.html?fileId=${f.id}&fileName=${encodeURIComponent(f.name)}`;}}};
+document.getElementById("nextFile").onclick=()=>{ if(currentIndex > 0){ const f=csvFilesList[currentIndex-1]; if(f){localStorage.setItem("csvFileIndex",currentIndex-1);window.location.href=`viewer.html?fileId=${f.id}&fileName=${encodeURIComponent(f.name)}`;}}};
+document.getElementById("backBtn").onclick=()=>window.close();
+
+// === Spinner ===
+function showLoading(){ document.getElementById('loadingOverlay').style.display='block'; }
+function hideLoading(){ document.getElementById('loadingOverlay').style.display='none'; }
+
+function cleanText(str = "") {
+  // Supprime uniquement les emojis et FE0F
+  // → ne touche jamais aux chiffres, lettres, accents
+  const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu;
+  return str.replace(emojiRegex, "").trim();
+}
+
+
+  
+// === Charger CSV ===
+async function loadCSV(){
+  const fileId = new URLSearchParams(window.location.search).get('fileId');
+  const fileName = new URLSearchParams(window.location.search).get('fileName');
+// 🔹 Déterminer le dossier parent comme dans viewer02 / index03
+try {
+  const list = JSON.parse(localStorage.getItem("csvFilesList") || "[]");
+  const fileEntry = list.find(f => f.id === fileId);
+
+  // Plusieurs sources possibles pour le chemin du dossier
+  let folderPath =
+    new URLSearchParams(window.location.search).get("folderPath") || // si transmis dans l’URL
+    (fileEntry && (fileEntry.folder || fileEntry.folderPath)) ||     // si stocké dans csvFilesList
+    localStorage.getItem("currentFolderPath") ||                     // dernier dossier ouvert
+    "";
+
+  // Afficher dans le header
+  const folderNameEl = document.getElementById("folderName");
+if (folderNameEl) folderNameEl.textContent = folderPath || "";
+document.title = `Tableau – ${cleanText(folderPath || fileName || "CSV")}`;
+
+
+  
+} catch (e) {
+  console.warn("Impossible de déterminer le dossier :", e);
+}
+
+
+  const fileNameDiv = document.getElementById('fileName');
+  const lineCountDiv = document.getElementById('lineCount');
+  const container = document.getElementById('tableContainer');
+  if (!fileId) return;
+
+  fileNameDiv.textContent = cleanText(fileName || '');
+
+  fileNameDiv.style.display = 'block';
+  lineCountDiv.style.display = 'block';
+
+  // ✅ Utilisation du proxy Netlify sécurisé
+  const url = `https://smes21540.netlify.app/.netlify/functions/drive?id=${fileId}&name=${encodeURIComponent(fileName || "")}`;
+
+  showLoading();
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    let text;
+    try { 
+      text = new TextDecoder('windows-1252').decode(arrayBuffer); 
+    } catch { 
+      text = new TextDecoder('utf-8').decode(arrayBuffer); 
+    }
+
+    const results = Papa.parse(text, { header: false, skipEmptyLines: true });
+    currentData = results.data;
+    const rowCount = currentData.length > 1 ? currentData.length - 1 : 0;
+    lineCountDiv.textContent = rowCount + " ligne" + (rowCount !== 1 ? "s" : "");
+    renderTable(currentData);
+
+    // === Tri automatique sur la colonne TIME (descendant) ===
+    const baseName = (fileName || "").split(/[\\/]/).pop();
+    const isZfile = baseName.startsWith("Z");
+    const headerRowIndex = isZfile ? 2 : 0;
+    const header = currentData[headerRowIndex].map(c => (c ?? "").toString().toUpperCase());
+
+    const timeColIndex = header.findIndex(h => h.includes("TIME"));
+    if (timeColIndex >= 0) {
+      sortAsc = false;
+      sortTable(timeColIndex);
+    }
+
+  } catch (err) {
+    console.error("Erreur:", err);
+    container.innerHTML = `
+      <div style="padding:20px; background:#ffccbc; color:#d84315; border-radius:8px; font-weight:bold;">
+        ⚠️ Impossible de charger le fichier CSV.<br>
+        Restriction Google Drive: Réessayer plus tard<br>
+        <button id="retryBtn" style="margin-top:10px; background:#e64a19; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">
+          🔄 Réessayer
+        </button>
+      </div>`;
+    const retry = document.getElementById("retryBtn");
+    if (retry) retry.onclick = () => { container.innerHTML = "⏳ Nouvelle tentative..."; loadCSV(); };
+  } finally {
+    hideLoading();
+    updateNavButtons();
+  }
+}
+
+
+// === Utils ===
+function escapeHtml(str){ return (str==null?'':String(str)).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
+
+// === Rendu tableau + toggles colonnes ===
+function renderTable(data){
+  let html='<table id="csvTable">';
+
+  // Détecter si c’est un fichier Z...
+  const fileName=document.getElementById('fileName').textContent||"";
+  const isZfile=fileName.startsWith("Z");
+
+  // Ligne d’en-tête : index 2 pour Z..., sinon index 0
+  const headerRowIndex=isZfile?2:0;
+
+  if(data.length>headerRowIndex){
+    html+='<thead><tr>';
+    data[headerRowIndex].forEach((cell,index)=>{
+      const cls=(index===sortColIndex)?(sortAsc?"sorted-desc":"sorted-asc"):"";
+      html+=`<th class="${cls}" onclick="sortTable(${index})">${escapeHtml((cell??'').toString().trim())}</th>`;
+    });
+    html+='</tr></thead>';
+  }
+
+  html+='<tbody>';
+html+='<tbody>';
+for(let i=data.length-1; i>headerRowIndex; i--){   // on part de la fin
+  html+='<tr>';
+  data[i].forEach((cell,index)=> {
+    html+=`<td>${escapeHtml((cell??'').toString().trim())}</td>`;
+  });
+  html+='</tr>';
+}
+html+='</tbody></table>';
+
+  document.getElementById('tableContainer').innerHTML=html;
+
+  // Panneau de toggles colonnes (reconstruit à chaque rendu)
+  const toggleContainer=document.getElementById('columnToggles');
+  toggleContainer.innerHTML=`<label style="font-weight:bold;"><input type="checkbox" id="selectAll" /> Tout</label>
+                             <label style="font-weight:bold;"><input type="checkbox" id="selectNone" /> Aucune</label>`;
+  visibleColumns = {};
+
+  if(data.length>headerRowIndex){
+    data[headerRowIndex].forEach((cell,index)=>{
+      const colName=(cell??'').toString().trim();
+      const id=`colToggle${index}`;
+      const checked = (columnVisibilityMemory[colName] !== false); 
+      visibleColumns[index]=checked;
+      toggleContainer.innerHTML += `<label><input type="checkbox" id="${id}" data-col="${index}" ${checked?"checked":""} /> ${escapeHtml(colName)}</label>`;
+    });
+
+    // === RÈGLE SPÉCIALE POUR LES FICHIERS Z ===
+    if(isZfile){
+      const allowed=[0,1,2,8]; // colonnes 1,2,3,9 visibles par défaut
+      Object.keys(visibleColumns).forEach(i=>{
+        const keep=allowed.includes(Number(i));
+        visibleColumns[i]=keep;
+        const headerName=(currentData[headerRowIndex][i]??'').toString().trim();
+        columnVisibilityMemory[headerName]=keep;
+        const cb=document.getElementById(`colToggle${i}`);
+        if(cb) cb.checked=keep;
+      });
+      localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+    }
+    // === FIN RÈGLE SPÉCIALE ===
+
+    // Écouteurs toggles individuels
+    toggleContainer.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+      const colIndex=cb.dataset.col;
+      if(colIndex!==undefined){
+        cb.addEventListener('change',()=>{
+          toggleColumn(Number(colIndex), cb.checked);
+          const headerName=(currentData[headerRowIndex][colIndex]??'').toString().trim();
+          columnVisibilityMemory[headerName]=cb.checked;
+          localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+        });
+      }
+    });
+
+    // Tout / Aucune
+    const all=document.getElementById('selectAll');
+    const none=document.getElementById('selectNone');
+    if(all){
+      all.addEventListener('change',e=>{
+        const on=e.target.checked;
+        document.querySelectorAll('#columnToggles input[type="checkbox"]').forEach(cb=>{
+          if(cb.dataset.col!==undefined){
+            cb.checked=on;
+            const idx=Number(cb.dataset.col);
+            toggleColumn(idx,on);
+            const headerName=(currentData[headerRowIndex][idx]??'').toString().trim();
+            columnVisibilityMemory[headerName]=on;
+          }
+        });
+        localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+        if(none) none.checked=false;
+      });
+    }
+    if(none){
+      none.addEventListener('change',e=>{
+        const off=e.target.checked;
+        document.querySelectorAll('#columnToggles input[type="checkbox"]').forEach(cb=>{
+          if(cb.dataset.col!==undefined){
+            cb.checked=!off;
+            const idx=Number(cb.dataset.col);
+            toggleColumn(idx,!off);
+            const headerName=(currentData[headerRowIndex][idx]??'').toString().trim();
+            columnVisibilityMemory[headerName]=!off;
+          }
+        });
+        localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+        if(all) all.checked=false;
+      });
     }
   }
+
+  // Appliquer visibilité mémorisée
+  Object.keys(visibleColumns).forEach(i=>toggleColumn(Number(i), visibleColumns[i], true));
+
+  // Si une colonne numérique a été colorisée précédemment, réappliquer
+  if(lastColorizedColIndex!=null){
+    if(currentData[headerRowIndex] && currentData[headerRowIndex][lastColorizedColIndex]!==undefined){
+      colorizeColumn(lastColorizedColIndex);
+    }
+  }
+
+  // Réappliquer filtre si présent
+  if(lastSearchQuery!==""){
+    const q=lastSearchQuery;
+    document.getElementById("searchInput").value=q;
+    document.querySelectorAll("#csvTable tbody tr").forEach(row=>{
+      row.style.display=row.textContent.toLowerCase().includes(q)?'':'none';
+    });
+  }
+}
+
+
+function toggleColumn(colIndex, visible, skipMemoryUpdate=false){
+  visibleColumns[colIndex]=visible;
+  const table=document.getElementById('csvTable');
+  if(!table) return;
+  table.querySelectorAll('tr').forEach(row=>{
+    const cell=row.children[colIndex];
+    if(cell) cell.style.display=visible?'':'none';
+  });
+  if(!skipMemoryUpdate){
+    const headerName=(currentData[0][colIndex]??'').toString().trim();
+    columnVisibilityMemory[headerName]=visible;
+    localStorage.setItem(VIS_MEM_KEY, JSON.stringify(columnVisibilityMemory));
+  }
+}
+
+// === Détection type ===
+function detectType(val){
+  if(val===null || val===undefined) return 'string';
+  const s=String(val).trim();
+  if(s!=='' && !isNaN(Number(s))) return 'number';
+  const d=new Date(s);
+  if(!isNaN(d.getTime())) return 'date';
+  return 'string';
+}
+
+// === Colorisation colonne numérique (15-70, colonnes contenant "SONDE", "TEMP" ou "T°C") ===
+function colorizeColumn(colIndex) {
+  const table = document.getElementById("csvTable");
+  if (!table) return;
+
+  // Vérifier le nom d'en-tête
+  const headerName = (currentData[0][colIndex] ?? "").toString().toUpperCase();
+  if (
+    !headerName.includes("SONDE") &&
+    !headerName.includes("TEMP") &&
+    !headerName.includes("T°C")
+  ) {
+    return; // pas de coloration si le titre n'a aucun mot clé
+  }
+
+  const cells = [...table.querySelectorAll("tbody tr")].map(r => r.children[colIndex]).filter(Boolean);
+
+  const minVal = 15;
+  const maxVal = 70;
+
+  cells.forEach(cell => {
+    const v = parseFloat(cell.textContent.replace(",", "."));
+    if (!isNaN(v)) {
+      // Normaliser entre 0 et 1 sur la plage 15–70
+      let t = (v - minVal) / (maxVal - minVal);
+      t = Math.max(0, Math.min(1, t));
+
+      let r, g, b;
+
+      if (t < 0.5) {
+        // 15 → 42 : bleu clair → vert
+        const ratio = t / 0.5;
+        r = 0;
+        g = Math.round(150 + (255 - 150) * ratio);
+        b = Math.round(255 - 255 * ratio);
+      } else if (t < 0.75) {
+        // 42 → 56 : vert → jaune
+        const ratio = (t - 0.5) / 0.25;
+        r = Math.round(255 * ratio);
+        g = 255;
+        b = 0;
+      } else if (t < 0.9) {
+        // 56 → 63 : jaune → orange
+        const ratio = (t - 0.75) / 0.15;
+        r = 255;
+        g = Math.round(255 - 90 * ratio);
+        b = 0;
+      } else {
+        // 63 → 70 : orange → rouge
+        const ratio = (t - 0.9) / 0.1;
+        r = 255;
+        g = Math.round(165 - 165 * ratio);
+        b = 0;
+      }
+
+      cell.style.backgroundColor = `rgb(${r},${g},${b})`;
+      cell.style.color = "#000"; // noir pour contraste
+    } else {
+      cell.style.backgroundColor = "";
+      cell.style.color = "";
+    }
+  });
+
+  lastColorizedColIndex = colIndex;
+}
+
+
+
+
+// === Tri (avec coloration auto si numérique) ===
+function sortTable(colIndex){
+  const header=currentData[0];
+  const body=currentData.slice(1);
+  const firstVal = body.find(r=>r[colIndex]!=null)?.[colIndex] ?? '';
+  const type=detectType(firstVal);
+
+  body.sort((a,b)=>{
+    let valA=a[colIndex]??'', valB=b[colIndex]??'';
+    if(type==='number'){ return sortAsc? (Number(valA)-Number(valB)) : (Number(valB)-Number(valA)); }
+    if(type==='date'){ return sortAsc? new Date(valA)-new Date(valB): new Date(valB)-new Date(valA); }
+    valA=String(valA).toLowerCase(); valB=String(valB).toLowerCase();
+    return sortAsc? valA.localeCompare(valB): valB.localeCompare(valA);
+  });
+
+  columnSortMemory.colName=(header[colIndex]??'').toString().trim();
+  columnSortMemory.asc=sortAsc;
+
+  sortAsc=!sortAsc; sortColIndex=colIndex; currentData=[header,...body];
+  renderTable(currentData);
+
+  if(type==='number'){ colorizeColumn(colIndex); } else { lastColorizedColIndex=null; }
+}
+
+// === Recherche ===
+document.getElementById("searchInput").addEventListener("input",function(){
+  lastSearchQuery=this.value.toLowerCase();
+  document.querySelectorAll("#csvTable tbody tr").forEach(row=>{
+    row.style.display=row.textContent.toLowerCase().includes(lastSearchQuery)?'':'none';
+  });
 });
+
+// === Réinitialiser ===
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  document.getElementById("searchInput").value=""; lastSearchQuery="";
+  sortAsc=true; sortColIndex=null; columnSortMemory={colName:null,asc:true};
+  columnVisibilityMemory={}; localStorage.removeItem(VIS_MEM_KEY);
+  lastColorizedColIndex=null;
+
+  if(currentData.length>0){
+    currentData=[currentData[0], ...currentData.slice(1)];
+    renderTable(currentData);
+  }
+  const tableContainer=document.getElementById("tableContainer");
+  tableContainer.classList.remove("flash-red"); void tableContainer.offsetWidth; tableContainer.classList.add("flash-red");
+});
+
+// === Afficher / Masquer colonnes (persistance panneau) ===
+const toggleBtn=document.getElementById('toggleColumnsBtn');
+const toggles=document.getElementById('columnToggles');
+toggleBtn.setAttribute('aria-controls','columnToggles');
+if(localStorage.getItem('columnTogglesOpen')==='1'){ toggles.classList.add('open'); toggleBtn.setAttribute('aria-expanded','true'); }
+else{ toggleBtn.setAttribute('aria-expanded','false'); }
+toggleBtn.addEventListener('click',()=>{
+  const isOpen=toggles.classList.toggle('open');
+  toggleBtn.setAttribute('aria-expanded', isOpen ? 'true':'false');
+  localStorage.setItem('columnTogglesOpen', isOpen ? '1':'0');
+});
+
+// === Export Excel ===
+document.getElementById("exportExcel").addEventListener("click",()=>{
+  if(currentData.length===0) return;
+  let csvName=(document.getElementById('fileName').textContent||'').replace(/\.csv$/i,"");
+  let excelFileName=csvName+".xlsx";
+  const match=csvName.match(/^SA(\d+)_([0-9]{8})$/);
+  if(match){
+    const numRaw=match[1]; const numTwoDigits=parseInt(numRaw,10).toString().padStart(2,"0");
+    const dateRaw=match[2]; excelFileName=`Séchoir-${numTwoDigits}_${dateRaw}.xlsx`;
+  }
+  const ws=XLSX.utils.aoa_to_sheet(currentData);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
+  XLSX.writeFile(wb,excelFileName);
+});
+
+// === Export PDF ===
+document.getElementById("exportPDF").addEventListener("click",()=>{
+  if(currentData.length===0) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation:"l", unit:"pt", format:"a4"});
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Récupérer le chemin complet depuis l’URL
+  let fullPath = new URLSearchParams(window.location.search).get('fileName') || "";
+  let parts = fullPath.split(/[\\/]/);
+  let csvName = parts.pop() || "";
+
+  // Extraire 2 dossiers parents si dispos
+  let parents = "";
+  if(parts.length >= 2){
+    parents = parts.slice(-2).join(" / ");
+  } else if(parts.length === 1){
+    parents = parts[0];
+  }
+
+// 🔹 Construction du titre et du nom de fichier PDF (identique à viewer02)
+let titleText = "";
+let pdfFileName = "";
+let folderName = (document.getElementById("folderName")?.textContent || "").trim();
+// ne pas nettoyer : on veut garder le chiffre intact
+let folderNamePDF = cleanText(folderName);  // on enlève uniquement emojis/FE0F
+
+
+
+if (csvName.startsWith("Z")) {
+  // === Fichier type Historique Z ===
+  const matchZ = csvName.match(/^Z\d+(\d{2})_(\d{8})/);
+  if (matchZ) {
+    const num = parseInt(matchZ[1], 10);
+    const d = matchZ[2];
+    const dateFR = `${d.slice(6, 8)}/${d.slice(4, 6)}/${d.slice(0, 4)}`;
+    titleText = `Historique Séchoir ${num} – ${dateFR}`;
+    pdfFileName = `Z3_S${String(num).padStart(2, "0")}_${d}.pdf`;
+  } else {
+    titleText = csvName.replace(/\.csv$/i, "");
+    pdfFileName = csvName.replace(/\.csv$/i, ".pdf");
+  }
+} else {
+  // === Fichier type Séchoir SA ===
+  const match = csvName.match(/^SA(\d+)_([0-9]{8})/);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    const d = match[2];
+    const dateFR = `${d.slice(6, 8)}/${d.slice(4, 6)}/${d.slice(0, 4)}`;
+    const numTxt = num > 0 ? `Séchoir ${num}` : "";
+titleText = folderNamePDF
+  ? `${folderNamePDF} – ${numTxt} – ${dateFR}`
+  : `${numTxt} – ${dateFR}`;
+
+const safeFolder = folderNamePDF.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_");
+
+    pdfFileName = num > 0
+      ? `${safeFolder}_S${String(num).padStart(2, "0")}_${d}.pdf`
+      : `${safeFolder}_${d}.pdf`;
+  } else {
+    titleText = csvName.replace(/\.csv$/i, "");
+    pdfFileName = csvName.replace(/\.csv$/i, ".pdf");
+  }
+}
+
+
+  // Couleur danger du thème actif
+  function getCSSVar(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function hexToRgb(hex){
+    hex = hex.replace("#","");
+    if(hex.length===3){hex = hex.split("").map(c=>c+c).join("");}
+    const bigint = parseInt(hex,16);
+    return {r:(bigint>>16)&255, g:(bigint>>8)&255, b:bigint&255};
+  }
+  const danger = getCSSVar('--danger') || '#d84315';
+  const {r,g,b} = hexToRgb(danger);
+
+  // Écrire titre + 2 parents si présents
+  doc.setFontSize(14);
+  doc.setTextColor(r,g,b);
+
+  let finalTitle = titleText;
+  if(parents){
+    finalTitle = parents + " / " + titleText;
+  }
+
+doc.setProperties({ title: finalTitle });
+
+
+  
+  const lines = doc.splitTextToSize(finalTitle, pageWidth - 40);
+  doc.text(lines, 40, 40);
+
+  // Contenu du tableau
+  const visibleIdx = Object.keys(visibleColumns)
+    .filter(i => visibleColumns[i])
+    .map(i => parseInt(i));
+
+  let head, body;
+  if (csvName.startsWith("Z")) {
+    // Pour Z... : en-têtes sur la 3ème ligne (index 2)
+    head = [ visibleIdx.map(i => String(currentData[2][i] ?? "")) ];
+    body = currentData.slice(3).map(r => visibleIdx.map(i => String(r[i] ?? "")) );
+  } else {
+    // Cas normal : en-têtes sur la 1ère ligne (index 0)
+    head = [ visibleIdx.map(i => String(currentData[0][i] ?? "")) ];
+    body = currentData.slice(1).map(r => visibleIdx.map(i => String(r[i] ?? "")) );
+  }
+
+  doc.autoTable({
+    head,
+    body,
+    startY:60,
+    styles:{fontSize:8, cellPadding:3},
+    headStyles:{fillColor:[r,g,b]}  // couleur thème
+  });
+
+
+// pdfFileName reste tel quel
+
+
+  
+  doc.save(pdfFileName);
+});
+// === Init ===
+window.onload=()=>{
+  const savedTheme=localStorage.getItem("selectedTheme")||"orange"; 
+  setTheme(savedTheme);
+  loadCSV();
+  updateNavButtons();
+};
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
