@@ -1458,6 +1458,8 @@ canvas.addEventListener("mousemove", (ev) => {
 
 // === CLIC SUR UNE NOTE EXISTANTE ===
 canvas.addEventListener("click", (ev) => {
+    // 🚫 Ne pas interférer si on est en mode ajout de note
+  if (chart.$noteMode) return;
   if (!chart) return;
   const zones = chart.$noteHitZones || [];
   if (!zones.length) return;
@@ -1479,6 +1481,10 @@ canvas.addEventListener("click", (ev) => {
    
 // === Gestion clic sur une note existante ===
 canvas.addEventListener("click", (ev) => {
+
+  // 🚫 Si on est en mode ajout de note → on sort
+  if (chart.$noteMode) return;
+  
   // 🚫 Si le mode moyenne est inactif, on sort
   if (!avgMode) return;
 
@@ -1638,6 +1644,55 @@ canvas.addEventListener("mouseup", async () => {
   notesData = notesData.filter(n => n.type !== "avg");
   resetAvgCycle();
 
+// === Réattacher le listener d’ajout de note sur le nouveau canvas ===
+const noteAdder = (ev) => {
+  if (!chart || !chart.$noteMode) return;
+
+  const rect = chart.canvas.getBoundingClientRect();
+  const xPix = ev.clientX - rect.left;
+  const yPix = ev.clientY - rect.top;
+
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+
+  const xValue = xScale.getValueForPixel(xPix);
+  const yValue = yScale.getValueForPixel(yPix);
+  clickedPoint = { x: xValue, y: yValue };
+  chart.$noteMode = false;
+
+  // petit effet visuel
+  const ping = document.createElement("div");
+  Object.assign(ping.style, {
+    position: "absolute",
+    left: rect.left + xPix - 10 + "px",
+    top: rect.top + yPix - 10 + "px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    background: "rgba(255,112,67,0.6)",
+    transform: "scale(0.5)",
+    opacity: "1",
+    pointerEvents: "none",
+    zIndex: "2000",
+    transition: "transform 0.6s ease-out, opacity 0.8s ease-out"
+  });
+  document.body.appendChild(ping);
+  requestAnimationFrame(() => {
+    ping.style.transform = "scale(2)";
+    ping.style.opacity = "0";
+  });
+  setTimeout(() => ping.remove(), 900);
+
+  // ouverture de la popup
+  coordsDisplay.textContent = `📍 X: ${new Date(xValue).toLocaleString()} | Y: ${yValue.toFixed(2)}`;
+  popup.classList.add("active");
+  txt.value = "";
+  status.textContent = "";
+  txt.focus();
+};
+
+// 🔁 rattachement sur le canvas fraîchement recréé
+chart.canvas.addEventListener("click", noteAdder);
 
    
   chart.update();
@@ -2273,55 +2328,9 @@ noteBtn.addEventListener("click", () => {
 });
 
 
-// 🟢 Étape 2 : clic libre sur le graphe pour définir le point de note + effet visuel
-document.getElementById("myChart").addEventListener("click", (ev) => {
-  if (!chart || !chart.$noteMode) return;
 
-  const rect = chart.canvas.getBoundingClientRect();
-  const xPix = ev.clientX - rect.left;
-  const yPix = ev.clientY - rect.top;
 
-  const xScale = chart.scales.x;
-  const yScale = chart.scales.y;
 
-  // Conversion pixels → valeurs logiques du graphe
-  const xValue = xScale.getValueForPixel(xPix);
-  const yValue = yScale.getValueForPixel(yPix);
-  clickedPoint = { x: xValue, y: yValue };
-  chart.$noteMode = false;
-
-  // 💫 Crée un petit effet de "ping" visuel sur le canvas
-  const ping = document.createElement("div");
-  Object.assign(ping.style, {
-    position: "absolute",
-    left: rect.left + xPix - 10 + "px",
-    top: rect.top + yPix - 10 + "px",
-    width: "20px",
-    height: "20px",
-    borderRadius: "50%",
-    background: "rgba(255,112,67,0.6)", // orange léger
-    transform: "scale(0.5)",
-    opacity: "1",
-    pointerEvents: "none",
-    zIndex: "2000",
-    transition: "transform 0.6s ease-out, opacity 0.8s ease-out"
-  });
-  document.body.appendChild(ping);
-
-  requestAnimationFrame(() => {
-    ping.style.transform = "scale(2)";
-    ping.style.opacity = "0";
-  });
-
-  setTimeout(() => ping.remove(), 900);
-
-  // 🗒️ Ouvre la popup de saisie
-  coordsDisplay.textContent = `📍 X: ${new Date(xValue).toLocaleString()} | Y: ${yValue.toFixed(2)}`;
-  popup.classList.add("active");
-  txt.value = "";
-  status.textContent = "";
-  txt.focus();
-});
 
 
 // 🟢 Étape 3 : annuler la saisie
@@ -2672,6 +2681,9 @@ function showConfirm(message, onConfirm) {
   
 </body>
 </html>
+
+
+
 
 
 
