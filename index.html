@@ -11,7 +11,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Séchoirs St Usage</title>
+<title>Invivo St Usage</title>
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
 
@@ -472,6 +472,33 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 }
 
 
+.gaz-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 20px;
+}
+
+.gaz-total {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  color: #3e2723;
+}
+
+.gaz-total-m3 {
+  background: linear-gradient(180deg, #fff59d, #fbc02d);
+}
+
+.gaz-total-kwh {
+  background: linear-gradient(180deg, #ffd54f, #ffb300);
+}
+
+
+
+  
 
 </style>
 
@@ -519,6 +546,12 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
     <button id="exportCsvBtn" style="display:none;" title="Voir les barres graphiques de consommation par jour">Graphique</button>
     <button id="exportExcelGazBtn" style="display:none;" title="Exporter les données en Excel (kWh, m³, durée, tonnage)">Export Excel</button>
 
+
+
+
+
+
+    
 
   </div>
 
@@ -590,7 +623,7 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 /* ----------- Config Drive ----------- */
 const ROOT_FOLDER_ID="1n2ETUlB6CfK27qsHvzCwAvDHtNCg5nnH";
 // ✅ Active/désactive les calculs de consommation gaz
-const ENABLE_GAZ_CALC = false;  // ← passe à false pour désactiver
+const ENABLE_GAZ_CALC = False;  // ← passe à false pour désactiver
 
 // === Dictionnaire global des notes ===
 // storedNotes["YYYYMMDD"] = [ "txt1", "txt2", ... ]
@@ -1187,13 +1220,35 @@ downloadBtn.style.display="inline-block";
 const exportBtn = document.getElementById("exportCsvBtn");
 const excelBtn  = document.getElementById("exportExcelGazBtn");
 
+
+
+// === Gestion affichage boutons et pastilles GAZ ===
 if (folderName.toLowerCase().includes("consommation gaz")) {
-    exportBtn.style.display = "inline-block";
-    excelBtn.style.display  = "inline-block";
+  exportBtn.style.display = "inline-block";
+  excelBtn.style.display  = "inline-block";
+
+  // --- Création des pastilles totales GAZ si absentes ---
+  const excelBtnGaz = document.getElementById("exportExcelGazBtn");
+  const existingSummary = document.querySelector(".gaz-summary");
+  if (excelBtnGaz && !existingSummary) {
+    const summaryDiv = document.createElement("div");
+    summaryDiv.className = "gaz-summary";
+    summaryDiv.innerHTML = `
+      <span class="gaz-total gaz-total-m3" title="Total m³ calculé">m³ total: --</span>
+      <span class="gaz-total gaz-total-kwh" title="Total kWh calculé">kWh total: --</span>
+    `;
+    excelBtnGaz.insertAdjacentElement("afterend", summaryDiv);
+  }
 } else {
-    exportBtn.style.display = "none";
-    excelBtn.style.display  = "none";
+  // --- Masquage des boutons GAZ ---
+  exportBtn.style.display = "none";
+  excelBtn.style.display  = "none";
+
+  // --- Suppression des pastilles totales GAZ ---
+  const existingSummary = document.querySelector(".gaz-summary");
+  if (existingSummary) existingSummary.remove();
 }
+
 
 
 
@@ -1455,6 +1510,7 @@ if (
   f.name.toLowerCase().endsWith(".csv")
 ) {
 
+  // 🟡 Groupe de 4 boutons d'affichage
   html += `
     <div class="gaz-group">
       <button class="gaz-btn" title="kWh consommés sur la journée" disabled>⏳ kWh...</button>
@@ -1476,31 +1532,29 @@ if (
       let diffMinutes = 0;
       let diffKwh = 0;
       let diffM3 = 0;
-
+      let kwhEstime = false;
 
       if (lines.length > 2) {
-
         const firstCols = lines[1].split(",");
         const lastCols  = lines[lines.length - 1].split(",");
 
+        // --- 1️⃣ Calcul KWh brut ---
         const kFirst = parseFloat(firstCols[2].replace(/"/g,""));
         const kLast  = parseFloat(lastCols[2].replace(/"/g,""));
-        const m3First = parseFloat(firstCols[3+1].replace(/"/g,"")); // colonne après kWh
-const m3Last  = parseFloat(lastCols[3+1].replace(/"/g,""));
-diffM3 = m3Last - m3First;
-
-
-
         if (isFinite(kFirst) && isFinite(kLast)) diffKwh = kLast - kFirst;
 
+        // --- 2️⃣ Calcul m³ ---
+        const m3First = parseFloat(firstCols[4].replace(/"/g,""));
+        const m3Last  = parseFloat(lastCols[4].replace(/"/g,""));
+        if (isFinite(m3First) && isFinite(m3Last)) diffM3 = m3Last - m3First;
+
+        // --- 3️⃣ Durée de fonctionnement ---
         let active = 0;
         for (let i = 1; i < lines.length; i++) {
           const prev = lines[i - 1].split(",");
           const curr = lines[i].split(",");
-
           const kPrev = parseFloat(prev[2].replace(/"/g,""));
           const kCurr = parseFloat(curr[2].replace(/"/g,""));
-
           if (isFinite(kPrev) && isFinite(kCurr) && kCurr > kPrev) active++;
         }
         diffMinutes = active;
@@ -1510,149 +1564,167 @@ diffM3 = m3Last - m3First;
       const M = String(diffMinutes % 60).padStart(2,"0");
       const dureeFormatee = `${H}:${M}`;
 
+
+/********************************************************************************************
+ * ⚠️⚠️⚠️ BLOC DE CORRECTION TEMPORAIRE - FICHIERS CSV CORROMPUS ⚠️⚠️⚠️
+ * -----------------------------------------------------------------------------------------
+ * Les jours suivants contiennent des données fausses (décalées d’un jour) :
+ *   - 21/09
+ *   - 28/09
+ *   - 05/10
+ *   - 12/10
+ *   - 19/10
+ * On force ces jours à zéro (0 m³, 0 kWh, 0 durée).
+ * À SUPPRIMER LORSQUE LES CSV SERONT CORRIGÉS SUR LE DRIVE.
+ ********************************************************************************************/
+
+try {
+  // Extraire la date directement depuis le nom du fichier CSV
+  const m = f.name.match(/(\d{8})/);
+  if (m) {
+    const yyyy = m[1].slice(0, 4);
+    const mm = m[1].slice(4, 6);
+    const dd = m[1].slice(6, 8);
+    const shortDate = `${dd}/${mm}`;
+    const badDates = ["21/09", "28/09", "05/10", "12/10", "19/10"];
+    if (badDates.includes(shortDate)) {
+      console.warn("⚠️ Fichier CSV corrompu détecté :", shortDate, "→ valeurs forcées à 0");
+      diffKwh = 0;
+      diffM3 = 0;
+      diffMinutes = 0;
+    }
+  }
+} catch (err) {
+  console.warn("Erreur dans le bloc de correction CSV:", err);
+}
+
+/********************************************************************************************
+ * ⚠️⚠️⚠️ FIN DU BLOC DE CORRECTION TEMPORAIRE - À SUPPRIMER PLUS TARD ⚠️⚠️⚠️
+ ********************************************************************************************/
+
+
+
+
+
+      
       const btns = tdAction.querySelectorAll(".gaz-btn");
-const btnKwh    = btns[0];
-const btnM3     = btns[1];
-const btnHeures = btns[2];
-const btnAvg    = btns[3];
+      const btnKwh    = btns[0];
+      const btnM3     = btns[1];
+      const btnHeures = btns[2];
+      const btnAvg    = btns[3];
 
-      /* ===========================
-         🎨 FORMATAGE, COULEURS & AFFICHAGE
-         =========================== */
-
-      const rounded = Math.round(diffKwh);
-
-      // 🔥 ERREUR si négatif
-      if (rounded < 0) {
-        btnKwh.textContent = "ERREUR";
-        btnKwh.style.background = "linear-gradient(180deg, #ffccbc, #d32f2f)";
-        btnKwh.style.color = "#fff";
-        btnHeures.textContent = `⏱ ${dureeFormatee}`;
-        btnAvg.textContent = "ERREUR";
+      // ============================
+      // 🔸 Si aucune activité : on masque tout
+      // ============================
+      if ((diffM3 === 0 || !isFinite(diffM3)) && (diffKwh === 0 || !isFinite(diffKwh))) {
+        btns.forEach(b => b.style.display = "none");
         return;
       }
 
-      // 🔥 ERREUR si > 400000
-      if (rounded > 400000) {
-        btnKwh.textContent = "ERREUR";
-        btnKwh.style.background = "linear-gradient(180deg, #ffccbc, #d32f2f)";
-        btnKwh.style.color = "#fff";
-        btnHeures.textContent = `⏱ ${dureeFormatee}`;
-        btnAvg.textContent = "ERREUR";
-        return;
+      // ============================
+// 🔸 Affichage m³ avec dégradé dynamique selon la valeur
+btnM3.textContent = diffM3.toFixed(1) + " m³";
+btnM3.style.minWidth = "125px";
+btnM3.style.color = "#5d4037";
+
+// Couleurs de base (de jaune → rouge)
+const minM3 = 1000;
+const maxM3 = 5000;
+let ratio = (diffM3 - minM3) / (maxM3 - minM3);
+ratio = Math.max(0, Math.min(1, ratio)); // clamp entre 0 et 1
+
+// Interpolation entre jaune (255,245,157) et rouge (255,112,67)
+const r1 = 255, g1 = 245, b1 = 157; // jaune
+const r2 = 255, g2 = 112, b2 = 67;  // rouge
+const r = Math.round(r1 + (r2 - r1) * ratio);
+const g = Math.round(g1 + (g2 - g1) * ratio);
+const b = Math.round(b1 + (b2 - b1) * ratio);
+const color1 = `rgb(${r},${g},${b})`;
+const color2 = `rgb(${Math.max(r-20,0)},${Math.max(g-20,0)},${Math.max(b-20,0)})`;
+
+btnM3.style.background = `linear-gradient(180deg, ${color1}, ${color2})`;
+
+
+      // ============================
+      // 🔸 Calcul du kWh (avec correction si anormal)
+      // ============================
+      let rounded = Math.round(diffKwh);
+      if (rounded < 0 || rounded > 400000) {
+        rounded = Math.round(diffM3 * 32.3);
+        kwhEstime = true;
       }
 
-      // 🫥 Masqué si 0
-      if (rounded === 0) {
-        btnKwh.style.display = "none";
-        btnHeures.style.display = "none";
-        btnAvg.style.display = "none";
-        btnM3.style.display = "none";
-
-        return;
-      }
-
-      // --- Valeur normale ---
-      const padded = String(rounded).padStart(7, " ");
-
-      let v = Math.min(Math.max(rounded, 0), 200000);
-      let bg = "";
-      let textColor = "#1b5e20";
-
-      if (v <= 10000) {
-        const ratio = v / 10000;
-        const g = Math.round(230 - 60 * ratio);
-        const r = Math.round(200 + 55 * ratio);
-        bg = `linear-gradient(180deg, rgb(${r},${g},100), rgb(${r+20},${g+20},120))`;
-        textColor = "#2e7d32";
-      } else {
-        const ratio = (v - 10000) / 190000;
-        const r = 255;
-        const g = Math.round(235 - 155 * ratio);
-        bg = `linear-gradient(180deg, rgb(${r},${g},80), rgb(${r-20},${g-30},60))`;
-        textColor = "#3e2723";
-      }
-
-      btnKwh.textContent = `${padded} kWh`;
-      btnKwh.style.background = bg;
-      btnKwh.style.color = textColor;
-      btnKwh.style.minWidth = "120px";
-
-      btnM3.textContent = diffM3 + " m³";
-btnM3.style.background = bg;
-btnM3.style.color = textColor;
-btnM3.style.minWidth = "120px";
-
-
+      // ============================
+      // 🔸 Durée de chauffe
+      // ============================
       btnHeures.textContent = `⏱ ${dureeFormatee}`;
       btnHeures.style.background = "linear-gradient(180deg, #bbdefb, #64b5f6)";
       btnHeures.style.color = "#0d47a1";
       btnHeures.style.minWidth = "120px";
 
-      /* ===========================
-         📊 Conso moyenne / heure
-         =========================== */
-
+      // ============================
+      // 🔸 Moyenne kWh/h
+      // ============================
       const hours = diffMinutes / 60;
+      let avg = 0;
+      let moyenneEstimee = false;
 
-      if (hours === 0) {
-        btnAvg.style.display = "none";
-        return;
+      if (hours > 0 && rounded > 0) {
+        avg = rounded / hours;
+
+        // 🚨 Correction si moyenne incohérente
+        if (avg < 1000) {
+          rounded = Math.round(diffM3 * 32.3); // recalcule un kWh cohérent
+          avg = rounded / hours;
+          moyenneEstimee = true;
+          kwhEstime = true;
+        }
+
+        btnAvg.textContent = `${avg.toFixed(1)} kWh/h`;
+      } else {
+        btnAvg.textContent = "--";
       }
 
-      const avg = rounded / hours;
+      // ============================
+      // 🔸 Affichage du kWh (normal ou estimé)
+      // ============================
+      const padded = String(rounded).padStart(7, " ");
+      btnKwh.textContent = `${padded} kWh`;
+      btnKwh.style.minWidth = "120px";
 
-      // 🚨 ERREUR si < 1000 kWh/h
-      if (avg < 1000) {
-        btnAvg.textContent = "ERREUR";
-        btnAvg.style.background = "#ff8a80";
-        btnAvg.style.color = "#b71c1c";
-        return;
+      if (kwhEstime || moyenneEstimee) {
+        btnKwh.style.background = "linear-gradient(180deg, #bbdefb, #42a5f5)";
+        btnKwh.style.color = "#0d47a1";
+        btnAvg.style.background = "linear-gradient(180deg, #c5cae9, #7986cb)";
+        btnAvg.style.color = "#1a237e";
+      } else {
+        btnKwh.style.background = "linear-gradient(180deg, #ffd54f, #ffb300)";
+        btnKwh.style.color = "#3e2723";
+        btnAvg.style.background = "linear-gradient(180deg, #e1f5fe, #81d4fa)";
+        btnAvg.style.color = "#01579b";
       }
 
-      btnAvg.textContent = `${avg.toFixed(1)} kWh/h`;
-      btnAvg.style.background = "linear-gradient(180deg, #e1f5fe, #81d4fa)";
-      btnAvg.style.color = "#01579b";
-      btnAvg.style.minWidth = "90px";
-      btnAvg.style.fontSize = "12px";
-
-/* ===========================
-   📦 TONNAGE — Pré-calcul automatique
-   =========================== */
-
-const dateStr = tdDate.textContent.split(" ")[0]; // YYYY-MM-DD
-
-// 🔍 Récupère le chemin complet du site
-const fullPath = localStorage.getItem("lastFolderPath") || "";
-const siteRoot = fullPath.split("/")[0];   // ex: "Valbonne"
-
-// 🔧 Appel correct
-let tonnage = await getTonnageForDate(siteRoot, dateStr);
-
-if (!isFinite(tonnage)) tonnage = 0;
+      // ============================
+      // 🔸 TONNAGE
+      // ============================
+      const dateStr = tdDate.textContent.split(" ")[0];
+      const fullPath = localStorage.getItem("lastFolderPath") || "";
+      const siteRoot = fullPath.split("/")[0];
+      let tonnage = await getTonnageForDate(siteRoot, dateStr);
+      if (!isFinite(tonnage)) tonnage = 0;
       tr.dataset.tonnage = Number(tonnage.toFixed(1));
 
 
 
+updateGazTotals();
 
 
-
-
-
-
-
-
-
-
-
+      
     } catch (err) {
       console.warn("Erreur GAZ:", err);
     }
   })();
 }
-
-
-
 
 
 
@@ -2427,6 +2499,37 @@ document.getElementById("exportExcelGazBtn").addEventListener("click", function 
 
 
 
+
+
+
+// === Fonction de cumul global des GAZ ===
+function updateGazTotals() {
+  const totalM3Span = document.querySelector(".gaz-total-m3");
+  const totalKwhSpan = document.querySelector(".gaz-total-kwh");
+  if (!totalM3Span || !totalKwhSpan) return; // pas de pastilles visibles
+
+  let totalM3 = 0;
+  let totalKwh = 0;
+
+  document.querySelectorAll(".gaz-group").forEach(group => {
+    const btns = group.querySelectorAll(".gaz-btn");
+    if (btns.length >= 2) {
+      const m3Text = btns[1].textContent.replace(/[^\d.]/g, "");
+      const kwhText = btns[0].textContent.replace(/[^\d.]/g, "");
+      const m3 = parseFloat(m3Text);
+      const kwh = parseFloat(kwhText);
+      if (isFinite(m3)) totalM3 += m3;
+      if (isFinite(kwh)) totalKwh += kwh;
+    }
+  });
+
+  totalM3Span.textContent = `m³ total: ${totalM3.toFixed(1)}`;
+  totalKwhSpan.textContent = `kWh total: ${Math.round(totalKwh).toLocaleString("fr-FR")}`;
+}
+
+
+  
+
 /* ----------- Init ----------- */
 window.onload=()=>{
   updateNetworkStatus();
@@ -2452,8 +2555,75 @@ if (last) {
 }
 
 };
+
+
+<!-- === FIN DE TON SCRIPT PRINCIPAL === -->
 </script>
+
+<!-- === Fonction de nettoyage du cache === -->
+<script>
+function clearBrowserCache() {
+  if (confirm('🧽 Vider le cache local du navigateur ?')) {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          for (let name of names) caches.delete(name);
+        });
+      }
+
+      alert('✅ Cache local vidé.\nLa page va être rechargée.');
+      location.reload(true);
+    } catch (err) {
+      console.error('Erreur pendant le nettoyage du cache :', err);
+      alert('Erreur pendant le nettoyage du cache.');
+    }
+  }
+}
+</script>
+
+<div id="visitCounter"
+  style="position:fixed;bottom:10px;left:10px;
+  background:#ffd54f;color:#5d4037;
+  border-radius:12px;padding:4px 10px;
+  box-shadow:0 0 6px rgba(0,0,0,0.2);
+  font-size:12px;font-weight:bold;z-index:2000;">
+  👁️ Chargement...
+</div>
+
+<script>
+fetch("https://smes21540.netlify.app/.netlify/functions/visits?site=Invivo_St_Usage")
+  .then(r => r.json())
+  .then(d => {
+    const el = document.getElementById("visitCounter");
+    el.textContent = `👁️ ${d.visits} visite${d.visits > 1 ? "s" : ""} cette semaine`;
+  })
+  .catch(err => {
+    console.error("Erreur compteur:", err);
+    document.getElementById("visitCounter").textContent = "👁️ --";
+  });
+</script>
+
+
+
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
