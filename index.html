@@ -2595,28 +2595,28 @@ function clearBrowserCache() {
 
 <script>
 (async () => {
-  const SITE_NAME = "Invivo_St_Usage";
+  const SITE_NAME = "Invivo_St_Usage"; // ⚠️ à changer selon le site
   const VISIT_KEY = `visits_${SITE_NAME}`;
   const LAST_SEND_KEY = `lastSend_${SITE_NAME}`;
   const COUNTER_EL = document.getElementById("visitCounter");
 
   function nowISO() { return new Date().toISOString(); }
 
-  // 1️⃣ On incrémente la visite locale
+  // 1️⃣ Incrémentation locale à chaque visite
   let localCount = parseInt(localStorage.getItem(VISIT_KEY) || "0", 10);
   localCount++;
   localStorage.setItem(VISIT_KEY, localCount);
 
-  // 2️⃣ Vérifie si on peut envoyer
+  // 2️⃣ Vérifie si on peut envoyer (toutes les 10 minutes)
   const lastSend = localStorage.getItem(LAST_SEND_KEY);
-  const twentyMinutes = 20 * 60 * 1000;
-  const canSend =
-    !lastSend || new Date() - new Date(lastSend) > twentyMinutes;
+  const tenMinutes = 10 * 60 * 1000;
+  const canSend = !lastSend || new Date() - new Date(lastSend) > tenMinutes;
 
-  if (canSend && navigator.onLine) {
+  // 3️⃣ Fonction d’envoi vers Netlify
+  async function sendVisits(countToSend) {
     try {
       const resp = await fetch(
-        `https://smes21540.netlify.app/.netlify/functions/visits?site=${SITE_NAME}&add=${localCount}`
+        `https://smes21540.netlify.app/.netlify/functions/visits?site=${SITE_NAME}&add=${countToSend}`
       );
       const data = await resp.json();
       localStorage.setItem(VISIT_KEY, 0);
@@ -2626,13 +2626,29 @@ function clearBrowserCache() {
       console.error("Erreur envoi visites :", err);
       COUNTER_EL.textContent = "👁️ --";
     }
+  }
+
+  // 4️⃣ Envoi différé si plus de 10 minutes écoulées
+  if (canSend && navigator.onLine && localCount > 0) {
+    await sendVisits(localCount);
   } else {
-    // Affiche provisoirement le total local
     COUNTER_EL.textContent = `👁️ +${localCount} (local)`;
   }
-})();
 
+  // 5️⃣ Envoi automatique à la fermeture de la page
+  window.addEventListener("beforeunload", () => {
+    const count = parseInt(localStorage.getItem(VISIT_KEY) || "0", 10);
+    if (count > 0 && navigator.onLine) {
+      navigator.sendBeacon(
+        `https://smes21540.netlify.app/.netlify/functions/visits?site=${SITE_NAME}&add=${count}`
+      );
+      localStorage.setItem(VISIT_KEY, 0);
+      localStorage.setItem(LAST_SEND_KEY, nowISO());
+    }
+  });
+})();
 </script>
+
 
 
 
