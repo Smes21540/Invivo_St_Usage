@@ -58,14 +58,17 @@
     .controls button{flex:0 0 auto; width:auto; display:inline-block;}
 
     /* Zone graphe */
-.graph-wrapper {
-  display: flex;
-  align-items: stretch;   /* le canvas prend toute la hauteur */
-  justify-content: center;
-  gap: 20px;
-  margin-bottom: 40px;
-  height: 1000px;          /* hauteur fixée comme le canvas */
+.graph-wrapper{
+  display:flex;
+  align-items:stretch;
+  justify-content:center;
+  gap:20px;
+  margin-bottom:20px;
+
+  /* hauteur écran – header + barres */
+  height: calc(100vh - 160px);
 }
+
 
 .graph-side {
   display: flex;
@@ -73,34 +76,30 @@
   justify-content: center; /* centre verticalement si le menu est plus petit */
 }
 
-#myChart {
-  width: 100%;
-  aspect-ratio: 16/9;
-  max-height: 1000px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px var(--shadow);
-  display: block;
-  margin: 0 auto;
+#myChart{
+  width:100%;
+  height:100% !important;   /* 🔑 prend toute la hauteur dispo */
+  background:#fff;
+  border-radius:8px;
+  box-shadow:0 4px 12px var(--shadow);
+  display:block;
 }
 
-.y-columns {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 
-  /* hauteur adaptative */
-  max-height: 1000px;      /* ne jamais dépasser 1000px */
-  height: auto;            /* prend la taille du contenu si < 1000px */
-
-  overflow-y: auto;        /* ajoute une barre de défilement si trop long */
-  border: 1px solid #ddd;
-  padding: 6px;
-  border-radius: 6px;
-  background: var(--panel);
-  scrollbar-width: thin;
-  width: 220px;
+.y-columns{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  height:100%;
+  max-height:100%;
+  overflow-y:auto;
+  border:1px solid #ddd;
+  padding:6px;
+  border-radius:6px;
+  background:var(--panel);
+  width:220px;
 }
+
 
 
 
@@ -405,7 +404,7 @@
 
   <!-- Zone centrale : graphe -->
   <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
-    <canvas id="myChart" width="1400" height="1000"></canvas>
+    <canvas id="myChart"></canvas>
     <input type="color" id="colorPicker" style="display:none;" />
     <div id="dateLabels" style="text-align:center; margin-top:8px; font-weight:bold; color:var(--danger);"></div>
   </div>
@@ -455,10 +454,34 @@
 
 
   let baseFileName="", baseFileId="", headers=[], timeField="", baseDateYYYYMMDD="";
-  let colors=[]; let themeMenuTimer;
-  let loadedDays=new Set(); let saMeta=null;
-  let customColors = {}; // mémorise les couleurs choisies par label
-  let initialMin = null, initialMax = null;
+let themeMenuTimer;
+let loadedDays=new Set(); let saMeta=null;
+
+let customColors = {}; // mémorise les couleurs choisies par label
+
+// 🎨 Palette FIXE pour les séries (indépendante du thème)
+const SERIES_COLORS = [
+  "#800020", // rouge bordeaux
+  "#e53935", // rouge vif
+  "#f57c00", // orange foncé
+  "#ff9800", // orange vif
+
+  "#2196f3", // bleu
+  "#4caf50", // vert
+  "#9c27b0", // violet
+  "#00bcd4", // cyan
+  "#8bc34a", // vert clair
+  "#607d8b", // gris bleuté
+  "#795548", // marron
+  "#3f51b5"  // indigo
+];
+
+
+// Couleur stable par nom de courbe (clé = nom colonne)
+let seriesColorMap = {};
+
+let initialMin = null, initialMax = null;
+
 
 let avgState = "idle";  // idle | first | second
 let avgStart = null;
@@ -478,19 +501,9 @@ let avgStart = null;
 function applyThemeVars(vars){
   const r=document.documentElement;
   Object.entries(vars).forEach(([k,v])=>r.style.setProperty(k,v));
-  colors = buildPalette();
-  if(chart){
-    chart.data.datasets.forEach((ds,i)=>{
-      const baseLabel = ds.label.replace(" (lissé)", "");
-      const saved = customColors[baseLabel];
-      const c = saved || colors[i % colors.length];
-      ds.borderColor = c;
-      ds.backgroundColor = c;
-      ds.pointBackgroundColor = c;
-      ds.pointBorderColor = c;
-    });
-    chart.update('none');
-  }
+// ⚠️ Le changement de thème ne recolorie plus les courbes
+if (chart) chart.update('none');
+
 }
 
   
@@ -510,7 +523,14 @@ function applyThemeVars(vars){
   function closeThemeMenu(){document.getElementById("themeMenu").style.display="none";clearTimeout(themeMenuTimer);}
   function getCSSVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
   function hexToRgb(hex){hex=hex.replace('#','');if(hex.length===3){hex=hex.split('').map(h=>h+h).join('');}const n=parseInt(hex,16);return {r:(n>>16)&255,g:(n>>8)&255,b:n&255};}
-  function buildPalette(){const a=getCSSVar('--accent'),d=getCSSVar('--danger');return [a,d,"#3380ff","#4caf50","#8e44ad","#ff33a6","#33cccc","#ffc300"];}
+  function buildPalette(){
+  return [
+    "#ff7043", "#2196f3", "#4caf50", "#9c27b0",
+    "#ffc300", "#00bcd4", "#e91e63", "#795548",
+    "#607d8b", "#8bc34a", "#ff9800", "#3f51b5"
+  ];
+}
+
 
   /* ===================== SPINNER + ERROR ===================== */
   function showSpinner(){document.getElementById('spinner').style.display='block';}
@@ -879,9 +899,18 @@ if (parasiteFilterEnabled) {
       // valeurs affichées
       if (smooth) pts = movingAverage(pts, 10);
 
-const baseLabel = yCol; // la "clé" toujours sans (lissé)
+const baseLabel = yCol;
+
 const savedColor = customColors[baseLabel];
-const c = savedColor || colors[i % colors.length];
+
+// couleur par défaut stable par label
+if (!seriesColorMap[baseLabel]) {
+  const idx = Object.keys(seriesColorMap).length % SERIES_COLORS.length;
+  seriesColorMap[baseLabel] = SERIES_COLORS[idx];
+}
+
+const c = savedColor || seriesColorMap[baseLabel];
+
 
 return {
   id: yCol,
@@ -913,7 +942,10 @@ return {
 
       for(let d=start.getTime(); d<x.max; d+=oneDay){
         const from=x.getPixelForValue(d), to=x.getPixelForValue(d+oneDay);
-        ctx.fillStyle=toggle? (getCSSVar('--accent-muted')||'rgba(255,112,67,0.12)') : 'rgba(0,0,0,0.02)';
+        ctx.fillStyle = toggle
+  ? 'rgba(255,112,67,0.06)'   // 👈 bande jour très légère
+  : '#ffffff';               // 👈 on ne touche pas au blanc
+
         ctx.fillRect(from, chartArea.top, to-from, chartArea.bottom-chartArea.top);
         toggle=!toggle;
       }
@@ -1322,29 +1354,38 @@ if (!isNaN(dt.getTime())) {
       interaction:{mode:'nearest',axis:'x',intersect:false},
       plugins:{
         legend:{
-          position:'top',
-          labels:{
-            usePointStyle:true,
-            pointStyle:'rect',
-            color:getCSSVar('--text')
-          },
-          onClick:(e,legendItem)=>{
-            const datasetIndex = legendItem.datasetIndex;
-            const ds = chart.data.datasets[datasetIndex];
-            const baseId = ds.id;
-            const picker = document.getElementById('colorPicker');
-            picker.oninput = (ev)=>{
-              const newColor = ev.target.value;
-              customColors[baseLabel] = newColor;
-              ds.borderColor = newColor;
-              ds.backgroundColor = newColor;
-              ds.pointBackgroundColor = newColor;
-              ds.pointBorderColor = newColor;
-              chart.update('none');
-            };
-            picker.click();
-          }
-        },
+  position:'top',
+  labels:{
+    usePointStyle:true,
+    pointStyle:'rect',
+    color:getCSSVar('--text')
+  },
+  onClick:(e,legendItem)=>{
+    const datasetIndex = legendItem.datasetIndex;
+    const ds = chart.data.datasets[datasetIndex];
+
+    // ✅ clé stable pour mémoriser la couleur
+    const baseLabel = ds.label.replace(" (lissé)", "");
+
+    const picker = document.getElementById('colorPicker');
+    picker.oninput = (ev)=>{
+      const newColor = ev.target.value;
+
+      // mémorisation
+      customColors[baseLabel] = newColor;
+
+      // application
+      ds.borderColor = newColor;
+      ds.backgroundColor = newColor;
+      ds.pointBackgroundColor = newColor;
+      ds.pointBorderColor = newColor;
+
+      chart.update('none');
+    };
+    picker.click();
+  }
+},
+
         datalabels:{display:false},
         zoom:{
           zoom:{
@@ -2682,6 +2723,11 @@ function showConfirm(message, onConfirm) {
   
 </body>
 </html>
+
+
+
+
+
 
 
 
