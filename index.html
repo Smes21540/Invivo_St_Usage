@@ -629,11 +629,24 @@ body[data-theme="orange"] #smes-footer-bg {
   filter: brightness(1.02);
 }
 
+/* ✅ Campagne sélectionnée : effet beaucoup plus visible */
 .campaign-btn.active{
   background: linear-gradient(180deg, var(--accent), var(--accent-darker));
-  border-color: var(--accent-darker);
+  border: 3px solid var(--danger);
+  outline: 1px solid #000;      /* ✅ trait noir 1px autour */
+  outline-offset: 0;            /* collé au bouton */
   color: var(--accent-contrast);
+
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,0.6),
+    0 8px 16px rgba(0,0,0,0.25),
+    0 0 12px rgba(255,112,67,0.6);
+
+  transform: scale(1.03);
+  filter: saturate(1.2) contrast(1.1);
 }
+
+
 
 
 
@@ -819,9 +832,10 @@ async function loadCampaignFilesForSite(siteId){
   const files = await fetchFolderContents(siteId);
 
   // accepte 2024.json / 2025.json / 2024.csv / 2025.csv
-  const campFiles = files.filter(f =>
-    /^\d{4}\.(json|csv)$/i.test(f.name)
-  );
+const campFiles = files.filter(f =>
+  /(\d{4})\.(json|csv)$/i.test(f.name)
+);
+
 
   if (!campFiles.length){
     campaignBySite[siteId] = {};
@@ -831,7 +845,13 @@ async function loadCampaignFilesForSite(siteId){
   const out = {}; // { "2025": {start, end} }
 
   await Promise.all(campFiles.map(async (f) => {
-    const key = f.name.slice(0,4); // "2024"
+    const mYear = f.name.match(/(\d{4})\.(json|csv)$/i);
+if(!mYear) return;
+const key = f.name
+  .replace(/\.(json|csv)$/i, "")
+  .trim(); // ex: "🌻2025" ou "🌽2025"
+
+
     try{
       const res = await fetch(
         `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
@@ -879,7 +899,14 @@ function renderCampaignButtons(campaigns){
     const c = campaigns[key];
     const btn = document.createElement("button");
     btn.className = "campaign-btn" + (activeCampaignKey === key ? " active" : "");
-    btn.textContent = `🌽 Campagne ${key} (${c.start.split("-").reverse().join("/")} → ${c.end.split("-").reverse().join("/")})`;
+    // Nom brut depuis le fichier (sans extension)
+let label = (c.fileName || key)
+  .replace(/\.(json|csv)$/i, "")
+  .trim();
+
+btn.textContent =
+  `Campagne ${label} (${c.start.split("-").reverse().join("/")} → ${c.end.split("-").reverse().join("/")})`;
+
 
     btn.onclick = async () => {
       const isSame = (activeCampaignKey === key);
@@ -1071,6 +1098,16 @@ const folders = await fetchFolderContents(siteFolder.id);
 const spinner=document.getElementById('spinner');
 function showSpinner(){spinner.style.display='block';}
 function hideSpinner(){spinner.style.display='none';}
+
+function getSiteRootLi(li){
+  let cur = li;
+  while (cur && cur.parentElement && cur.parentElement.closest("li")) {
+    cur = cur.parentElement.closest("li");
+  }
+  return cur; // dossier racine du site
+}
+
+
 
 function updateNetworkStatus(){
   document.getElementById("netAlert").style.display = navigator.onLine ? "none" : "block";
@@ -1401,14 +1438,16 @@ const filtered = files.filter(f =>
 
 
 
-// 🧭 Détermination du site courant
-const siteLi = li.parentElement.closest("li");
-let siteId = siteLi?.dataset.id || null;
+// 🧭 Détermination du site courant (toujours la racine du site)
+const siteRootLi = getSiteRootLi(li);
+const siteId = siteRootLi?.dataset.id || null;
+
 
 if (siteId && siteId !== currentSiteId) {
   clearSiteHotDays();
   currentSiteId = siteId;
-  console.log(`[SITE] Changement de site → ${siteLi.querySelector(".folder-name")?.textContent}`);
+  console.log(`[SITE] Changement de site → ${siteRootLi?.querySelector(".folder-name")?.textContent}`);
+
 
   // ✅ Campagnes (2024/2025...) depuis le dossier parent du site
   await refreshCampaignUIForSite(siteId);
@@ -1416,7 +1455,8 @@ if (siteId && siteId !== currentSiteId) {
 // 🔥 Lancer le scan en arrière-plan sans bloquer l'affichage
 scanSiteHotDays(siteId).then(map => {
   hotDaysMap = map;
-  console.log(`[CACHE] 🔥 ${Object.keys(hotDaysMap).length} jours chauds détectés et chargés pour ${siteLi.querySelector(".folder-name")?.textContent}`);
+  console.log(`[CACHE] 🔥 ${Object.keys(hotDaysMap).length} jours chauds détectés et chargés pour ${siteRootLi?.querySelector(".folder-name")?.textContent}`);
+
 
 // 🪄 Rafraîchir seulement les flammes dans le tableau actuel sans supprimer les notes 📝
 document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
@@ -3031,6 +3071,8 @@ if (last) {
 };
 
 
+  
+
 </script>
 
 <!-- === Fonction de nettoyage du cache === -->
@@ -3066,6 +3108,14 @@ function clearBrowserCache() {
 
 </body>
 </html>
+
+
+
+
+
+
+
+
 
 
 
