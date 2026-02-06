@@ -226,12 +226,60 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 }
 
 /* Modale images */
-.modal{display:none;position:fixed;z-index:1300;padding-top:50px;left:0;top:0;width:100%;height:100%;background-color:var(--overlay);text-align:center;}
-.modal .close{position:absolute;top:15px;right:25px;color:#fff;font-size:30px;cursor:pointer;}
-.modal iframe{width:90%;height:80vh;border:none;border-radius:10px;background:#000;}
+.modal{
+  display:none;                 /* ✅ fermée par défaut */
+  position:fixed;
+  z-index:1300;
+  inset:0;                      /* ✅ remplace left/top/width/height */
+  background-color:var(--overlay);
+
+  /* ✅ centrage via flex */
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+
+  padding:20px;
+  box-sizing:border-box;
+}
+
+.modal .close{
+  position:absolute;
+  top:15px;
+  right:25px;
+  color:#fff;
+  font-size:30px;
+  cursor:pointer;
+}
+
+.modal iframe{
+  width:min(90vw, 1200px);
+  height:80vh;
+  border:none;
+  border-radius:10px;
+  background:#000;
+}
+
+#modalVideo{
+  width:min(90vw, 1200px);
+  height:80vh;
+  border:none;
+  border-radius:10px;
+  background:#000;
+}
+
+#modalImg{
+  display:block;
+  max-width:min(90vw, 1200px);
+  max-height:80vh;
+  border-radius:10px;
+  background:#000;
+  object-fit:contain;
+}
+
 .modal-actions{margin-top:15px;display:flex;justify-content:center;gap:10px;}
 .modal-actions button{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;font-weight:bold;}
 .modal-actions button:hover{background:var(--accent-darker);}
+
 
 /* Overlay ZIP */
 #zipOverlay{
@@ -538,6 +586,54 @@ body[data-theme="orange"] #smes-footer-bg {
 }
 
 
+/* === Campagnes (boutons auto 2024/2025...) === */
+.campaign-box{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:6px 10px;
+  border:2px dashed var(--accent-muted);
+  border-radius:10px;
+  background: rgba(255,255,255,0.65);
+}
+
+.campaign-title{
+  font-size:12px;
+  font-weight:700;
+  color: var(--accent-darker);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.campaign-buttons{
+  display:flex;
+  flex-direction:column; /* ✅ un en dessous de l'autre */
+  gap:6px;
+}
+
+.campaign-btn{
+  background: linear-gradient(180deg, var(--accent-muted), #ffffff);
+  border: 2px solid var(--accent);
+  color: var(--accent-darker);
+  font-weight: 800;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: transform .15s ease, filter .15s ease;
+}
+
+.campaign-btn:hover{
+  transform: scale(1.02);
+  filter: brightness(1.02);
+}
+
+.campaign-btn.active{
+  background: linear-gradient(180deg, var(--accent), var(--accent-darker));
+  border-color: var(--accent-darker);
+  color: var(--accent-contrast);
+}
 
 
 
@@ -581,27 +677,25 @@ body[data-theme="orange"] #smes-footer-bg {
     </div>
   </div>
 
-  <div class="controls">
-    Filtrer par date : 
-    <div class="date-field"><span id="iconStart">📅</span><input type="date" id="startDate"></div>
-    à
-    <div class="date-field"><span id="iconEnd">📅</span><input type="date" id="endDate"></div>
-    <button onclick="applyFilter()">Filtrer</button>
-    <button onclick="clearFilter()">Tout afficher</button>
-    <button id="downloadFolderBtn">Télécharger le dossier</button>
-    <button id="exportCsvBtn" style="display:none;">Graphique</button>
-    <button id="exportExcelGazBtn" style="display:none;">Export Excel</button>
-    <button id="exportCsvBtn" style="display:none;" title="Voir les barres graphiques de consommation par jour">Graphique</button>
-    <button id="exportExcelGazBtn" style="display:none;" title="Exporter les données en Excel (kWh, m³, durée, tonnage)">Export Excel</button>
+<div class="controls">
+  Filtrer par date : 
+  <div class="date-field"><span id="iconStart">📅</span><input type="date" id="startDate"></div>
+  à
+  <div class="date-field"><span id="iconEnd">📅</span><input type="date" id="endDate"></div>
 
-
-
-
-
-
-    
-
+  <!-- ✅ Boutons campagne auto (2024/2025...) -->
+  <div id="campaignBox" class="campaign-box" style="display:none;">
+    <div class="campaign-title">Campagnes :</div>
+    <div id="campaignButtons" class="campaign-buttons"></div>
   </div>
+
+  <button onclick="clearFilter()">Tout afficher</button>
+  <button id="downloadFolderBtn">Télécharger le dossier</button>
+  <button id="exportCsvBtn" style="display:none;" title="Voir les barres graphiques de consommation par jour">Graphique</button>
+  <button id="exportExcelGazBtn" style="display:none;" title="Exporter les données en Excel (kWh, m³, durée, tonnage)">Export Excel</button>
+</div>
+
+
 
   <div id="tableWrapper">
     <div id="tableContainer">
@@ -635,12 +729,24 @@ body[data-theme="orange"] #smes-footer-bg {
 <div id="imageModal" class="modal" role="dialog" aria-modal="true">
   <span class="close" onclick="closeModal()" aria-label="Fermer">&times;</span>
   <!-- tabindex=-1 pour éviter que l'iframe vole le focus / bloque les flèches -->
-  <iframe id="modalFrame" tabindex="-1"></iframe>
-  <div class="modal-actions">
-    <button id="prevBtn">&larr; Précédent</button>
-    <button id="nextBtn">Suivant &rarr;</button>
-    <button id="downloadBtn">Télécharger</button>
-  </div>
+<iframe id="modalFrame" tabindex="-1"></iframe>
+
+<video id="modalVideo"
+       controls
+       style="display:none; width:90%; height:80vh; border:none; border-radius:10px; background:#000;">
+</video>
+
+<img id="modalImg"
+     style="display:none; max-width:90%; max-height:80vh; border-radius:10px; background:#000;"
+     alt="Aperçu" />
+
+
+<div class="modal-actions">
+  <button id="prevBtn">&larr; Précédent</button>
+  <button id="nextBtn">Suivant &rarr;</button>
+  <button id="downloadBtn">Télécharger</button>
+</div>
+
 </div>
 
 <!-- Overlay ZIP -->
@@ -684,11 +790,135 @@ let storedNotes = {};
 const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
 
 /* ----------- État ----------- */
-let imageFiles=[], currentImageIndex=0;
+let previewFiles = [], currentPreviewIndex = 0;
 let filterStartDate="", filterEndDate="";
 let themeMenuTimer;
 let cancelScan = false; // 🛑 permet d’arrêter le scan si on clique ailleurs
 
+
+
+/* ===========================
+   === Campagnes (2024/2025...)
+   =========================== */
+let activeCampaignKey = ""; // ex: "2025"
+let campaignBySite = {};    // cache: { siteId: { "2025": {start:"YYYY-MM-DD", end:"YYYY-MM-DD"} } }
+
+function parseCampaignDateToISO(s){
+  // accepte "09/09/2025" (dd/mm/yyyy)
+  const txt = (s || "").trim();
+  const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(!m) return "";
+  const dd = m[1], mm = m[2], yyyy = m[3];
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function loadCampaignFilesForSite(siteId){
+  if (!siteId) return {};
+  if (campaignBySite[siteId]) return campaignBySite[siteId];
+
+  const files = await fetchFolderContents(siteId);
+
+  // accepte 2024.json / 2025.json / 2024.csv / 2025.csv
+  const campFiles = files.filter(f =>
+    /^\d{4}\.(json|csv)$/i.test(f.name)
+  );
+
+  if (!campFiles.length){
+    campaignBySite[siteId] = {};
+    return {};
+  }
+
+  const out = {}; // { "2025": {start, end} }
+
+  await Promise.all(campFiles.map(async (f) => {
+    const key = f.name.slice(0,4); // "2024"
+    try{
+      const res = await fetch(
+        `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
+      );
+      if(!res.ok) return;
+
+      const text = await res.text();
+
+      // on lit 2 lignes (peu importe json/csv: tu as dit "2 lignes")
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if(lines.length < 2) return;
+
+      const startISO = parseCampaignDateToISO(lines[0]);
+      const endISO   = parseCampaignDateToISO(lines[1]);
+      if(!startISO || !endISO) return;
+
+      out[key] = { start: startISO, end: endISO, fileName: f.name };
+
+    } catch(e){
+      console.warn("[CAMPAGNE] Erreur lecture", f.name, e);
+    }
+  }));
+
+  campaignBySite[siteId] = out;
+  return out;
+}
+
+function renderCampaignButtons(campaigns){
+  const box = document.getElementById("campaignBox");
+  const wrap = document.getElementById("campaignButtons");
+  if(!box || !wrap) return;
+
+  wrap.innerHTML = "";
+  const keys = Object.keys(campaigns || {}).sort((a,b)=> b.localeCompare(a)); // 2025 puis 2024
+
+  if(!keys.length){
+    box.style.display = "none";
+    activeCampaignKey = "";
+    return;
+  }
+
+  box.style.display = "flex";
+
+  keys.forEach(key => {
+    const c = campaigns[key];
+    const btn = document.createElement("button");
+    btn.className = "campaign-btn" + (activeCampaignKey === key ? " active" : "");
+    btn.textContent = `📌 Campagne ${key} (${c.start.split("-").reverse().join("/")} → ${c.end.split("-").reverse().join("/")})`;
+
+    btn.onclick = async () => {
+      const isSame = (activeCampaignKey === key);
+      activeCampaignKey = isSame ? "" : key;
+
+      document.querySelectorAll(".campaign-btn").forEach(b => b.classList.remove("active"));
+      if(!isSame) btn.classList.add("active");
+
+      if (isSame) return; // si on re-clique la même, on juste désactive visuellement
+
+      // ⚠️ ton flatpickr onChange déclenche refreshCurrentFolder.
+      // On désactive temporairement pour éviter 2 refreshs.
+      suppressAutoFilter = true;
+      try{
+        fpStart?.setDate(c.start, true);
+        fpEnd?.setDate(c.end, true);
+      } finally {
+        suppressAutoFilter = false;
+      }
+
+      // ✅ on pousse les filtres + refresh
+      filterStartDate = c.start;
+      filterEndDate   = c.end;
+
+      await refreshCurrentFolder();
+    };
+
+    wrap.appendChild(btn);
+  });
+}
+
+async function refreshCampaignUIForSite(siteId){
+  const campaigns = await loadCampaignFilesForSite(siteId);
+  renderCampaignButtons(campaigns);
+}
+
+
+
+  
 async function getTonnageForDate(siteRoot, dateStr) {
 
     console.log("=== TONNAGE DEBUG ===");
@@ -916,7 +1146,12 @@ async function loadRootFolders(){
 // 🔒 Cacher les filtres quand on revient à la racine
 document.querySelector(".controls").style.display = "none";
 
+const cb = document.getElementById("campaignBox");
+if (cb) cb.style.display = "none";
+activeCampaignKey = "";
 
+
+  
   files
   .filter(f => f.mimeType === 'application/vnd.google-apps.folder')
   .sort((a,b) => a.name.localeCompare(b.name, 'fr', { sensitivity:'base' }))
@@ -1155,13 +1390,11 @@ console.log("[Folder] Chemin complet enregistré :", fullPath);
 
   // Charger fichiers CSV/JPG classiques du dossier
   const files = await fetchFolderContents(li.dataset.id);
-const filtered = files.filter(f => 
-  f.name.toLowerCase().endsWith('.csv') || 
-  f.name.toLowerCase().endsWith('.jpg') || 
-  f.name.toLowerCase().endsWith('.jpeg') ||
-  f.name.toLowerCase().endsWith('.json') ||
-  f.name.toLowerCase().endsWith('.pdf')
+const filtered = files.filter(f =>
+  /\.(csv|jpg|jpeg|png|gif|webp|json|pdf|mp4|webm|mov|m4v|avi|ppsx|pptx)$/i.test(f.name)
 );
+
+
 
 
 
@@ -1177,6 +1410,9 @@ if (siteId && siteId !== currentSiteId) {
   currentSiteId = siteId;
   console.log(`[SITE] Changement de site → ${siteLi.querySelector(".folder-name")?.textContent}`);
 
+  // ✅ Campagnes (2024/2025...) depuis le dossier parent du site
+  await refreshCampaignUIForSite(siteId);
+  
 // 🔥 Lancer le scan en arrière-plan sans bloquer l'affichage
 scanSiteHotDays(siteId).then(map => {
   hotDaysMap = map;
@@ -1224,8 +1460,10 @@ document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
   }
 }
 
-imageFiles = filtered.filter(f => /\.(jpg|jpeg)$/i.test(f.name)); 
+previewFiles = filtered.filter(f => /\.(jpg|jpeg|pdf|mp4|gif|webm|mov|m4v)$/i.test(f.name));
+
 displayFiles(filtered, nameSpan ? nameSpan.textContent : '');
+
 
 
 // 🪄 Applique immédiatement les flammes du cache si déjà chargé pour ce site
@@ -1242,7 +1480,7 @@ if (Object.keys(hotDaysMap).length > 0) {
   });
 }
 
-
+}
 
 async function displayFiles(files, folderName){
 
@@ -1250,6 +1488,15 @@ async function displayFiles(files, folderName){
   const downloadBtn=document.getElementById('downloadFolderBtn');
   tbody.innerHTML='';
 
+
+  document.querySelector(".controls").style.display = "flex";
+
+  const gazTasks = []; // ✅ ICI (une seule fois)
+
+
+
+
+  
   // ✅ Afficher les filtres uniquement dans un dossier final (contenant des fichiers)
 document.querySelector(".controls").style.display = "flex";
 
@@ -1537,7 +1784,9 @@ const tdFolder=document.createElement('td'); tdFolder.textContent=folderName;
     const tdAction=document.createElement('td'); tdAction.className='action-cell';
     let html='';
 if(f.name.toLowerCase().endsWith('.csv')){
-  html+=`<a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank"><button class="action-btn">Télécharger</button></a>`;
+  html+=`<a href="https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&download=1&site=Smes_Acces" target="_blank">
+          <button class="action-btn">Télécharger</button>
+        </a>`;
   html+=`<button class="action-btn" onclick="openViewer('viewer.html','${f.id}','${f.name}')">Tableau</button>`;
 
   // 👇 bouton Courbes seulement si on n'est PAS dans Historique
@@ -1551,14 +1800,17 @@ if(f.name.toLowerCase().endsWith('.csv')){
   }
 }
 
-// === CONSOMMATION GAZ : calcul kWh + durée réelle ===
+
+
+
+
+// === CONSOMMATION GAZ : placeholders + queue task ===
 if (
   ENABLE_GAZ_CALC &&
   folderName.toLowerCase().includes("consommation gaz") &&
   f.name.toLowerCase().endsWith(".csv")
 ) {
-
-  // 🟡 Groupe de 4 boutons d'affichage
+  // 🟡 Groupe de 4 boutons d'affichage (placeholders)
   html += `
     <div class="gaz-group">
       <button class="gaz-btn" title="kWh consommés sur la journée" disabled>⏳ kWh...</button>
@@ -1568,233 +1820,74 @@ if (
     </div>
   `;
 
-  (async () => {
-    try {
-      const res = await fetch(
-        `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
-      );
-
-      const text = await res.text();
-      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-
-      let diffMinutes = 0;
-      let diffKwh = 0;
-      let diffM3 = 0;
-      let kwhEstime = false;
-
-      if (lines.length > 2) {
-        const firstCols = lines[1].split(",");
-        const lastCols  = lines[lines.length - 1].split(",");
-
-        // --- 1️⃣ Calcul KWh brut ---
-        const kFirst = parseFloat(firstCols[2].replace(/"/g,""));
-        const kLast  = parseFloat(lastCols[2].replace(/"/g,""));
-        if (isFinite(kFirst) && isFinite(kLast)) diffKwh = kLast - kFirst;
-
-        // --- 2️⃣ Calcul m³ ---
-        const m3First = parseFloat(firstCols[4].replace(/"/g,""));
-        const m3Last  = parseFloat(lastCols[4].replace(/"/g,""));
-        if (isFinite(m3First) && isFinite(m3Last)) diffM3 = m3Last - m3First;
-
-        // --- 3️⃣ Durée de fonctionnement ---
-        let active = 0;
-        for (let i = 1; i < lines.length; i++) {
-          const prev = lines[i - 1].split(",");
-          const curr = lines[i].split(",");
-          const kPrev = parseFloat(prev[2].replace(/"/g,""));
-          const kCurr = parseFloat(curr[2].replace(/"/g,""));
-          if (isFinite(kPrev) && isFinite(kCurr) && kCurr > kPrev) active++;
-        }
-        diffMinutes = active;
-      }
-
-      const H = String(Math.floor(diffMinutes / 60)).padStart(2,"0");
-      const M = String(diffMinutes % 60).padStart(2,"0");
-      const dureeFormatee = `${H}:${M}`;
-
-
-/********************************************************************************************
- * ⚠️⚠️⚠️ BLOC DE CORRECTION TEMPORAIRE - FICHIERS CSV CORROMPUS ⚠️⚠️⚠️
- * -----------------------------------------------------------------------------------------
- * Les jours suivants contiennent des données fausses (décalées d’un jour) :
- *   - 21/09
- *   - 28/09
- *   - 05/10
- *   - 12/10
- *   - 19/10
- * On force ces jours à zéro (0 m³, 0 kWh, 0 durée).
- * À SUPPRIMER LORSQUE LES CSV SERONT CORRIGÉS SUR LE DRIVE.
- ********************************************************************************************/
-
-try {
-  // Extraire la date directement depuis le nom du fichier CSV
-  const m = f.name.match(/(\d{8})/);
-  if (m) {
-    const yyyy = m[1].slice(0, 4);
-    const mm = m[1].slice(4, 6);
-    const dd = m[1].slice(6, 8);
-    const shortDate = `${dd}/${mm}`;
-    const badDates = ["21/09", "28/09", "05/10", "12/10", "19/10"];
-    if (badDates.includes(shortDate)) {
-      console.warn("⚠️ Fichier CSV corrompu détecté :", shortDate, "→ valeurs forcées à 0");
-      diffKwh = 0;
-      diffM3 = 0;
-      diffMinutes = 0;
-    }
-  }
-} catch (err) {
-  console.warn("Erreur dans le bloc de correction CSV:", err);
-}
-
-/********************************************************************************************
- * ⚠️⚠️⚠️ FIN DU BLOC DE CORRECTION TEMPORAIRE - À SUPPRIMER PLUS TARD ⚠️⚠️⚠️
- ********************************************************************************************/
-
-
-
-
-
-      
-      const btns = tdAction.querySelectorAll(".gaz-btn");
-      const btnKwh    = btns[0];
-      const btnM3     = btns[1];
-      const btnHeures = btns[2];
-      const btnAvg    = btns[3];
-
-      // ============================
-      // 🔸 Si aucune activité : on masque tout
-      // ============================
-      if ((diffM3 === 0 || !isFinite(diffM3)) && (diffKwh === 0 || !isFinite(diffKwh))) {
-        btns.forEach(b => b.style.display = "none");
-        return;
-      }
-
-      // ============================
-// 🔸 Affichage m³ avec dégradé dynamique selon la valeur
-btnM3.textContent = diffM3.toFixed(1) + " m³";
-btnM3.style.minWidth = "125px";
-btnM3.style.color = "#5d4037";
-
-// Couleurs de base (de jaune → rouge)
-const minM3 = 1000;
-const maxM3 = 5000;
-let ratio = (diffM3 - minM3) / (maxM3 - minM3);
-ratio = Math.max(0, Math.min(1, ratio)); // clamp entre 0 et 1
-
-// Interpolation entre jaune (255,245,157) et rouge (255,112,67)
-const r1 = 255, g1 = 245, b1 = 157; // jaune
-const r2 = 255, g2 = 112, b2 = 67;  // rouge
-const r = Math.round(r1 + (r2 - r1) * ratio);
-const g = Math.round(g1 + (g2 - g1) * ratio);
-const b = Math.round(b1 + (b2 - b1) * ratio);
-const color1 = `rgb(${r},${g},${b})`;
-const color2 = `rgb(${Math.max(r-20,0)},${Math.max(g-20,0)},${Math.max(b-20,0)})`;
-
-btnM3.style.background = `linear-gradient(180deg, ${color1}, ${color2})`;
-
-
-      // ============================
-      // 🔸 Calcul du kWh (avec correction si anormal)
-      // ============================
-      let rounded = Math.round(diffKwh);
-      if (rounded < 0 || rounded > 400000) {
-        rounded = Math.round(diffM3 * 32.3);
-        kwhEstime = true;
-      }
-
-      // ============================
-      // 🔸 Durée de chauffe
-      // ============================
-      btnHeures.textContent = `⏱ ${dureeFormatee}`;
-      btnHeures.style.background = "linear-gradient(180deg, #bbdefb, #64b5f6)";
-      btnHeures.style.color = "#0d47a1";
-      btnHeures.style.minWidth = "120px";
-
-      // ============================
-      // 🔸 Moyenne kWh/h
-      // ============================
-      const hours = diffMinutes / 60;
-      let avg = 0;
-      let moyenneEstimee = false;
-
-      if (hours > 0 && rounded > 0) {
-        avg = rounded / hours;
-
-        // 🚨 Correction si moyenne incohérente
-        if (avg < 1000) {
-          rounded = Math.round(diffM3 * 32.3); // recalcule un kWh cohérent
-          avg = rounded / hours;
-          moyenneEstimee = true;
-          kwhEstime = true;
-        }
-
-        btnAvg.textContent = `${avg.toFixed(1)} kWh/h`;
-      } else {
-        btnAvg.textContent = "--";
-      }
-
-      // ============================
-      // 🔸 Affichage du kWh (normal ou estimé)
-      // ============================
-      const padded = String(rounded).padStart(7, " ");
-      btnKwh.textContent = `${padded} kWh`;
-      btnKwh.style.minWidth = "120px";
-
-      if (kwhEstime || moyenneEstimee) {
-        btnKwh.style.background = "linear-gradient(180deg, #bbdefb, #42a5f5)";
-        btnKwh.style.color = "#0d47a1";
-        btnAvg.style.background = "linear-gradient(180deg, #c5cae9, #7986cb)";
-        btnAvg.style.color = "#1a237e";
-      } else {
-        btnKwh.style.background = "linear-gradient(180deg, #ffd54f, #ffb300)";
-        btnKwh.style.color = "#3e2723";
-        btnAvg.style.background = "linear-gradient(180deg, #e1f5fe, #81d4fa)";
-        btnAvg.style.color = "#01579b";
-      }
-
-      // ============================
-      // 🔸 TONNAGE
-      // ============================
-      const dateStr = tdDate.textContent.split(" ")[0];
-      const fullPath = localStorage.getItem("lastFolderPath") || "";
-      const siteRoot = fullPath.split("/")[0];
-      let tonnage = await getTonnageForDate(siteRoot, dateStr);
-      if (!isFinite(tonnage)) tonnage = 0;
-      tr.dataset.tonnage = Number(tonnage.toFixed(1));
-
-
-
-updateGazTotals();
-
-
-      
-    } catch (err) {
-      console.warn("Erreur GAZ:", err);
-    }
-  })();
+  // ✅ on calcule APRÈS que la ligne est dans le DOM
+  gazTasks.push({ f, tdAction, tr, tdDate });
 }
 
 
 
 
+      
 
 
 
 
-    if(/\.(jpg|jpeg)$/i.test(f.name)){
-      html+=`<img src="https://drive.google.com/thumbnail?id=${f.id}" onclick="openModal('${f.id}')" alt="aperçu">`;
-      html+=`<a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank"><button class="action-btn">Télécharger</button></a>`;
-    }
+
+
+
+
+
+
+if(/\.(jpg|jpeg|png|gif|webp)$/i.test(f.name)){
+  html+=`<img src="https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces"
+    onclick="openModal('${f.id}')"
+    alt="aperçu">`;
+
+  html+=`<a href="https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&download=1&site=Smes_Acces" target="_blank">
+          <button class="action-btn">Télécharger</button>
+        </a>`;
+}
+
+
+/* ✅ VIDEO (MP4/WEBM/MOV/M4V) */
+if(/\.(mp4|webm|mov|m4v)$/i.test(f.name)){
+  html += `
+    <button class="action-btn" onclick="openModal('${f.id}')">Ouvrir</button>
+    <a href="https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&download=1&site=Smes_Acces" target="_blank">
+      <button class="action-btn">Télécharger</button>
+    </a>
+  `;
+}
+
+
 
 // === PDF ===
 if (f.name.toLowerCase().endsWith(".pdf")) {
   html += `
-    <a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank">
+    <a href="https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&download=1&site=Smes_Acces" target="_blank">
       <button class="action-btn">Télécharger</button>
     </a>
-    <button class="action-btn" onclick="openModal('${f.id}', 'pdf')">Ouvrir</button>
+    <button class="action-btn" onclick="openModal('${f.id}')">Ouvrir</button>
+
   `;
 }
+
+// === PowerPoint (ppsx/pptx) ===
+if (/\.(ppsx|pptx)$/i.test(f.name)) {
+  const baseUrl = `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`;
+
+  html += `
+    <a href="${baseUrl}&download=1" target="_blank">
+      <button class="action-btn">Télécharger</button>
+    </a>
+    <a href="${baseUrl}" target="_blank">
+      <button class="action-btn">Ouvrir</button>
+    </a>
+  `;
+}
+
+
+  
 
 
     tdAction.innerHTML=html;
@@ -1810,9 +1903,21 @@ tr.appendChild(tdSize);
 
     tbody.appendChild(tr);
   }
+
+// ✅ Lancer les calculs gaz avec limite de concurrence
+if (gazTasks.length) {
+  await runWithConcurrency(gazTasks, 6, computeGazForRow);
+  updateGazTotals();
+
+
+  
 }
 }
 
+
+
+
+  
 /* ----------- Open viewer (CSV list + index) ----------- */
 async function openViewer(viewer, id, name){
   cancelScan = true; // 🛑 stoppe immédiatement tous les scans
@@ -1911,54 +2016,189 @@ localStorage.setItem("currentFolderPath", folderPath);
 
 
 /* ----------- Filtres ----------- */
-function applyFilter(){
-  filterStartDate=document.getElementById('startDate').value;
-  filterEndDate=document.getElementById('endDate').value;
-  const active=document.querySelector('#folderTree .active-folder');
-  if(active) active.click();
-}
-function clearFilter(){
-  filterStartDate=''; filterEndDate='';
-  document.getElementById('startDate').value=''; document.getElementById('endDate').value='';
-  const active=document.querySelector('#folderTree .active-folder');
-  if(active) active.click();
-}
+async function refreshCurrentFolder(){
 
-/* ----------- Modale images + navigation clavier ----------- */
-function openModal(id, type = "image") {
-  const modal = document.getElementById('imageModal');
-  modal.style.display = 'block';
-  const frame = document.getElementById('modalFrame');
+  const folderId = localStorage.getItem("lastFolderId");
+  if (!folderId) return;
 
-  // 🔍 Détermine le mode d'affichage selon le type
-  if (type === "pdf") {
-    frame.src = `https://drive.google.com/file/d/${id}/preview#toolbar=0`; // ouvre le PDF dans l'iframe
-  } else {
-    frame.src = `https://drive.google.com/file/d/${id}/preview`;
+  // On retrouve le dossier actif
+  const li = document.querySelector(`#folderTree li[data-id="${folderId}"]`);
+
+  if (!li) {
+    console.warn("[FILTER] Dossier actif introuvable");
+    return;
   }
 
-  currentImageIndex = imageFiles.findIndex(f => f.id === id);
-
-  // 🔽 Bouton de téléchargement
-  document.getElementById('downloadBtn').onclick = () =>
-    window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank');
+  // Recharge sans casser la sélection
+  await loadFolderFilesOnClick(li, null);
 }
 
-function closeModal(){document.getElementById('imageModal').style.display='none';}
 
-document.getElementById('prevBtn').onclick=()=>{if(currentImageIndex>0) openModal(imageFiles[--currentImageIndex].id);};
-document.getElementById('nextBtn').onclick=()=>{if(currentImageIndex<imageFiles.length-1) openModal(imageFiles[++currentImageIndex].id);};
-window.addEventListener('click',e=>{if(e.target===document.getElementById('imageModal')) closeModal();});
+async function applyFilter(){
+  filterStartDate = document.getElementById('startDate').value;
+  filterEndDate   = document.getElementById('endDate').value;
 
-// Navigation clavier quand la modale est ouverte
-window.addEventListener('keydown', e=>{
-  const modal=document.getElementById('imageModal');
-  if(modal.style.display==='block'){
-    if(e.key==='ArrowLeft' && currentImageIndex>0){ openModal(imageFiles[--currentImageIndex].id); }
-    if(e.key==='ArrowRight' && currentImageIndex<imageFiles.length-1){ openModal(imageFiles[++currentImageIndex].id); }
-    if(e.key==='Escape'){ closeModal(); }
+  await refreshCurrentFolder();
+}
+
+async function clearFilter(){
+  filterStartDate = '';
+  filterEndDate   = '';
+
+  fpStart?.clear();
+  fpEnd?.clear();
+
+  // ✅ désactive campagne
+  activeCampaignKey = "";
+  document.querySelectorAll(".campaign-btn").forEach(b => b.classList.remove("active"));
+
+  const ys = document.getElementById("yearSelect");
+  if (ys) ys.value = "";
+
+  await refreshCurrentFolder();
+}
+
+
+
+
+  
+/* ----------- Modale images / pdf / video + navigation ----------- */
+
+function openModal(id) {
+  currentPreviewIndex = previewFiles.findIndex(f => f.id === id);
+  const file = previewFiles[currentPreviewIndex];
+  if (!file) return; // ✅ n'ouvre pas une modale vide
+
+  const modal = document.getElementById('imageModal');
+  modal.style.display = 'flex';
+
+  const frame = document.getElementById('modalFrame');
+  const video = document.getElementById('modalVideo');
+  const img   = document.getElementById('modalImg');
+
+
+  const url =
+    `https://smes21540.netlify.app/.netlify/functions/drive` +
+    `?id=${id}&name=${encodeURIComponent(file.name)}&site=Smes_Acces`;
+
+  const isVideo = /\.(mp4|webm|mov|m4v)$/i.test(file.name);
+  const isPdf   = /\.pdf$/i.test(file.name);
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+
+  // 🔄 Reset complet
+  frame.style.display = "none";
+  frame.src = "";
+
+  video.pause();
+  video.style.display = "none";
+  video.src = "";
+
+  img.style.display = "none";
+  img.src = "";
+
+  // 🎯 Affichage selon type
+  if (isVideo) {
+
+    video.style.display = "block";
+    video.src = url;
+    video.load();
+
+  } else if (isPdf) {
+
+    frame.style.display = "block";
+    frame.src = url;
+
+  } else if (isImage) {
+
+    img.style.display = "block";
+    img.src = url;
+
+  } else {
+
+    // fallback
+    frame.style.display = "block";
+    frame.src = url;
+  }
+
+  // ⬇️ Bouton téléchargement
+  document.getElementById('downloadBtn').onclick = () => {
+    window.open(
+      `https://smes21540.netlify.app/.netlify/functions/drive` +
+      `?id=${id}&name=${encodeURIComponent(file.name)}` +
+      `&download=1&site=Smes_Acces`,
+      '_blank'
+    );
+  };
+}
+
+
+/* ----------- Fermeture modale ----------- */
+
+function closeModal(){
+
+  const modal = document.getElementById('imageModal');
+  modal.style.display = 'none';
+
+  const frame = document.getElementById('modalFrame');
+  const video = document.getElementById('modalVideo');
+  const img   = document.getElementById('modalImg');
+
+  // stop + nettoyage
+  frame.src = "";
+
+  video.pause();
+  video.src = "";
+  video.style.display = "none";
+
+  img.src = "";
+  img.style.display = "none";
+}
+
+
+/* ----------- Boutons navigation ----------- */
+
+document.getElementById('prevBtn').onclick = () => {
+  if (currentPreviewIndex > 0) {
+    openModal(previewFiles[--currentPreviewIndex].id);
+  }
+};
+
+document.getElementById('nextBtn').onclick = () => {
+  if (currentPreviewIndex < previewFiles.length - 1) {
+    openModal(previewFiles[++currentPreviewIndex].id);
+  }
+};
+
+
+/* ----------- Click hors contenu = fermer ----------- */
+
+window.addEventListener('click', e => {
+  const modal = document.getElementById('imageModal');
+  if (e.target === modal) closeModal();
+});
+
+
+/* ----------- Navigation clavier ----------- */
+
+window.addEventListener('keydown', e => {
+
+  const modal = document.getElementById('imageModal');
+  if (modal.style.display !== 'flex') return;
+
+  if (e.key === 'ArrowLeft' && currentPreviewIndex > 0) {
+    openModal(previewFiles[--currentPreviewIndex].id);
+  }
+
+  if (e.key === 'ArrowRight' && currentPreviewIndex < previewFiles.length - 1) {
+    openModal(previewFiles[++currentPreviewIndex].id);
+  }
+
+  if (e.key === 'Escape') {
+    closeModal();
   }
 });
+
+
 
 /* ----------- ZIP overlay + progression + annulation ----------- */
 const zipOverlay=document.getElementById('zipOverlay');
@@ -2339,6 +2579,8 @@ function markFolderWithFlame(li) {
 /* ----------- Datepickers enrichis (Flatpickr) ----------- */
 let fpStart = null;
 let fpEnd = null;
+  let suppressAutoFilter = false;
+
 
 function initDatePickers() {
   const commonOpts = {
@@ -2361,11 +2603,27 @@ function initDatePickers() {
       recolorHotDays(instance);
     },
 
-    onChange: function(selectedDates, dateStr, instance) {
-      const parent = instance.input.closest(".date-field");
-      if (dateStr) parent.classList.add("has-date");
-      else parent.classList.remove("has-date");
-    },
+onChange: async function(selectedDates, dateStr, instance) {
+
+  const parent = instance.input.closest(".date-field");
+
+  if (dateStr) parent.classList.add("has-date");
+  else parent.classList.remove("has-date");
+
+  // ✅ si on change les dates via bouton campagne → on ne déclenche pas ici
+  if (suppressAutoFilter) return;
+
+  filterStartDate = document.getElementById("startDate").value;
+  filterEndDate   = document.getElementById("endDate").value;
+
+  await refreshCurrentFolder();
+
+  const ys = document.getElementById("yearSelect");
+  if (ys) ys.value = "";
+},
+
+
+
 
 onDayCreate: function(dObj, dStr, fp, dayElem) {
   const yyyymmdd = dayElem.dateObj.getFullYear().toString() +
@@ -2547,6 +2805,143 @@ document.getElementById("exportExcelGazBtn").addEventListener("click", function 
 
 
 
+// =========================================
+// === Calcule les valeurs GAZ pour une ligne
+// =========================================
+async function computeGazForRow({ f, tdAction, tr, tdDate }) {
+  const res = await fetch(
+    `https://smes21540.netlify.app/.netlify/functions/drive?id=${f.id}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
+  );
+  if (!res.ok) throw new Error("Fetch CSV GAZ failed: " + res.status);
+
+  const text = await res.text();
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+
+  let diffMinutes = 0;
+  let diffKwh = 0;
+  let diffM3 = 0;
+  let kwhEstime = false;
+
+  if (lines.length > 2) {
+    const firstCols = lines[1].split(",");
+    const lastCols  = lines[lines.length - 1].split(",");
+
+    // 1) kWh brut
+    const kFirst = parseFloat(firstCols[2].replace(/"/g,""));
+    const kLast  = parseFloat(lastCols[2].replace(/"/g,""));
+    if (isFinite(kFirst) && isFinite(kLast)) diffKwh = kLast - kFirst;
+
+    // 2) m³
+    const m3First = parseFloat(firstCols[4].replace(/"/g,""));
+    const m3Last  = parseFloat(lastCols[4].replace(/"/g,""));
+    if (isFinite(m3First) && isFinite(m3Last)) diffM3 = m3Last - m3First;
+
+    // 3) durée active (minutes)
+    let active = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const prev = lines[i - 1].split(",");
+      const curr = lines[i].split(",");
+      const kPrev = parseFloat(prev[2].replace(/"/g,""));
+      const kCurr = parseFloat(curr[2].replace(/"/g,""));
+      if (isFinite(kPrev) && isFinite(kCurr) && kCurr > kPrev) active++;
+    }
+    diffMinutes = active;
+  }
+
+  // Récup boutons
+  const btns = tdAction.querySelectorAll(".gaz-btn");
+  if (btns.length < 4) return;
+
+  const btnKwh    = btns[0];
+  const btnM3     = btns[1];
+  const btnHeures = btns[2];
+  const btnAvg    = btns[3];
+
+  // Si aucune activité -> masque
+  if ((diffM3 === 0 || !isFinite(diffM3)) && (diffKwh === 0 || !isFinite(diffKwh))) {
+    btns.forEach(b => b.style.display = "none");
+    return;
+  }
+
+  // Affichage m³ + dégradé
+  btnM3.textContent = diffM3.toFixed(1) + " m³";
+  btnM3.style.minWidth = "125px";
+  btnM3.style.color = "#5d4037";
+
+  const minM3 = 1000;
+  const maxM3 = 5000;
+  let ratio = (diffM3 - minM3) / (maxM3 - minM3);
+  ratio = Math.max(0, Math.min(1, ratio));
+
+  const r1 = 255, g1 = 245, b1 = 157;
+  const r2 = 255, g2 = 112, b2 = 67;
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+  const color1 = `rgb(${r},${g},${b})`;
+  const color2 = `rgb(${Math.max(r-20,0)},${Math.max(g-20,0)},${Math.max(b-20,0)})`;
+  btnM3.style.background = `linear-gradient(180deg, ${color1}, ${color2})`;
+
+  // kWh (avec correction)
+  let rounded = Math.round(diffKwh);
+  if (rounded < 0 || rounded > 400000) {
+    rounded = Math.round(diffM3 * 32.3);
+    kwhEstime = true;
+  }
+
+  // durée
+  const H = String(Math.floor(diffMinutes / 60)).padStart(2,"0");
+  const M = String(diffMinutes % 60).padStart(2,"0");
+  const dureeFormatee = `${H}:${M}`;
+
+  btnHeures.textContent = `⏱ ${dureeFormatee}`;
+  btnHeures.style.background = "linear-gradient(180deg, #bbdefb, #64b5f6)";
+  btnHeures.style.color = "#0d47a1";
+  btnHeures.style.minWidth = "120px";
+
+  // moyenne kWh/h
+  const hours = diffMinutes / 60;
+  let avg = 0;
+  let moyenneEstimee = false;
+
+  if (hours > 0 && rounded > 0) {
+    avg = rounded / hours;
+    if (avg < 1000) {
+      rounded = Math.round(diffM3 * 32.3);
+      avg = rounded / hours;
+      moyenneEstimee = true;
+      kwhEstime = true;
+    }
+    btnAvg.textContent = `${avg.toFixed(1)} kWh/h`;
+  } else {
+    btnAvg.textContent = "--";
+  }
+
+  // affichage kWh
+  const padded = String(rounded).padStart(7, " ");
+  btnKwh.textContent = `${padded} kWh`;
+  btnKwh.style.minWidth = "120px";
+
+  if (kwhEstime || moyenneEstimee) {
+    btnKwh.style.background = "linear-gradient(180deg, #bbdefb, #42a5f5)";
+    btnKwh.style.color = "#0d47a1";
+    btnAvg.style.background = "linear-gradient(180deg, #c5cae9, #7986cb)";
+    btnAvg.style.color = "#1a237e";
+  } else {
+    btnKwh.style.background = "linear-gradient(180deg, #ffd54f, #ffb300)";
+    btnKwh.style.color = "#3e2723";
+    btnAvg.style.background = "linear-gradient(180deg, #e1f5fe, #81d4fa)";
+    btnAvg.style.color = "#01579b";
+  }
+
+  // TONNAGE (reprend ton code)
+  const dateStr = tdDate.textContent.split(" ")[0];
+  const fullPath = localStorage.getItem("lastFolderPath") || "";
+  const siteRoot = fullPath.split("/")[0];
+  let tonnage = await getTonnageForDate(siteRoot, dateStr);
+  if (!isFinite(tonnage)) tonnage = 0;
+  tr.dataset.tonnage = Number(tonnage.toFixed(1));
+}
 
 
 
@@ -2560,22 +2955,51 @@ function updateGazTotals() {
   let totalM3 = 0;
   let totalKwh = 0;
 
-  document.querySelectorAll(".gaz-group").forEach(group => {
-    const btns = group.querySelectorAll(".gaz-btn");
-    if (btns.length >= 2) {
-      const m3Text = btns[1].textContent.replace(/[^\d.]/g, "");
-      const kwhText = btns[0].textContent.replace(/[^\d.]/g, "");
-      const m3 = parseFloat(m3Text);
-      const kwh = parseFloat(kwhText);
-      if (isFinite(m3)) totalM3 += m3;
-      if (isFinite(kwh)) totalKwh += kwh;
-    }
-  });
+document.querySelectorAll("#csvTable tbody tr").forEach(tr => {
+  if (tr.style.display === "none") return;  // ne compte pas les lignes filtrées
+  const group = tr.querySelector(".gaz-group");
+  if (!group) return;
+
+  const btns = group.querySelectorAll(".gaz-btn");
+  if (btns.length >= 2) {
+    const m3Text = btns[1].textContent.replace(/[^\d.]/g, "");
+    const kwhText = btns[0].textContent.replace(/[^\d.]/g, "");
+    const m3 = parseFloat(m3Text);
+    const kwh = parseFloat(kwhText);
+    if (isFinite(m3)) totalM3 += m3;
+    if (isFinite(kwh)) totalKwh += kwh;
+  }
+});
+
 
   totalM3Span.textContent = `m³ total: ${totalM3.toFixed(1)}`;
   totalKwhSpan.textContent = `kWh total: ${Math.round(totalKwh).toLocaleString("fr-FR")}`;
 }
 
+// === Limiteur de concurrence (évite 200 fetch en même temps) ===
+async function runWithConcurrency(tasks, limit, worker) {
+  let i = 0;
+  const executing = new Set();
+
+  async function enqueue() {
+    if (i >= tasks.length) return;
+    const task = tasks[i++];
+
+    const p = (async () => worker(task))()
+      .catch(err => console.warn("[GAZ] task failed:", err))
+      .finally(() => executing.delete(p));
+
+    executing.add(p);
+
+    if (executing.size >= limit) {
+      await Promise.race(executing);
+    }
+    await enqueue();
+  }
+
+  await enqueue();
+  await Promise.all([...executing]);
+}
 
   
 
@@ -2588,8 +3012,9 @@ window.onload=()=>{
   // bouton "Télécharger le dossier" caché par défaut tant qu'aucun contenu
   document.getElementById("downloadFolderBtn").style.display="none";
 
-  loadRootFolders();
-  initDatePickers();
+loadRootFolders();
+initDatePickers();
+initYearSelect();
 const last = localStorage.getItem("lastFolderId");
 if (last) {
   // attendre un peu que l'arborescence soit rendue
@@ -2606,7 +3031,6 @@ if (last) {
 };
 
 
-<!-- === FIN DE TON SCRIPT PRINCIPAL === -->
 </script>
 
 <!-- === Fonction de nettoyage du cache === -->
@@ -2642,6 +3066,23 @@ function clearBrowserCache() {
 
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
