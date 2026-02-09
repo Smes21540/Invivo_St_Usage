@@ -854,7 +854,7 @@ body[data-theme="orange"] #smes-footer-bg {
 /* ----------- Config Drive ----------- */
 const ROOT_FOLDER_ID="1n2ETUlB6CfK27qsHvzCwAvDHtNCg5nnH";
 // ✅ Active/désactive les calculs de consommation gaz
-const ENABLE_GAZ_CALC = false;  // ← passe à false pour désactiver
+const ENABLE_GAZ_CALC = true;  // ← passe à false pour désactiver
 
 // === Dictionnaire global des notes ===
 // storedNotes["YYYYMMDD"] = [ "txt1", "txt2", ... ]
@@ -864,6 +864,49 @@ let storedNotes = {};
 
 
 /* ----------- Config personnalisée ----------- */
+
+/* --- Descriptions dossiers (tooltip simple) --- */
+const FOLDER_DESCRIPTIONS = [
+  { key: "traça_temp", desc: "Traçabilité valeurs sondes, consignes, réglages, consommation… Courbes, plan de sondes, etc." },
+  { key: "traca_temp", desc: "Traçabilité valeurs sondes, consignes, réglages, consommation… Courbes, plan de sondes, etc." },
+  { key: "historique", desc: "Historique de fonctionnement, réglages, événements journaliers…" },
+  { key: "echantillonnage", desc: "Feuille de prises d'échantillon journalière (Humidité, réglages, etc.)." },
+  { key: "consommation gaz", desc: "Consommation gaz journalière, conversion kWh, temps de séchage, cumul tonnage…" },
+];
+
+function getFolderDescription(name){
+  const n = (name || "").toLowerCase();
+  const hit = FOLDER_DESCRIPTIONS.find(x => n.includes(x.key));
+  return hit ? hit.desc : "";
+}
+
+function applyFolderTooltip(el, folderName){
+  if (!el) return;
+
+  const desc = getFolderDescription(folderName);
+  if (desc){
+    el.title = desc; // tooltip natif
+  }
+}
+
+
+/* --- Icônes dossiers selon type --- */
+function getFolderIcon(name){
+  const n = (name || "").toLowerCase();
+
+  if (n.includes("gaz")) return "⛽";
+  if (n.includes("echantillonnage")) return "📖";
+  if (n.includes("capture")) return "🖼️";
+  if (n.includes("rapport")) return "📄";
+  if (n.includes("historique")) return "🗂️";
+  if (n.includes("traça_temp") || n.includes("traca_temp")) return "📈";
+
+  return "🏭";
+}
+
+
+
+  
 const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
 
 /* ----------- État ----------- */
@@ -1279,14 +1322,15 @@ rootFolders.forEach(f => {
   const span = document.createElement('span');
   span.className = 'folder-name';
 
-  const lowerName = f.name.toLowerCase();
-  if (lowerName.includes("gaz")) span.innerHTML = `⛽ ${f.name}`;
-  else if (lowerName.includes("echantillonnage")) span.innerHTML = `📖 ${f.name}`;
-  else if (lowerName.includes("capture")) span.innerHTML = `🖼️ ${f.name}`;
-  else if (lowerName.includes("rapport")) span.innerHTML = `📄 ${f.name}`;
-  else if (lowerName.includes("historique")) span.innerHTML = `🗂️ ${f.name}`;
-  else if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) span.innerHTML = `📈 ${f.name}`;
-  else span.textContent = f.name;
+const icon = getFolderIcon(f.name);
+span.innerHTML = `${icon} ${f.name}`;
+
+applyFolderTooltip(span, f.name);
+
+
+
+
+  
 
 span.onclick = async (e) => {
   e?.stopPropagation?.();
@@ -1352,24 +1396,11 @@ for (const f of folders) {
 const span = document.createElement('span');
 span.className = 'folder-name';
 
-const lowerName = f.name.toLowerCase();
+const icon = getFolderIcon(f.name);
+span.innerHTML = `${icon} ${f.name}`;
 
-if (lowerName.includes("gaz")) {
-  span.innerHTML = `⛽ ${f.name}`;
-} else if (lowerName.includes("echantillonnage")) {
-  span.innerHTML = `📖 ${f.name}`;
-} else if (lowerName.includes("capture")) {
-  span.innerHTML = `🖼️ ${f.name}`;
-} else if (lowerName.includes("rapport")) {
-  span.innerHTML = `📄 ${f.name}`;
-} else if (lowerName.includes("historique")) {
-  span.innerHTML = `🗂️ ${f.name}`;
-} else if (lowerName.includes("traça_temp") || lowerName.includes("traca_temp")) {
-  span.innerHTML = `📈 ${f.name}`;
-} else {
-  span.textContent = f.name;
-}
 
+applyFolderTooltip(span, f.name);
 
 
 span.onclick = (e) => loadFolderFilesOnClick(childLi, e);
@@ -1513,6 +1544,10 @@ const siteId = siteRootLi?.dataset.id || null;
 
 
 if (siteId && siteId !== currentSiteId) {
+
+  // ✅ RESET filtres date dès changement de site
+  resetDateFilterUIAndState();
+  
   clearSiteHotDays();
   currentSiteId = siteId;
   console.log(`[SITE] Changement de site → ${siteRootLi?.querySelector(".folder-name")?.textContent}`);
@@ -2170,6 +2205,20 @@ async function clearFilter(){
   await refreshCurrentFolder();
 }
 
+function resetDateFilterUIAndState(){
+  filterStartDate = "";
+  filterEndDate = "";
+
+  fpStart?.clear();
+  fpEnd?.clear();
+
+  // retire l'affichage des champs masqués/visibles
+  document.querySelectorAll(".date-field").forEach(df => df.classList.remove("has-date"));
+
+  // reset campagne visuelle
+  activeCampaignKey = "";
+  document.querySelectorAll(".campaign-btn").forEach(b => b.classList.remove("active"));
+}
 
 
 
@@ -3222,11 +3271,18 @@ async function renderSiteSubfolderTiles(siteId, siteName="") {
   folders.forEach(f => {
     const div = document.createElement("div");
     div.className = "site-tile";
-    div.innerHTML = `
-      <div class="icon">📁</div>
-      <div class="label">${f.name}</div>
-    `;
+const icon = getFolderIcon(f.name);
 
+div.innerHTML = `
+  <div class="icon">${icon}</div>
+  <div class="label">${f.name}</div>
+`;
+
+
+applyFolderTooltip(div, f.name);
+
+
+    
     div.onclick = async () => {
       // on quitte le mode tuiles
       hideSiteTiles();
@@ -3341,6 +3397,10 @@ function clearBrowserCache() {
 
 </body>
 </html>
+
+
+
+
 
 
 
