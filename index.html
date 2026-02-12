@@ -3665,16 +3665,25 @@ if (li) {
 
 // Clique sur un site (tile ou sidebar) → ouvre l'arbre + affiche les sous-dossiers en tuiles
 async function openSiteAndShowTiles(siteId, siteName="") {
+
+  // ✅ Spécifique au mode COOP uniquement
+  if (ROOT_MODE === "coop") {
+    currentSiteId = siteId;
+    resetDateFilterUIAndState();
+    clearSiteHotDays();
+  }
+
   const controls = document.querySelector(".controls");
   if (controls) controls.style.display = "flex";
 
   await refreshCampaignUIForSite(siteId);
 
   const li = document.querySelector(`#folderTree > li[data-id="${siteId}"]`);
-  if (li) await expandFolder(li);   // ✅ au lieu de toggleFolder(li)
+  if (li) await expandFolder(li);
 
   await renderSiteSubfolderTiles(siteId, siteName);
 }
+
 
 
 
