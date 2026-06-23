@@ -551,17 +551,49 @@ tbody tr:hover .action-btn{opacity:1;visibility:visible;}
 .gaz-summary {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  margin-left: 20px;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-left: 8px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .gaz-total {
-  padding: 5px 12px;
+  padding: 5px 9px;
   border-radius: 20px;
   font-weight: bold;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   color: #3e2723;
+}
+
+/* Évite les chevauchements sur les écrans 1080p */
+.controls {
+  align-content: flex-start;
+}
+.gaz-group,
+.sampling-group,
+.traca-group {
+  flex-wrap: wrap;
+  gap: 6px !important;
+}
+.gaz-group .gaz-btn,
+.sampling-group .gaz-btn,
+.traca-group .gaz-btn {
+  min-width: 0;
+  padding: 6px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 1500px), (max-height: 1080px) {
+  .controls { gap: 6px; }
+  .controls button { padding: 5px 9px; font-size: 12px; }
+  .date-field { padding: 4px 7px; }
+  .gaz-summary { width: 100%; margin-left: 0; }
+  .gaz-total { font-size: 11px; padding: 4px 8px; }
+  thead th, tbody td { padding: 8px 9px; }
 }
 
 .gaz-total-m3 {
@@ -753,9 +785,66 @@ body[data-theme="orange"] #smes-footer-bg {
 }
 
 
+/* Accès direct aux deux calculateurs séchoir */
+.sechoir-calcul-group{
+  position:absolute;
+  left:0;
+  top:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  z-index:5;
+}
 
+.sechoir-calcul-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-width:145px;
+  padding:9px 14px;
+  border-radius:10px;
+  color:var(--accent-contrast);
+  text-decoration:none;
+  font-weight:800;
+  font-size:13px;
+  box-shadow:0 3px 10px rgba(0,0,0,0.18);
+  transition:transform .2s ease,filter .2s ease;
+  white-space:nowrap;
+}
+
+.sechoir-calcul-btn.horaire{
+  background:linear-gradient(180deg,var(--accent),var(--accent-darker));
+}
+
+.sechoir-calcul-btn.bilan{
+  background:linear-gradient(180deg,#42a5f5,#1565c0);
+}
+
+.sechoir-calcul-btn:hover{
+  transform:scale(1.04);
+  filter:brightness(1.05);
+}
   
   
+
+/* === Couleurs explicites des tuiles Traça_Temp === */
+.traca-gaz, .traca-normalise,
+.traca-total-gaz, .traca-total-normalise {
+  background: linear-gradient(180deg, #ffcc80, #fb8c00) !important;
+  color: #5d2b00 !important;
+}
+
+.traca-modulee, .traca-debit,
+.traca-total-modulee, .traca-total-debit {
+  background: linear-gradient(180deg, #bbdefb, #64b5f6) !important;
+  color: #0d47a1 !important;
+}
+
+.traca-ipe, .traca-total-ipe {
+  background: linear-gradient(180deg, #c8e6c9, #66bb6a) !important;
+  color: #1b5e20 !important;
+}
 
 </style>
 
@@ -785,6 +874,25 @@ body[data-theme="orange"] #smes-footer-bg {
 <!-- Main -->
 <div id="main">
   <div class="header">
+<div class="sechoir-calcul-group">
+
+  <a href="calcul_horaire.html"
+     class="sechoir-calcul-btn horaire"
+     target="_blank"
+     rel="noopener noreferrer"
+     title="Ouvrir le calcul horaire dans un nouvel onglet">
+    ⏱️ Calcul horaire
+  </a>
+
+  <a href="bilan_campagne.html"
+     class="sechoir-calcul-btn bilan"
+     target="_blank"
+     rel="noopener noreferrer"
+     title="Ouvrir le bilan campagne dans un nouvel onglet">
+    📊 Bilan campagne
+  </a>
+
+</div>
     <img src="img/logo.png" class="logo" id="mainLogo" alt="Logo"/>
     <div id="scanIndicator">🔄 Analyse en cours...</div>
     <div id="fileNameContainer">
@@ -896,7 +1004,7 @@ body[data-theme="orange"] #smes-footer-bg {
 const ROOT_FOLDER_ID="1n2ETUlB6CfK27qsHvzCwAvDHtNCg5nnH";
 const ROOT_MODE = "site"; // "site" ou "coop"  
 // ✅ Active/désactive les calculs de consommation gaz
-const ENABLE_GAZ_CALC = false;  // ← passe à false pour désactiver
+const ENABLE_GAZ_CALC = true;  // ← passe à false pour désactiver
 
 // === Dictionnaire global des notes ===
 // storedNotes["YYYYMMDD"] = [ "txt1", "txt2", ... ]
@@ -953,6 +1061,8 @@ const FLAME_THRESHOLD = 40.0;   // seuil déclencheur de la flamme 🔥
 
 /* ----------- État ----------- */
 let previewFiles = [], currentPreviewIndex = 0;
+let historiqueDurations = {};
+
 let filterStartDate="", filterEndDate="";
   let activeScans = 0;
 
@@ -1377,7 +1487,18 @@ async function fetchChildren(folderId){
   return files.filter(isDriveFolderOrShortcutFolder);
 }
 
+function collapseRootSite(li){
+  if (!li) return;
 
+  const ul = li.querySelector("ul");
+  if (ul) {
+    ul.style.display = "none";
+  }
+
+  // enlève la sélection visuelle dans ce site
+  li.querySelectorAll("span.folder-name")
+    .forEach(s => s.classList.remove("active-folder"));
+}
 
 async function loadRootFolders(){
 
@@ -1413,11 +1534,28 @@ async function loadRootFolders(){
       span.innerHTML = `${getFolderIcon(f.name)} ${f.name}`;
       applyFolderTooltip(span, f.name);
 
-      span.onclick = async (e) => {
-        e?.stopPropagation?.();
-        document.querySelector(".controls").style.display = "flex";
-        await openSiteAndShowTiles(li.dataset.id, f.name);
-      };
+span.onclick = async (e) => {
+  e?.stopPropagation?.();
+
+  const ul = li.querySelector("ul");
+  const isAlreadyOpen = ul && ul.style.display !== "none";
+
+  // ✅ Si on reclique sur un site déjà déplié, on le replie
+  if (isAlreadyOpen) {
+    collapseRootSite(li);
+
+    // Si c'est le site actuellement affiché, on cache aussi le contenu central
+    hideSiteTiles();
+    hideTable();
+    document.querySelector(".controls").style.display = "none";
+
+    return;
+  }
+
+  // ✅ Sinon on ouvre normalement ce site
+  document.querySelector(".controls").style.display = "flex";
+  await openSiteAndShowTiles(li.dataset.id, f.name);
+};
 
       li.appendChild(toggle);
       li.appendChild(span);
@@ -1679,7 +1817,11 @@ console.log("[Folder] Chemin complet enregistré :", fullPath);
 // ⚡ Gestion spéciale Z3 (cache des fichiers Z3 depuis "Historique")
 const folderNameLower = (nameSpan ? nameSpan.textContent : "").toLowerCase();
 
-if (folderNameLower.includes("traça_temp") || folderNameLower.includes("traca_temp")) {
+if (
+  folderNameLower.includes("traça_temp") ||
+  folderNameLower.includes("traca_temp") ||
+  folderNameLower.includes("consommation gaz")
+) {
 
   const siteLi = li.parentElement.closest("li");
 
@@ -1721,7 +1863,7 @@ const z3Files = histFiles.filter(ff =>
 
     const z3Files = histFiles.filter(ff =>
       ff.name.toUpperCase().startsWith("Z3") &&
-      ff.name.toLowerCase().endsWith(".CSV")
+      ff.name.toLowerCase().endsWith(".csv")
     );
 
     localStorage.setItem("csvZ3Files", JSON.stringify(z3Files));
@@ -1781,7 +1923,7 @@ if (!hasCsv && subFolders.length > 0) {
 hideSiteTiles();
 showTable();
 
-await displayFiles(displayableFiles, folderName);
+await displayFiles(files, folderName);
 
 
 
@@ -1806,8 +1948,7 @@ const siteId = siteRootLi?.dataset.id || null;
 
 if (siteId && siteId !== currentSiteId) {
 
-  // ✅ RESET filtres date dès changement de site
-  resetDateFilterUIAndState();
+
   
   clearSiteHotDays();
   currentSiteId = siteId;
@@ -1897,12 +2038,99 @@ if (Object.keys(hotDaysMap).length > 0) {
     
 }
 
+async function getCompteursTempsLastLine(file){
+  try {
+    const realId = getDriveFileId(file);
+
+    const res = await fetch(
+      `https://smes21540.netlify.app/.netlify/functions/drive?id=${realId}&name=${encodeURIComponent(file.name)}&site=Smes_Acces`
+    );
+
+    if (!res.ok) return null;
+
+    const text = await res.text();
+    const lines = text
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    if (lines.length < 2) return null;
+
+    function parseCSV(line) {
+      const result = [];
+      let current = "";
+      let insideQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+
+        if (c === '"' && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else if (c === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (c === "," && !insideQuotes) {
+          result.push(current);
+          current = "";
+        } else {
+          current += c;
+        }
+      }
+
+      result.push(current);
+      return result.map(v => v.trim());
+    }
+
+    const header = parseCSV(lines[0]);
+    const last = parseCSV(lines[lines.length - 1]);
+
+    // ✅ Sécurité : si la dernière ligne n'a pas assez de colonnes, on considère le fichier inexploitable
+if (last.length < header.length || last.length < 10) {
+  return null;
+}
+
+    function get(colName){
+      const idx = header.findIndex(h => h.toLowerCase() === colName.toLowerCase());
+      if (idx === -1) return "0";
+      return (last[idx] || "0").trim();
+    }
+
+    function hm(hCol, mCol){
+      const h = parseInt(get(hCol), 10) || 0;
+      const m = parseInt(get(mCol), 10) || 0;
+      return `${h}h${String(m).padStart(2, "0")}`;
+    }
+
+    return {
+      cycleAvecBr: hm("Tps Cycle avec Br h", "Tps Cycle avec Br m"),
+      cycleSansBr: hm("Tps Cycle sans Br h", "Tps Cycle sans Br m"),
+      bruleurInf: hm("Tps Bruleur Inf h", "Tps Bruleur Inf m"),
+      bruleurSup: hm("Tps Bruleur Sup h", "Tps Bruleur Sup m")
+    };
+
+  } catch (e) {
+    console.warn("[Compteurs Temps] Erreur lecture :", file.name, e);
+    return null;
+  }
+}
+
+  
 async function displayFiles(files, folderName){
 
   hideSiteTiles();
 
 
   const tbody=document.querySelector('#csvTable tbody');
+
+
+  const folderLower = folderName.toLowerCase();
+const isCompteursTemps = folderLower.includes("compteurs temps");
+const isEchantillonnage = folderLower.includes("echantillonnage") || folderLower.includes("échantillonnage");
+const isTracaTemp = folderLower.includes("traça_temp") || folderLower.includes("traca_temp");
+
+  // Reset total historique
+  historiqueDurations = [];
+  
   const downloadBtn=document.getElementById('downloadFolderBtn');
   tbody.innerHTML='';
 
@@ -1926,6 +2154,120 @@ document.querySelector(".controls").style.display = "flex";
     return;
   }
 
+// ✅ Pour Compteurs Temps : on cherchera le CSV le plus récent NON VIDE
+let latestCompteursTempsFile = null;
+let latestCompteursTempsData = null;
+
+if (isCompteursTemps) {
+  const compteursCsvFiles = files
+    .filter(f => /(\d{8})\.csv$/i.test(f.name))
+    .sort((a, b) => {
+      const da = (a.name.match(/(\d{8})\.csv$/i) || ["", ""])[1];
+      const db = (b.name.match(/(\d{8})\.csv$/i) || ["", ""])[1];
+      return db.localeCompare(da); // plus récent en premier
+    });
+
+  for (const f of compteursCsvFiles) {
+    const data = await getCompteursTempsLastLine(f);
+
+    // ✅ si data existe, c'est que le CSV contient une vraie dernière ligne exploitable
+    if (data) {
+      latestCompteursTempsFile = f;
+      latestCompteursTempsData = data;
+      break;
+    }
+  }
+}
+
+if (isCompteursTemps && latestCompteursTempsFile && latestCompteursTempsData) {
+  tbody.insertAdjacentHTML("beforeend", `
+    <tr>
+      <td colspan="6" style="
+        text-align:center;
+        padding:14px;
+        background:var(--accent-muted);
+        border-bottom:3px solid var(--accent);
+      ">
+        <div style="
+          font-weight:bold;
+          color:var(--accent-darker);
+          margin-bottom:8px;
+        ">
+          ⏱️ Derniers compteurs disponibles
+          <span style="font-size:12px;font-weight:normal;color:var(--muted-text);">
+            depuis ${latestCompteursTempsFile.name}
+          </span>
+        </div>
+
+        <div style="
+          display:flex;
+          flex-wrap:wrap;
+          justify-content:center;
+          gap:6px;
+          font-size:12px;
+        ">
+          <span class="gaz-btn">Cycle avec Brûleur : ${latestCompteursTempsData.cycleAvecBr}</span>
+          <span class="gaz-btn">Cycle sans Brûleur : ${latestCompteursTempsData.cycleSansBr}</span>
+          <span class="gaz-btn">Brûleur Inf : ${latestCompteursTempsData.bruleurInf}</span>
+          <span class="gaz-btn">Brûleur Sup : ${latestCompteursTempsData.bruleurSup}</span>
+        </div>
+      </td>
+    </tr>
+  `);
+}
+
+
+  
+// ✅ Alerte si aucun fichier récent depuis au moins 7 jours
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const limitDate = new Date(today);
+limitDate.setDate(limitDate.getDate() - 7);
+
+let latestFileDate = null;
+
+for (const f of files) {
+  const m = f.name.match(/(\d{8})\.csv$/i);
+  if (!m) continue;
+
+  const d = new Date(
+    Number(m[1].slice(0, 4)),
+    Number(m[1].slice(4, 6)) - 1,
+    Number(m[1].slice(6, 8))
+  );
+
+  if (!latestFileDate || d > latestFileDate) {
+    latestFileDate = d;
+  }
+}
+
+let serverDisconnectedWarning = "";
+
+if (latestFileDate && latestFileDate < limitDate) {
+  serverDisconnectedWarning = `
+    <tr>
+      <td colspan="6" style="
+        text-align:center;
+        padding:16px;
+        font-size:18px;
+        font-weight:bold;
+        color:var(--danger);
+        background:var(--accent-muted);
+        border-bottom:3px solid var(--danger);
+      ">
+        ⚠️ L'ordinateur est déconnecté du serveur
+        <br>
+        <span style="font-size:13px;font-weight:normal;color:var(--muted-text);">
+          Dernier fichier reçu le ${latestFileDate.toLocaleDateString("fr-FR")}
+        </span>
+      </td>
+    </tr>
+  `;
+
+  tbody.insertAdjacentHTML("beforeend", serverDisconnectedWarning);
+}
+  
 
   downloadBtn.style.display="inline-block";
 
@@ -1934,33 +2276,83 @@ downloadBtn.style.display="inline-block";
 const exportBtn = document.getElementById("exportCsvBtn");
 const excelBtn  = document.getElementById("exportExcelGazBtn");
 
-
+// ✅ Pas de bouton Courbes / Graphique pour Compteurs Temps
+if (isCompteursTemps) {
+  exportBtn.style.display = "none";
+}
 
 // === Gestion affichage boutons et pastilles GAZ ===
 if (folderName.toLowerCase().includes("consommation gaz")) {
   exportBtn.style.display = "inline-block";
   excelBtn.style.display  = "inline-block";
 
-  // --- Création des pastilles totales GAZ si absentes ---
   const excelBtnGaz = document.getElementById("exportExcelGazBtn");
   const existingSummary = document.querySelector(".gaz-summary");
   if (excelBtnGaz && !existingSummary) {
     const summaryDiv = document.createElement("div");
     summaryDiv.className = "gaz-summary";
     summaryDiv.innerHTML = `
-      <span class="gaz-total gaz-total-m3" title="Total m³ calculé">m³ total: --</span>
-      <span class="gaz-total gaz-total-kwh" title="Total kWh calculé">kWh total: --</span>
+      <span class="gaz-total gaz-total-m3" title="Somme des consommations en mètres cubes pour les jours actuellement affichés.">m³ total: --</span>
+      <span class="gaz-total gaz-total-kwh" title="Somme des consommations en kWh pour les jours actuellement affichés.">kWh total: --</span>
+      <span class="gaz-total gaz-total-gas-duration" title="Durée totale calculée depuis les fichiers du compteur gaz : chaque intervalle où le compteur kWh augmente est compté comme une minute de fonctionnement. Attention : certains fichiers peuvent être manquants, incomplets ou ne pas couvrir toute la journée.">⛽ Durée Totale : --:--</span>
+      <span class="gaz-total gaz-total-history-duration" title="Durée totale calculée directement depuis tous les fichiers du dossier Historique compris dans la période sélectionnée. Les cycles traversant minuit sont pris en compte. Attention : certains fichiers Historique peuvent être manquants ou incomplets.">🗂️ Durée Totale : --:--</span>
     `;
     excelBtnGaz.insertAdjacentElement("afterend", summaryDiv);
   }
+} else if (isEchantillonnage) {
+  exportBtn.style.display = "inline-block";
+  exportBtn.title = "Ouvrir les courbes du premier fichier actuellement visible";
+  excelBtn.style.display  = "inline-block";
+  excelBtn.title = "Exporter les humidités moyennes des fichiers actuellement visibles";
+
+  const controls = document.querySelector(".controls");
+  if (controls && !document.querySelector(".sampling-summary")) {
+    const summaryDiv = document.createElement("div");
+    summaryDiv.className = "gaz-summary sampling-summary";
+    summaryDiv.style.display = "none";
+    summaryDiv.innerHTML = `
+      <span class="gaz-total sampling-total-entry" title="Moyenne des humidités moyennes journalières d'entrée pour les fichiers actuellement visibles. Les valeurs nulles, vides ou invalides sont ignorées. Attention : certains fichiers peuvent être manquants ou incomplets.">🟢 Humidité moyenne entrée : -- %</span>
+      <span class="gaz-total sampling-total-exit" title="Moyenne des humidités moyennes journalières de sortie pour les fichiers actuellement visibles. Les valeurs nulles, vides ou invalides sont ignorées. Attention : certains fichiers peuvent être manquants ou incomplets.">🟡 Humidité moyenne sortie : -- %</span>
+    `;
+    controls.appendChild(summaryDiv);
+  }
+} else if (isTracaTemp) {
+  exportBtn.style.display = "inline-block";
+  exportBtn.title = "Ouvrir index03 avec le premier fichier actuellement visible";
+  excelBtn.style.display  = "inline-block";
+  excelBtn.title = "Exporter les moyennes Traça_Temp des fichiers actuellement visibles";
+
+  const controls = document.querySelector(".controls");
+  if (controls && !document.querySelector(".traca-summary")) {
+    const summaryDiv = document.createElement("div");
+    summaryDiv.className = "gaz-summary traca-summary";
+    summaryDiv.style.display = "none";
+    summaryDiv.innerHTML = `
+      <span class="gaz-total traca-total-gaz" title="Moyenne du débit Gaz m³/h pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🟠 Gaz : -- m³/h</span>
+      <span class="gaz-total traca-total-normalise" title="Moyenne Normalisé pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🟠 Normalisé : --</span>
+      <span class="gaz-total traca-total-modulee" title="Moyenne Modulée pendant le fonctionnement détecté, affichée en minutes:secondes. Attention : certains fichiers peuvent être manquants ou incomplets.">🔵 Modulée : --:--</span>
+      <span class="gaz-total traca-total-debit" title="Moyenne du débit t/h pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🔵 Débit : -- t/h</span>
+      <span class="gaz-total traca-total-ipe" title="Moyenne Ipé pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🟢 Ipé : --</span>
+    `;
+    controls.appendChild(summaryDiv);
+  }
 } else {
-  // --- Masquage des boutons GAZ ---
   exportBtn.style.display = "none";
   excelBtn.style.display  = "none";
+}
 
-  // --- Suppression des pastilles totales GAZ ---
-  const existingSummary = document.querySelector(".gaz-summary");
-  if (existingSummary) existingSummary.remove();
+// Nettoyage des résumés qui ne correspondent pas au dossier courant
+if (!folderName.toLowerCase().includes("consommation gaz")) {
+  const existingGazSummary = document.querySelector(".gaz-summary:not(.sampling-summary):not(.traca-summary)");
+  if (existingGazSummary) existingGazSummary.remove();
+}
+if (!isEchantillonnage) {
+  const existingSamplingSummary = document.querySelector(".sampling-summary");
+  if (existingSamplingSummary) existingSamplingSummary.remove();
+}
+if (!isTracaTemp) {
+  const existingTracaSummary = document.querySelector(".traca-summary");
+  if (existingTracaSummary) existingTracaSummary.remove();
 }
 
 
@@ -2044,6 +2436,8 @@ for (const f of files) {
     if((filterStartDate && date<filterStartDate) || (filterEndDate && date>filterEndDate)) continue;
 
 const tr=document.createElement('tr');
+tr.dataset.fileId = getDriveFileId(f) || '';
+tr.dataset.fileName = f.name || '';
 
     const tdFlame = document.createElement('td');
 tdFlame.style.textAlign = "center";
@@ -2096,6 +2490,7 @@ if (date) {
 
 const tdName = document.createElement('td');
 tdName.textContent = f.name;
+
 
 // === FLAMME FILE (avec cancelScan) ===
 if (f.name.toLowerCase().endsWith(".csv") &&
@@ -2180,7 +2575,7 @@ if (mNote && jsonDates.has(mNote[1])) {
 }
 
 
-tdName.textContent = f.name;
+
 
 
     } catch(e) {
@@ -2223,15 +2618,18 @@ if (f.name.toLowerCase().endsWith('.csv')) {
 </button>
 `;
 
-  // 👇 bouton Courbes seulement si on n'est PAS dans Historique
-  if (!folderName.toLowerCase().includes("historique")) {
-    html += `<button class="action-btn"
-        title="Afficher les courbes des différentes données disponibles sur une période choisie"
-        onclick="openViewer('viewer02.html','${realId}','${f.name}')">
-  Courbes
+// 👇 bouton Courbes seulement si on n'est PAS dans Historique ni Compteurs Temps
+if (
+  !folderName.toLowerCase().includes("historique") &&
+  !folderName.toLowerCase().includes("compteurs temps")
+) {
+  html += `<button class="action-btn"
+      title="Afficher les courbes des différentes données disponibles sur une période choisie"
+      onclick="openViewer('viewer02.html','${realId}','${f.name}')">
+Courbes
 </button>
 `;
-  }
+}
 
   // 👇 bouton Sondes uniquement si on est dans Traça_Temp
   if (folderName.toLowerCase().includes("traça_temp") || folderName.toLowerCase().includes("traca_temp")) {
@@ -2278,6 +2676,56 @@ if (
 
 
 
+// === ÉCHANTILLONNAGE : humidités moyennes entrée / sortie ===
+if (
+  isEchantillonnage &&
+  f.name.toLowerCase().endsWith(".csv")
+) {
+  html += `
+    <div class="gaz-group sampling-group" style="display:none;">
+      <button class="gaz-btn sampling-entry" style="display:none;" title="Moyenne de toutes les mesures H2O%Entrée valides de ce fichier. Les valeurs nulles sont ignorées." disabled>🟢 Entrée : calcul...</button>
+      <button class="gaz-btn sampling-exit" style="display:none;" title="Moyenne de toutes les mesures H2O%Sortie valides de ce fichier. Les valeurs nulles sont ignorées." disabled>🟡 Sortie : calcul...</button>
+    </div>
+  `;
+
+  gazTasks.push({ f, tdAction, tr, type: "echantillonnage" });
+}
+
+
+// === TRAÇA_TEMP : moyennes journalières ===
+if (
+  isTracaTemp &&
+  f.name.toLowerCase().endsWith(".csv")
+) {
+  html += `
+    <div class="gaz-group traca-group" style="display:none; flex-wrap:wrap;">
+      <button class="gaz-btn traca-gaz" style="display:none;" title="Moyenne Gaz uniquement pendant le fonctionnement réel du séchoir." disabled>🟠 Gaz : calcul...</button>
+      <button class="gaz-btn traca-normalise" style="display:none;" title="Moyenne Normalisé uniquement pendant le fonctionnement réel du séchoir." disabled>🟠 Normalisé : calcul...</button>
+      <button class="gaz-btn traca-modulee" style="display:none;" title="Moyenne Modulée uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Modulée : calcul...</button>
+      <button class="gaz-btn traca-debit" style="display:none;" title="Moyenne Débit uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Débit : calcul...</button>
+      <button class="gaz-btn traca-ipe" style="display:none;" title="Moyenne Ipé uniquement pendant le fonctionnement réel du séchoir." disabled>🟢 Ipé : calcul...</button>
+    </div>
+  `;
+
+  gazTasks.push({ f, tdAction, tr, type: "traca_temp" });
+}
+
+
+// === HISTORIQUE : placeholder durée cycle ===
+if (
+  folderName.toLowerCase().includes("historique") &&
+  f.name.toUpperCase().startsWith("Z3") &&
+  f.name.toLowerCase().endsWith(".csv")
+) {
+
+  html += `
+    <div class="gaz-group">
+      <button class="gaz-btn" disabled>⏱ Calcul...</button>
+    </div>
+  `;
+
+  gazTasks.push({ f, tdAction, type: "historique" });
+}
 
 
 
@@ -2356,13 +2804,52 @@ tr.appendChild(tdSize);
 
 // ✅ Lancer les calculs gaz avec limite de concurrence
 if (gazTasks.length) {
-  await runWithConcurrency(gazTasks, 6, computeGazForRow);
-  updateGazTotals();
+  await runWithConcurrency(gazTasks, 6, async (task) => {
+    if (task.type === "historique") {
+      await computeHistoriqueForRow(task);
+    } else if (task.type === "echantillonnage") {
+      await computeEchantillonnageForRow(task);
+    } else if (task.type === "traca_temp") {
+      await computeTracaTempForRow(task);
+    } else {
+      await computeGazForRow(task);
+    }
+  });
 
+  updateGazTotals();
+  updateHistoriqueTotals();
+  updateEchantillonnageTotals();
+  updateTracaTempTotals();
+
+}
+
+// 📝 Réinjection FORCÉE des notes (ne touche pas aux flammes)
+document.querySelectorAll('#csvTable tbody tr').forEach(tr => {
+  const nameCell = tr.cells[3];
+  const flameCell = tr.cells[1];
+
+  if (!nameCell || !flameCell) return;
+
+  const m = nameCell.textContent.match(/(\d{8})\.csv$/i);
+  if (!m) return;
+
+  const key = m[1];
+
+  if (storedNotes[key]) {
+    if (!flameCell.innerHTML.includes("📝")) {
+      const txt = storedNotes[key].join("\n");
+
+      flameCell.insertAdjacentHTML(
+        "beforeend",
+        ` <span class="note" title="${txt}">📝</span>`
+      );
+    }
+  }
+});
 
   
 }
-}
+
 
 
 
@@ -2514,16 +3001,10 @@ async function clearFilter(){
 }
 
 function resetDateFilterUIAndState(){
-  filterStartDate = "";
-  filterEndDate = "";
+  // ✅ Au changement de site, on remet le filtre par défaut
+  setDefaultDateFilterFromAprilFirst();
 
-  fpStart?.clear();
-  fpEnd?.clear();
-
-  // retire l'affichage des champs masqués/visibles
-  document.querySelectorAll(".date-field").forEach(df => df.classList.remove("has-date"));
-
-  // reset campagne visuelle
+  // ✅ reset campagne visuelle
   activeCampaignKey = "";
   document.querySelectorAll(".campaign-btn").forEach(b => b.classList.remove("active"));
 }
@@ -3173,129 +3654,607 @@ function recolorHotDays(instance) {
 }
 
 
-/* ----------- Export CSV (Gaz) ----------- */
+/* ----------- Graphique / Export selon le dossier courant ----------- */
+function getActiveFolderKind() {
+  // Plusieurs éléments du chemin peuvent avoir .active-folder.
+  // On prend d'abord le dossier final mémorisé, puis le dernier élément actif.
+  const savedPath = (localStorage.getItem("lastFolderPath") || "").toLowerCase();
+  const activeFolders = Array.from(document.querySelectorAll("#folderTree .active-folder"));
+  const lastActiveName = (activeFolders.at(-1)?.textContent || "").toLowerCase();
+  const name = `${savedPath} ${lastActiveName}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (name.includes("consommation gaz")) return "gaz";
+  if (name.includes("echantillonnage")) return "sampling";
+  if (name.includes("traca temp")) return "traca";
+  if (name.includes("historique")) return "historique";
+  return "";
+}
+
+function getVisibleDataRows() {
+  return Array.from(document.querySelectorAll("#csvTable tbody tr"))
+    .filter(r => r.style.display !== "none" && r.dataset.fileId && r.dataset.fileName);
+}
+
 document.getElementById("exportCsvBtn").addEventListener("click", async function () {
+  const kind = getActiveFolderKind();
+  const rows = getVisibleDataRows();
 
-    const rows = Array.from(document.querySelectorAll("#csvTable tbody tr"))
-        .filter(r => r.style.display !== "none");
+  if (!rows.length) {
+    alert("Aucune donnée visible à afficher dans le graphique.");
+    return;
+  }
 
-    if (rows.length === 0) {
-        alert("Aucune ligne visible à exporter.");
-        return;
-    }
+  function csvValue(value) {
+    const s = String(value ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
 
-    let csv = "Date,ConsokWh,ConsoM3,Duree,DureeMinutes,Moyenne(kWh/h),Tonnage\n";
+  function rowDate(row) {
+    return row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "";
+  }
+
+  let csv = "";
+  let validRows = 0;
+
+  if (kind === "sampling") {
+    csv = "Date,HumiditeEntree,HumiditeSortie\n";
 
     for (const row of rows) {
+      const entry = Number.parseFloat(row.dataset.humidityEntry);
+      const exit = Number.parseFloat(row.dataset.humidityExit);
+      if (!Number.isFinite(entry) && !Number.isFinite(exit)) continue;
 
-        // --- DATE ---
-        let date = row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "0";
-        if (!date) date = "0";
+      csv += [
+        rowDate(row),
+        Number.isFinite(entry) ? entry.toFixed(1) : "",
+        Number.isFinite(exit) ? exit.toFixed(1) : ""
+      ].map(csvValue).join(",") + "\n";
+      validRows++;
+    }
 
-        const btns = row.querySelectorAll(".gaz-group .gaz-btn");
-        if (btns.length !== 4) continue;
+    if (!validRows) {
+      alert("Aucune humidité calculable dans les fichiers visibles.");
+      return;
+    }
 
-        // --- KWH ---
-        let kwh = btns[0].textContent.replace(/[^\d.-]/g, "");
-        if (kwh === "" || isNaN(kwh)) kwh = "0";
+    localStorage.setItem("exportGazCsvData", csv);
+    localStorage.setItem("exportGraphTitle", "Humidités moyennes - Échantillonnage");
+    localStorage.setItem("exportGraphType", "echantillonnage");
+    window.open("viewer03.html?export_gaz=1&type=echantillonnage", "_blank");
+    return;
+  }
 
-        // --- M3 ---
-        let m3 = btns[1].textContent.replace(/[^\d.-]/g, "");
-        if (m3 === "" || isNaN(m3)) m3 = "0";
+  if (kind === "traca") {
+    csv = "Date,Gaz_m3_h,Normalise,Modulee_secondes,Debit_t_h,Ipe\n";
 
-        // --- DUREE (HH:MM) ---
-        let duree = btns[2].textContent.replace(/[^0-9:]/g, "");
-        if (!duree.includes(":")) duree = "0";
+    for (const row of rows) {
+      if (Number.parseInt(row.dataset.tracaRunningRows || "0", 10) <= 0) continue;
 
-        // --- DUREE MINUTES ---
-        let mins = 0;
-        if (duree !== "0") {
-            const p = duree.split(":");
-            const h = parseInt(p[0], 10);
-            const m = parseInt(p[1], 10);
-            mins = (isNaN(h) || isNaN(m)) ? 0 : (h * 60 + m);
-        }
+      const gaz = Number.parseFloat(row.dataset.tracaGaz);
+      const normalise = Number.parseFloat(row.dataset.tracaNormalise);
+      const modulee = Number.parseFloat(row.dataset.tracaModulee);
+      const debit = Number.parseFloat(row.dataset.tracaDebit);
+      const ipe = Number.parseFloat(row.dataset.tracaIpe);
 
-        // --- MOYENNE ---
-        let avg = btns[3].textContent.replace(/[^\d.-]/g, "");
-        if (avg === "" || isNaN(avg)) avg = "0";
+      if (![gaz, normalise, modulee, debit, ipe].some(Number.isFinite)) continue;
 
-let tonnage = 0;
-if (row.dataset.tonnage) {
-    tonnage = parseFloat(row.dataset.tonnage);
-    tonnage = Number(tonnage.toFixed(1)); // 🔥 arrondi à 0.1 tonne
+      csv += [
+        rowDate(row),
+        Number.isFinite(gaz) ? gaz.toFixed(1) : "",
+        Number.isFinite(normalise) ? normalise.toFixed(1) : "",
+        Number.isFinite(modulee) ? modulee.toFixed(1) : "",
+        Number.isFinite(debit) ? debit.toFixed(1) : "",
+        Number.isFinite(ipe) ? ipe.toFixed(1) : ""
+      ].map(csvValue).join(",") + "\n";
+      validRows++;
+    }
+
+    if (!validRows) {
+      alert("Aucun fonctionnement détecté dans les fichiers visibles.");
+      return;
+    }
+
+    localStorage.setItem("exportGazCsvData", csv);
+    localStorage.setItem("exportGraphTitle", "Moyennes de fonctionnement - Traça_Temp");
+    localStorage.setItem("exportGraphType", "traca_temp");
+    window.open("viewer03.html?export_gaz=1&type=traca_temp", "_blank");
+    return;
+  }
+
+  if (kind === "gaz") {
+    csv = "Date,ConsokWh,ConsoM3,Duree,DureeMinutes,Moyenne(kWh/h),Tonnage\n";
+
+    for (const row of rows) {
+      const btns = row.querySelectorAll(".gaz-group .gaz-btn");
+      if (btns.length !== 4) continue;
+
+      const kwh = Number.parseFloat(btns[0].textContent.replace(/[^\d.-]/g, "")) || 0;
+      const m3 = Number.parseFloat(btns[1].textContent.replace(/[^\d.-]/g, "")) || 0;
+      const duree = btns[2].textContent.replace(/[^0-9:]/g, "") || "00:00";
+      const [h, m] = duree.split(":").map(v => Number.parseInt(v, 10) || 0);
+      const avg = Number.parseFloat(btns[3].textContent.replace(/[^\d.-]/g, "")) || 0;
+      const tonnage = Number.parseFloat(row.dataset.tonnage) || 0;
+
+      csv += [rowDate(row), kwh, m3, duree, h * 60 + m, avg, Number(tonnage.toFixed(1))]
+        .map(csvValue).join(",") + "\n";
+      validRows++;
+    }
+
+    if (!validRows) {
+      alert("Aucune donnée gaz visible à afficher.");
+      return;
+    }
+
+    localStorage.setItem("exportGazCsvData", csv);
+    localStorage.setItem("exportGraphTitle", "Consommation gaz");
+    localStorage.setItem("exportGraphType", "gaz");
+    window.open("viewer03.html?export_gaz=1&type=gaz", "_blank");
+    return;
+  }
+
+  alert("Ce dossier ne possède pas de graphique récapitulatif.");
+});
+
+document.getElementById("exportExcelGazBtn").addEventListener("click", function () {
+  const kind = getActiveFolderKind();
+  const rows = getVisibleDataRows();
+  if (!rows.length) return alert("Aucune ligne visible à exporter.");
+
+  let data = [];
+  let sheetName = "Export";
+  let fileName = `export_${new Date().toISOString().slice(0,10)}.xlsx`;
+
+  if (kind === "sampling") {
+    data = [["Date", "Humidité moyenne entrée (%)", "Humidité moyenne sortie (%)"]];
+    for (const row of rows) {
+      const entry = Number.parseFloat(row.dataset.humidityEntry);
+      const exit = Number.parseFloat(row.dataset.humidityExit);
+      if (!Number.isFinite(entry) && !Number.isFinite(exit)) continue;
+      const date = row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "";
+      data.push([date, Number.isFinite(entry) ? Number(entry.toFixed(1)) : "", Number.isFinite(exit) ? Number(exit.toFixed(1)) : ""]);
+    }
+    sheetName = "Echantillonnage";
+    fileName = `export_echantillonnage_${new Date().toISOString().slice(0,10)}.xlsx`;
+  } else if (kind === "traca") {
+    data = [["Date", "Gaz (m³/h)", "Normalisé", "Modulée (min:s)", "Modulée (secondes)", "Débit (t/h)", "Ipé"]];
+    for (const row of rows) {
+      if (Number.parseInt(row.dataset.tracaRunningRows || "0", 10) <= 0) continue;
+      const date = row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "";
+      const gaz = Number.parseFloat(row.dataset.tracaGaz);
+      const normalise = Number.parseFloat(row.dataset.tracaNormalise);
+      const modulee = Number.parseFloat(row.dataset.tracaModulee);
+      const debit = Number.parseFloat(row.dataset.tracaDebit);
+      const ipe = Number.parseFloat(row.dataset.tracaIpe);
+      data.push([
+        date,
+        Number.isFinite(gaz) ? Number(gaz.toFixed(1)) : "",
+        Number.isFinite(normalise) ? Number(normalise.toFixed(1)) : "",
+        Number.isFinite(modulee) ? formatSecondsToMinSec(modulee) : "",
+        Number.isFinite(modulee) ? Number(modulee.toFixed(1)) : "",
+        Number.isFinite(debit) ? Number(debit.toFixed(1)) : "",
+        Number.isFinite(ipe) ? Number(ipe.toFixed(1)) : ""
+      ]);
+    }
+    sheetName = "Traca Temp";
+    fileName = `export_traca_temp_${new Date().toISOString().slice(0,10)}.xlsx`;
+  } else if (kind === "gaz") {
+    data = [["Date", "kWh consommés", "m³ consommés", "Durée (HH:mm)", "Durée (minutes)", "Moyenne kWh/h", "Tonnage"]];
+    for (const row of rows) {
+      const btns = row.querySelectorAll(".gaz-group .gaz-btn");
+      if (btns.length !== 4) continue;
+      const date = row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "";
+      const kwh = Number.parseFloat(btns[0].textContent.replace(/[^\d.-]/g, "")) || 0;
+      const m3 = Number.parseFloat(btns[1].textContent.replace(/[^\d.-]/g, "")) || 0;
+      const duree = btns[2].textContent.replace(/[^0-9:]/g, "") || "00:00";
+      const [h,m] = duree.split(":").map(v => Number.parseInt(v,10) || 0);
+      const avg = Number.parseFloat(btns[3].textContent.replace(/[^\d.-]/g, "")) || 0;
+      const tonnage = Number.parseFloat(row.dataset.tonnage) || 0;
+      data.push([date,kwh,m3,duree,h*60+m,avg,Number(tonnage.toFixed(1))]);
+    }
+    sheetName = "Consommation Gaz";
+    fileName = `export_gaz_${new Date().toISOString().slice(0,10)}.xlsx`;
+  } else {
+    return;
+  }
+
+  if (data.length <= 1) return alert("Aucune valeur calculée à exporter.");
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = data[0].map((_,i) => ({ wch: Math.max(12, ...data.map(r => String(r[i] ?? '').length + 2)) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, fileName);
+});
+
+
+// =========================================
+// === Échantillonnage : humidités moyennes
+// =========================================
+function parseCsvLineSafe(line) {
+  const values = [];
+  let current = "";
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"' && line[i + 1] === '"') {
+      current += '"';
+      i++;
+    } else if (c === '"') {
+      quoted = !quoted;
+    } else if (c === ',' && !quoted) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += c;
+    }
+  }
+  values.push(current.trim());
+  return values;
+}
+
+function normalizeCsvHeader(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9%]/g, "")
+    .toLowerCase();
+}
+
+async function computeEchantillonnageForRow({ f, tdAction, tr }) {
+  startScan();
+  try {
+    const realId = getDriveFileId(f);
+    const res = await fetch(
+      `https://smes21540.netlify.app/.netlify/functions/drive?id=${realId}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
+    );
+    if (!res.ok) throw new Error("Fetch CSV échantillonnage failed: " + res.status);
+
+    // Les fichiers issus de l'automate sont généralement en Windows-1252.
+    const buffer = await res.arrayBuffer();
+    let text;
+    try {
+      text = new TextDecoder("windows-1252").decode(buffer);
+    } catch (_) {
+      text = new TextDecoder("utf-8").decode(buffer);
+    }
+
+    const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+    const btnEntry = tdAction.querySelector(".sampling-entry");
+    const btnExit  = tdAction.querySelector(".sampling-exit");
+    if (!btnEntry || !btnExit) return;
+
+    const samplingGroup = tdAction.querySelector(".sampling-group");
+
+    function hideSamplingCases() {
+      tr.dataset.humidityEntry = "";
+      tr.dataset.humidityExit = "";
+      btnEntry.style.display = "none";
+      btnExit.style.display = "none";
+      if (samplingGroup) samplingGroup.style.display = "none";
+    }
+
+    if (lines.length < 2) {
+      hideSamplingCases();
+      return;
+    }
+
+    const headers = parseCsvLineSafe(lines[0]).map(normalizeCsvHeader);
+    const idxEntry = headers.findIndex(h => h.includes("h2o%entree"));
+    const idxExit  = headers.findIndex(h => h.includes("h2o%sortie"));
+
+    if (idxEntry === -1 && idxExit === -1) {
+      hideSamplingCases();
+      return;
+    }
+
+    const entryValues = [];
+    const exitValues = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLineSafe(lines[i]);
+      const entry = Number.parseFloat(String(cols[idxEntry] ?? "").trim().replace(",", "."));
+      const exit  = Number.parseFloat(String(cols[idxExit] ?? "").trim().replace(",", "."));
+
+      if (Number.isFinite(entry) && entry > 0 && entry <= 100) entryValues.push(entry);
+      if (Number.isFinite(exit) && exit > 0 && exit <= 100) exitValues.push(exit);
+    }
+
+    const avgEntry = entryValues.length
+      ? entryValues.reduce((sum, value) => sum + value, 0) / entryValues.length
+      : NaN;
+    const avgExit = exitValues.length
+      ? exitValues.reduce((sum, value) => sum + value, 0) / exitValues.length
+      : NaN;
+
+    tr.dataset.humidityEntry = Number.isFinite(avgEntry) ? String(avgEntry) : "";
+    tr.dataset.humidityExit = Number.isFinite(avgExit) ? String(avgExit) : "";
+
+    const hasEntry = Number.isFinite(avgEntry);
+    const hasExit = Number.isFinite(avgExit);
+
+    if (!hasEntry && !hasExit) {
+      hideSamplingCases();
+      return;
+    }
+
+    if (samplingGroup) samplingGroup.style.display = "flex";
+
+    if (hasEntry) {
+      btnEntry.textContent = `🟢 Entrée : ${avgEntry.toFixed(1)} %`;
+      btnEntry.title = `${entryValues.length} mesure(s) valide(s) utilisée(s) pour la moyenne d'entrée de cette journée.`;
+      btnEntry.disabled = false;
+      btnEntry.style.display = "inline-block";
+      btnEntry.style.background = "linear-gradient(180deg, #c8e6c9, #81c784)";
+      btnEntry.style.color = "#1b5e20";
+    } else {
+      btnEntry.style.display = "none";
+    }
+
+    if (hasExit) {
+      btnExit.textContent = `🟡 Sortie : ${avgExit.toFixed(1)} %`;
+      btnExit.title = `${exitValues.length} mesure(s) valide(s) utilisée(s) pour la moyenne de sortie de cette journée.`;
+      btnExit.disabled = false;
+      btnExit.style.display = "inline-block";
+      btnExit.style.background = "linear-gradient(180deg, #fff59d, #fbc02d)";
+      btnExit.style.color = "#5d4037";
+    } else {
+      btnExit.style.display = "none";
+    }
+  } catch (e) {
+    console.warn("[Échantillonnage] Erreur lecture :", f.name, e);
+    const group = tdAction.querySelector(".sampling-group");
+    if (group) group.style.display = "none";
+    tr.dataset.humidityEntry = "";
+    tr.dataset.humidityExit = "";
+  } finally {
+    endScan();
+  }
+}
+
+function updateEchantillonnageTotals() {
+  const entryBox = document.querySelector(".sampling-total-entry");
+  const exitBox = document.querySelector(".sampling-total-exit");
+  if (!entryBox || !exitBox) return;
+
+  const rows = Array.from(document.querySelectorAll("#csvTable tbody tr"))
+    .filter(row => row.style.display !== "none");
+
+  const entries = rows
+    .map(row => Number.parseFloat(row.dataset.humidityEntry))
+    .filter(Number.isFinite);
+  const exits = rows
+    .map(row => Number.parseFloat(row.dataset.humidityExit))
+    .filter(Number.isFinite);
+
+  const avgEntry = entries.length
+    ? entries.reduce((sum, value) => sum + value, 0) / entries.length
+    : NaN;
+  const avgExit = exits.length
+    ? exits.reduce((sum, value) => sum + value, 0) / exits.length
+    : NaN;
+
+  const summary = document.querySelector(".sampling-summary");
+  const hasEntry = Number.isFinite(avgEntry);
+  const hasExit = Number.isFinite(avgExit);
+
+  if (!hasEntry && !hasExit) {
+    if (summary) summary.style.display = "none";
+    entryBox.style.display = "none";
+    exitBox.style.display = "none";
+    return;
+  }
+
+  if (summary) summary.style.display = "inline-flex";
+
+  if (hasEntry) {
+    entryBox.style.display = "inline-flex";
+    entryBox.textContent = `🟢 Humidité moyenne entrée : ${avgEntry.toFixed(1)} %`;
+    entryBox.title = `Moyenne de ${entries.length} moyenne(s) journalière(s) d'entrée parmi les fichiers actuellement visibles. Les valeurs invalides sont ignorées. Attention : certains fichiers peuvent être manquants ou incomplets.`;
+  } else {
+    entryBox.style.display = "none";
+  }
+
+  if (hasExit) {
+    exitBox.style.display = "inline-flex";
+    exitBox.textContent = `🟡 Humidité moyenne sortie : ${avgExit.toFixed(1)} %`;
+    exitBox.title = `Moyenne de ${exits.length} moyenne(s) journalière(s) de sortie parmi les fichiers actuellement visibles. Les valeurs invalides sont ignorées. Attention : certains fichiers peuvent être manquants ou incomplets.`;
+  } else {
+    exitBox.style.display = "none";
+  }
 }
 
 
 
-        csv += `${date},${kwh},${m3},${duree},${mins},${avg},${tonnage}\n`;
+// Convertit une durée exprimée en secondes vers min:s
+function formatSecondsToMinSec(value) {
+  if (!Number.isFinite(value) || value < 0) return "--:--";
+  const totalSeconds = Math.round(value);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+// =========================================
+// === Traça_Temp : moyennes en fonctionnement
+// =========================================
+async function computeTracaTempForRow({ f, tdAction, tr }) {
+  startScan();
+  try {
+    const realId = getDriveFileId(f);
+    const res = await fetch(
+      `https://smes21540.netlify.app/.netlify/functions/drive?id=${realId}&name=${encodeURIComponent(f.name)}&site=Smes_Acces`
+    );
+    if (!res.ok) throw new Error("Fetch CSV Traça_Temp failed: " + res.status);
+
+    const buffer = await res.arrayBuffer();
+    let text;
+    try {
+      text = new TextDecoder("windows-1252").decode(buffer);
+    } catch (_) {
+      text = new TextDecoder("utf-8").decode(buffer);
     }
 
-// 1️⃣ Sauvegarde du CSV pour viewer02
-localStorage.setItem("exportGazCsvData", csv);
+    const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+    const group = tdAction.querySelector(".traca-group");
+    const config = [
+      { key:"gaz", selector:".traca-gaz", names:["gazm3h"], label:"🟠 Gaz", unit:" m³/h" },
+      { key:"normalise", selector:".traca-normalise", names:["normalise"], label:"🟠 Normalisé", unit:"" },
+      { key:"modulee", selector:".traca-modulee", names:["modulee"], label:"🔵 Modulée", unit:"" },
+      { key:"debit", selector:".traca-debit", names:["debitt/h", "debitth"], label:"🔵 Débit", unit:" t/h" },
+      { key:"ipe", selector:".traca-ipe", names:["ipe"], label:"🟢 Ipé", unit:"" }
+    ];
 
-// 2️⃣ Ouvre viewer03 en mode courbes
-window.open("viewer03.html?export_gaz=1", "_blank");
-
-});
-
-
-document.getElementById("exportExcelGazBtn").addEventListener("click", function () {
-
-    const rows = Array.from(document.querySelectorAll("#csvTable tbody tr"))
-        .filter(r => r.style.display !== "none");
-
-    if (rows.length === 0) {
-        alert("Aucune ligne visible à exporter.");
-        return;
+    function hideAll() {
+      for (const item of config) {
+        tr.dataset["traca" + item.key.charAt(0).toUpperCase() + item.key.slice(1)] = "";
+        const btn = tdAction.querySelector(item.selector);
+        if (btn) btn.style.display = "none";
+      }
+      tr.dataset.tracaRunningRows = "";
+      if (group) group.style.display = "none";
     }
 
-    const data = [];
-    data.push([
-        "Date",
-        "kWh consommés",
-        "m³ consommés",
-        "Durée (HH:mm)",
-        "Durée (minutes)",
-        "Moyenne kWh/h",
-        "Tonnage"
-    ]);
-
-    for (const row of rows) {
-
-        // 1️⃣ Date
-        let date = row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "";
-
-        // 2️⃣ Boutons gaz
-        const btns = row.querySelectorAll(".gaz-group .gaz-btn");
-        if (btns.length !== 4) continue;
-
-        const kwh   = parseFloat(btns[0].textContent.replace(/[^\d.-]/g, "")) || 0;
-        const m3    = parseFloat(btns[1].textContent.replace(/[^\d.-]/g, "")) || 0;
-        const duree = btns[2].textContent.replace(/[^0-9:]/g, "") || "00:00";
-        const avg   = parseFloat(btns[3].textContent.replace(/[^\d.-]/g, "")) || 0;
-
-        let mins = 0;
-        if (duree.includes(":")) {
-            const [h, m] = duree.split(":");
-            mins = (parseInt(h) * 60) + parseInt(m);
-        }
-
-        // 3️⃣ Tonnage stocké par displayFiles()
-        let tonnage = parseFloat(row.dataset.tonnage) || 0;
-        tonnage = Number(tonnage.toFixed(1));
-
-        data.push([date, kwh, m3, duree, mins, avg, tonnage]);
+    if (lines.length < 2) {
+      hideAll();
+      return;
     }
 
-    // Génération Excel
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Consommation Gaz");
+    const headers = parseCsvLineSafe(lines[0]).map(normalizeCsvHeader);
+    const findIndex = names => headers.findIndex(h => names.includes(h));
 
-    XLSX.writeFile(wb, `export_gaz_${new Date().toISOString().slice(0,10)}.xlsx`);
-});
+    // Détection souple du fonctionnement : on utilise uniquement les
+    // indicateurs principaux réellement présents dans ce CSV.
+    const primaryIndexes = [
+      findIndex(["ipe"]),
+      findIndex(["gazm3h"]),
+      findIndex(["normalise"]),
+      findIndex(["debitt/h", "debitth"])
+    ].filter(idx => idx !== -1);
 
+    // Aucun indicateur principal disponible : impossible de détecter le fonctionnement.
+    if (!primaryIndexes.length) {
+      hideAll();
+      return;
+    }
+
+    const parsedRows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLineSafe(lines[i]);
+      const toNumber = idx => Number.parseFloat(String(cols[idx] ?? "").trim().replace(",", "."));
+
+      // Le séchoir est considéré en fonctionnement dès qu'au moins un
+      // indicateur principal disponible est strictement positif.
+      const isRunning = primaryIndexes.some(idx => {
+        const value = toNumber(idx);
+        return Number.isFinite(value) && value > 0;
+      });
+
+      if (!isRunning) continue;
+      parsedRows.push(cols);
+    }
+
+    // Aucun fonctionnement réel détecté : aucune tuile.
+    if (!parsedRows.length) {
+      hideAll();
+      return;
+    }
+
+    tr.dataset.tracaRunningRows = String(parsedRows.length);
+    let hasAny = false;
+
+    for (const item of config) {
+      const idx = findIndex(item.names);
+      const btn = tdAction.querySelector(item.selector);
+      const dataKey = "traca" + item.key.charAt(0).toUpperCase() + item.key.slice(1);
+
+      if (!btn || idx === -1) {
+        tr.dataset[dataKey] = "";
+        if (btn) btn.style.display = "none";
+        continue;
+      }
+
+      const values = parsedRows
+        .map(cols => Number.parseFloat(String(cols[idx] ?? "").trim().replace(",", ".")))
+        .filter(value => item.key === "modulee"
+          ? Number.isFinite(value) && value >= 0
+          : Number.isFinite(value) && value > 0
+        );
+
+      if (!values.length) {
+        tr.dataset[dataKey] = "";
+        btn.style.display = "none";
+        continue;
+      }
+
+      const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+      tr.dataset[dataKey] = String(avg);
+      btn.textContent = item.key === "modulee"
+        ? `${item.label} : ${formatSecondsToMinSec(avg)}`
+        : `${item.label} : ${avg.toFixed(1)}${item.unit}`;
+      btn.title = item.key === "modulee"
+        ? `${values.length} ligne(s) de fonctionnement utilisée(s). Moyenne calculée en secondes puis affichée en minutes:secondes.`
+        : `${values.length} ligne(s) de fonctionnement utilisée(s). Les périodes d’arrêt sont exclues. Le fonctionnement est détecté à partir des indicateurs réellement présents dans le fichier.`;
+      btn.disabled = false;
+      btn.style.display = "inline-block";
+      hasAny = true;
+    }
+
+    if (group) group.style.display = hasAny ? "flex" : "none";
+  } catch (e) {
+    console.warn("[Traça_Temp] Erreur lecture :", f.name, e);
+    const group = tdAction.querySelector(".traca-group");
+    if (group) group.style.display = "none";
+  } finally {
+    endScan();
+  }
+}
+
+function updateTracaTempTotals() {
+  const summary = document.querySelector(".traca-summary");
+  if (!summary) return;
+
+  const config = [
+    { data:"tracaGaz", selector:".traca-total-gaz", label:"🟠 Gaz", unit:" m³/h" },
+    { data:"tracaNormalise", selector:".traca-total-normalise", label:"🟠 Normalisé", unit:"" },
+    { data:"tracaModulee", selector:".traca-total-modulee", label:"🔵 Modulée", unit:"" },
+    { data:"tracaDebit", selector:".traca-total-debit", label:"🔵 Débit", unit:" t/h" },
+    { data:"tracaIpe", selector:".traca-total-ipe", label:"🟢 Ipé", unit:"" }
+  ];
+
+  const rows = Array.from(document.querySelectorAll("#csvTable tbody tr"))
+    .filter(row => row.style.display !== "none" && Number.parseInt(row.dataset.tracaRunningRows || "0", 10) > 0);
+
+  let hasAny = false;
+  for (const item of config) {
+    const box = document.querySelector(item.selector);
+    if (!box) continue;
+
+    const values = rows
+      .map(row => Number.parseFloat(row.dataset[item.data]))
+      .filter(Number.isFinite);
+
+    if (!values.length) {
+      box.style.display = "none";
+      continue;
+    }
+
+    const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+    box.textContent = item.data === "tracaModulee"
+      ? `${item.label} : ${formatSecondsToMinSec(avg)}`
+      : `${item.label} : ${avg.toFixed(1)}${item.unit}`;
+    box.title = item.data === "tracaModulee"
+      ? `Moyenne de ${values.length} journée(s) avec fonctionnement détecté, affichée en minutes:secondes. Les journées sans fonctionnement ne sont pas incluses. Attention : certains fichiers peuvent être manquants ou incomplets.`
+      : `Moyenne de ${values.length} journée(s) avec fonctionnement détecté. Les périodes d'arrêt et les journées sans fonctionnement sont exclues. Attention : certains fichiers peuvent être manquants ou incomplets.`;
+    box.style.display = "inline-flex";
+    hasAny = true;
+  }
+
+  summary.style.display = hasAny ? "inline-flex" : "none";
+}
 
 
 // =========================================
@@ -3344,6 +4303,28 @@ const res = await fetch(
       if (isFinite(kPrev) && isFinite(kCurr) && kCurr > kPrev) active++;
     }
     diffMinutes = active;
+  }
+
+  // Durée calculée directement depuis l'évolution du compteur gaz.
+  tr.dataset.gazMinutes = Number.isFinite(diffMinutes) ? String(diffMinutes) : "";
+
+  // Durée du même jour calculée depuis le dossier Historique voisin.
+  // Les fichiers Z3 ont été préchargés lors de l'ouverture de Consommation gaz.
+  tr.dataset.histMinutes = "";
+  const gasDateKey = getHistoriqueDateKey(f.name);
+  if (gasDateKey) {
+    try {
+      const z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
+      const historyFile = z3Files.find(file => getHistoriqueDateKey(file?.name) === gasDateKey);
+      if (historyFile) {
+        const histMinutes = await calculateHistoriqueMinutes(historyFile);
+        if (Number.isFinite(histMinutes)) {
+          tr.dataset.histMinutes = String(histMinutes);
+        }
+      }
+    } catch (e) {
+      console.warn("[GAZ] Durée Historique indisponible pour", f.name, e);
+    }
   }
 
   // Récup boutons
@@ -3458,35 +4439,214 @@ if (tonnage === null || !isFinite(tonnage)) {
 
 
 // === Fonction de cumul global des GAZ ===
+let gazHistoryTotalRequestId = 0;
+
+async function updateGazHistoryTotal() {
+  const span = document.querySelector(".gaz-total-history-duration");
+  if (!span) return;
+
+  const requestId = ++gazHistoryTotalRequestId;
+  span.textContent = "🗂️ Durée Totale : calcul...";
+
+  let z3Files = [];
+  try {
+    z3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
+  } catch (e) {
+    z3Files = [];
+  }
+
+  const startKey = String(filterStartDate || "").replace(/-/g, "");
+  const endKey = String(filterEndDate || "").replace(/-/g, "");
+
+  const filesInPeriod = z3Files.filter(file => {
+    const key = getHistoriqueDateKey(file?.name);
+    if (!key) return false;
+    if (startKey && key < startKey) return false;
+    if (endKey && key > endKey) return false;
+    return true;
+  });
+
+  let totalMinutes = 0;
+  let validFiles = 0;
+
+  await runWithConcurrency(filesInPeriod, 6, async file => {
+    const minutes = await calculateHistoriqueMinutes(file);
+    if (Number.isFinite(minutes) && minutes >= 0) {
+      totalMinutes += minutes;
+      validFiles++;
+    }
+  });
+
+  // Ignore un ancien calcul si l'utilisateur a changé de dossier/période entre-temps.
+  if (requestId !== gazHistoryTotalRequestId || !document.body.contains(span)) return;
+
+  const safe = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(safe / 60);
+  const mins = safe % 60;
+  const formatted = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+
+  span.textContent = validFiles > 0
+    ? `🗂️ Durée Totale : ${formatted}`
+    : "🗂️ Durée Totale : indisponible";
+
+  span.title =
+    `Durée totale calculée directement depuis ${validFiles} fichier(s) du dossier Historique ` +
+    `compris dans la période sélectionnée, indépendamment de la présence d'un fichier gaz à la même date. ` +
+    `Les cycles traversant minuit sont pris en compte. Attention : certains fichiers Historique peuvent être manquants ou incomplets.`;
+}
+
 function updateGazTotals() {
   const totalM3Span = document.querySelector(".gaz-total-m3");
   const totalKwhSpan = document.querySelector(".gaz-total-kwh");
-  if (!totalM3Span || !totalKwhSpan) return; // pas de pastilles visibles
+  const totalGasDurationSpan = document.querySelector(".gaz-total-gas-duration");
+  if (!totalM3Span || !totalKwhSpan) return;
 
   let totalM3 = 0;
   let totalKwh = 0;
+  let totalGasMinutes = 0;
 
-document.querySelectorAll("#csvTable tbody tr").forEach(tr => {
-  if (tr.style.display === "none") return;  // ne compte pas les lignes filtrées
-  const group = tr.querySelector(".gaz-group");
-  if (!group) return;
+  document.querySelectorAll("#csvTable tbody tr").forEach(tr => {
+    if (tr.style.display === "none") return;
+    const group = tr.querySelector(".gaz-group");
+    if (!group) return;
 
-  const btns = group.querySelectorAll(".gaz-btn");
-  if (btns.length >= 2) {
-    const m3Text = btns[1].textContent.replace(/[^\d.]/g, "");
-    const kwhText = btns[0].textContent.replace(/[^\d.]/g, "");
-    const m3 = parseFloat(m3Text);
-    const kwh = parseFloat(kwhText);
-    if (isFinite(m3)) totalM3 += m3;
-    if (isFinite(kwh)) totalKwh += kwh;
+    const btns = group.querySelectorAll(".gaz-btn");
+    if (btns.length >= 2) {
+      const m3Text = btns[1].textContent.replace(/[^\d.]/g, "");
+      const kwhText = btns[0].textContent.replace(/[^\d.]/g, "");
+      const m3 = parseFloat(m3Text);
+      const kwh = parseFloat(kwhText);
+      if (isFinite(m3)) totalM3 += m3;
+      if (isFinite(kwh)) totalKwh += kwh;
+    }
+
+    const gasMinutes = Number(tr.dataset.gazMinutes);
+    if (Number.isFinite(gasMinutes) && gasMinutes >= 0) {
+      totalGasMinutes += gasMinutes;
+    }
+  });
+
+  function formatTotalMinutes(minutes) {
+    const safe = Math.max(0, Math.round(Number(minutes) || 0));
+    const hours = Math.floor(safe / 60);
+    const mins = safe % 60;
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
   }
-});
-
 
   totalM3Span.textContent = `m³ total: ${totalM3.toFixed(1)}`;
   totalKwhSpan.textContent = `kWh total: ${Math.round(totalKwh).toLocaleString("fr-FR")}`;
+
+  if (totalGasDurationSpan) {
+    totalGasDurationSpan.textContent = `⛽ Durée Totale : ${formatTotalMinutes(totalGasMinutes)}`;
+    totalGasDurationSpan.title =
+      "Durée totale calculée depuis les fichiers du compteur gaz : chaque intervalle où le compteur kWh augmente est compté comme une minute de fonctionnement. Attention : certains fichiers peuvent être manquants, incomplets ou ne pas couvrir toute la journée.";
+  }
+
+  // Le total Historique est calculé directement depuis tous les Z3 de la période,
+  // et non plus uniquement pour les dates possédant aussi un fichier gaz.
+  updateGazHistoryTotal();
 }
 
+
+function updateHistoriqueTotals() {
+
+  console.log("Historique durations:", historiqueDurations);
+
+const total = Object.values(historiqueDurations)
+  .filter(Number.isFinite)
+  .reduce((sum, val) => sum + val, 0);
+
+
+  let btn = document.getElementById("historiqueSumBtn");
+
+  if (total === 0) {
+    if (btn) btn.remove();
+    return;
+  }
+
+if (!btn) {
+  btn = document.createElement("button");
+  btn.id = "historiqueSumBtn";
+  btn.className = "gaz-total";   // 👈 même classe que Σ m3
+  btn.style.marginLeft = "10px";
+
+  const controls = document.querySelector(".controls");
+  controls.appendChild(btn);
+}
+
+
+  const H = String(Math.floor(total / 60)).padStart(2,"0");
+  const M = String(total % 60).padStart(2,"0");
+
+  btn.textContent = `⏱ ${H}:${M}`;
+
+let exportBtn = document.getElementById("historiqueExportBtn");
+
+if (!exportBtn) {
+  exportBtn = document.createElement("button");
+  exportBtn.id = "historiqueExportBtn";
+  exportBtn.className = "gaz-total";
+  exportBtn.style.marginLeft = "10px";
+  exportBtn.textContent = "Export Excel";
+
+  exportBtn.onclick = exportHistoriqueExcel;
+
+  const controls = document.querySelector(".controls");
+  controls.appendChild(exportBtn);
+}
+
+}
+
+function exportHistoriqueExcel() {
+
+  const data = Object.entries(historiqueDurations)
+    .map(([fileName, minutes]) => {
+
+      // Extraction date depuis Z3xxxxx_YYYYMMDD.csv
+      const match = fileName.match(/_(\d{8})/);
+
+      let formattedDate = "Date inconnue";
+
+      if (match) {
+        const raw = match[1]; // YYYYMMDD
+        const year  = raw.substring(0,4);
+        const month = raw.substring(4,6);
+        const day   = raw.substring(6,8);
+
+        formattedDate = `${day}/${month}/${year}`;
+      }
+
+      const H = Math.floor(minutes / 60);
+      const M = minutes % 60;
+
+      return {
+        "Date": formattedDate,
+        "Durée (minutes)": minutes,
+        "Durée (HH:MM)": 
+          String(H).padStart(2,"0") + ":" +
+          String(M).padStart(2,"0")
+      };
+    });
+
+  if (!data.length) return;
+
+  // Tri par date croissante
+  data.sort((a,b)=>{
+    const [d1,m1,y1] = a.Date.split("/");
+    const [d2,m2,y2] = b.Date.split("/");
+    return new Date(y1,m1-1,d1) - new Date(y2,m2-1,d2);
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Historique");
+
+  XLSX.writeFile(workbook, "Historique_Cycles.xlsx");
+}
+
+
+
+  
 // === Limiteur de concurrence (évite 200 fetch en même temps) ===
 async function runWithConcurrency(tasks, limit, worker) {
   let i = 0;
@@ -3510,6 +4670,318 @@ async function runWithConcurrency(tasks, limit, worker) {
 
   await enqueue();
   await Promise.all([...executing]);
+}
+
+
+
+// =========================================
+// === Calcule durée cycle Historique (Z3)
+// === Gère aussi les cycles traversant minuit
+// =========================================
+const historiqueCsvTextCache = new Map();
+
+async function fetchHistoriqueCsvText(file) {
+  if (!file) return "";
+
+  const cacheKey = getDriveFileId(file) || file.id || file.name;
+  if (historiqueCsvTextCache.has(cacheKey)) {
+    return historiqueCsvTextCache.get(cacheKey);
+  }
+
+  const promise = (async () => {
+    try {
+      const realId = getDriveFileId(file);
+      const res = await fetch(
+        `https://smes21540.netlify.app/.netlify/functions/drive?id=${realId}&name=${encodeURIComponent(file.name)}&site=Smes_Acces`
+      );
+      if (!res.ok) return "";
+
+      // Les historiques Z3 proviennent de l'automate en Windows-1252.
+      // response.text() suppose souvent de l'UTF-8 et peut transformer
+      // « Démarrage / Séchage / brûleur » en caractères illisibles.
+      const buffer = await res.arrayBuffer();
+
+      try {
+        return new TextDecoder("windows-1252").decode(buffer);
+      } catch (decodeError) {
+        // Repli pour les navigateurs ne prenant pas windows-1252 en charge.
+        return new TextDecoder().decode(buffer);
+      }
+    } catch (e) {
+      console.warn("[Historique] Lecture impossible :", file?.name, e);
+      return "";
+    }
+  })();
+
+  historiqueCsvTextCache.set(cacheKey, promise);
+  return promise;
+}
+
+function parseHistoriqueCSVLine(line) {
+  const result = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+
+    if (c === '"' && line[i + 1] === '"') {
+      current += '"';
+      i++;
+    } else if (c === '"') {
+      insideQuotes = !insideQuotes;
+    } else if (c === "," && !insideQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += c;
+    }
+  }
+
+  result.push(current.trim());
+  return result;
+}
+
+function historiqueTimeToSeconds(value) {
+  const match = String(value || "").trim().match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return null;
+
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  const s = Number(match[3] || 0);
+
+  if (
+    !Number.isInteger(h) || !Number.isInteger(m) || !Number.isInteger(s) ||
+    h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59
+  ) return null;
+
+  return h * 3600 + m * 60 + s;
+}
+
+function normalizeHistoriqueMessage(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function getHistoriqueEventType(message) {
+  const msg = normalizeHistoriqueMessage(message);
+
+  // Départ du cycle de séchage avec brûleur.
+  // Plusieurs variantes sont gardées pour les anciens exports.
+  const hasCycleStart =
+    msg.includes("demarrage cycle") ||
+    msg.includes("demarage cycle") ||
+    msg.includes("marrage cycle");
+
+  const hasDryingWithBurner =
+    msg.includes("sechage avec bruleur") ||
+    msg.includes("sechage avec br") ||
+    msg.includes("chage avec bruleur") ||
+    msg.includes("chage avec br");
+
+  if (hasCycleStart && hasDryingWithBurner) return "start";
+
+  // La vraie fin du temps de séchage est l'événement
+  // « Fin de Cycle Séchage avec brûleur ».
+  const isEndCycle =
+    msg.includes("fin de cycle") &&
+    hasDryingWithBurner;
+
+  // Sécurité supplémentaire : si l'événement de fin de cycle manque,
+  // « Séchoir à l'arrêt » ferme également une période encore ouverte.
+  const isDryerStopped =
+    (msg.includes("sechoir") || msg.includes("choir")) &&
+    (msg.includes("a l arret") ||
+     msg.includes("l arret") ||
+     msg.includes("arret"));
+
+  if (isEndCycle || isDryerStopped) return "stop";
+  return "";
+}
+
+function extractHistoriqueEvents(csvText) {
+  const events = [];
+  const lines = String(csvText || "")
+    .split(/\r?\n/)
+    .filter(line => line.trim() !== "");
+
+  for (const line of lines) {
+    const cols = parseHistoriqueCSVLine(line);
+    if (cols.length < 3) continue;
+
+    const type = getHistoriqueEventType(cols[2]);
+    if (!type) continue;
+
+    const seconds = historiqueTimeToSeconds(cols[1]);
+    if (seconds === null) continue;
+
+    events.push({ seconds, type, message: cols[2] });
+  }
+
+  // Les fichiers Z3 sont généralement du plus récent au plus ancien.
+  events.sort((a, b) => a.seconds - b.seconds);
+  return events;
+}
+
+function getHistoriqueDateKey(fileName) {
+  const match = String(fileName || "").match(/(\d{8})\.csv$/i);
+  return match ? match[1] : "";
+}
+
+async function getHistoriqueStateAtMidnight(currentFile) {
+  const currentDateKey = getHistoriqueDateKey(currentFile?.name);
+  if (!currentDateKey) return false;
+
+  let allZ3Files = [];
+  try {
+    allZ3Files = JSON.parse(localStorage.getItem("csvZ3Files") || "[]");
+  } catch (e) {
+    allZ3Files = [];
+  }
+
+  const previousFiles = allZ3Files
+    .filter(file => {
+      const key = getHistoriqueDateKey(file?.name);
+      return key && key < currentDateKey;
+    })
+    .sort((a, b) =>
+      getHistoriqueDateKey(b.name).localeCompare(getHistoriqueDateKey(a.name))
+    );
+
+  // On recherche le dernier événement start/stop réellement connu avant minuit.
+  // Exemple : cycle démarré le 29/10 à 20:00:43 et terminé le 30/10
+  // à 23:42:34. Le 30/10 commence donc automatiquement en état « marche ».
+  for (const previousFile of previousFiles) {
+    const previousText = await fetchHistoriqueCsvText(previousFile);
+    const events = extractHistoriqueEvents(previousText);
+
+    if (!events.length) continue;
+
+    const lastEvent = events[events.length - 1];
+    return lastEvent.type === "start";
+  }
+
+  return false;
+}
+
+const historiqueMinutesCache = new Map();
+
+async function calculateHistoriqueMinutes(file) {
+  const cacheKey = getDriveFileId(file) || file?.id || file?.name;
+  if (cacheKey && historiqueMinutesCache.has(cacheKey)) {
+    return historiqueMinutesCache.get(cacheKey);
+  }
+
+  const promise = (async () => {
+    const text = await fetchHistoriqueCsvText(file);
+    if (!text) return null;
+
+    const events = extractHistoriqueEvents(text);
+    let running = await getHistoriqueStateAtMidnight(file);
+    let runningSince = running ? 0 : null;
+    let totalSeconds = 0;
+
+    for (const event of events) {
+      if (event.type === "start") {
+        if (!running) {
+          running = true;
+          runningSince = event.seconds;
+        }
+      } else if (event.type === "stop" && running) {
+        totalSeconds += Math.max(0, event.seconds - runningSince);
+        running = false;
+        runningSince = null;
+      }
+    }
+
+    if (running && runningSince !== null) {
+      totalSeconds += Math.max(0, 24 * 3600 - runningSince);
+    }
+
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return 0;
+    return Math.round(totalSeconds / 60);
+  })();
+
+  if (cacheKey) historiqueMinutesCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function computeHistoriqueForRow({ f, tdAction }) {
+  startScan();
+
+  try {
+    const text = await fetchHistoriqueCsvText(f);
+    if (!text) return;
+
+    const events = extractHistoriqueEvents(text);
+    let running = await getHistoriqueStateAtMidnight(f);
+    let runningSince = running ? 0 : null;
+    let totalSeconds = 0;
+    let periods = 0;
+
+    for (const event of events) {
+      if (event.type === "start") {
+        // Ignore les doubles démarrages si le cycle était déjà actif.
+        if (!running) {
+          running = true;
+          runningSince = event.seconds;
+        }
+      } else if (event.type === "stop") {
+        if (running) {
+          totalSeconds += Math.max(0, event.seconds - runningSince);
+          periods++;
+          running = false;
+          runningSince = null;
+        }
+      }
+    }
+
+    // Cycle encore actif à la fin du fichier : on compte jusqu'à minuit.
+    if (running && runningSince !== null) {
+      totalSeconds += Math.max(0, 24 * 3600 - runningSince);
+      periods++;
+    }
+
+    const btn = tdAction.querySelector(".gaz-btn");
+    if (!btn) return;
+
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+      btn.remove();
+      delete historiqueDurations[f.name];
+      delete historiqueDurations[f.id];
+      return;
+    }
+
+    const totalMinutes = Math.round(totalSeconds / 60);
+
+    // Le nom contient la date et permet à l'export Excel de la retrouver.
+    historiqueDurations[f.name] = totalMinutes;
+
+    const H = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+    const M = String(totalMinutes % 60).padStart(2, "0");
+
+    btn.textContent = `⏱ ${H}:${M}`;
+    btn.disabled = false;
+    btn.style.background = "linear-gradient(180deg, #bbdefb, #64b5f6)";
+    btn.style.color = "#0d47a1";
+    btn.style.minWidth = "120px";
+    btn.title = `${periods} période(s) de fonctionnement comptabilisée(s)`;
+
+    console.log(
+      `[Historique] ${f.name} : ${H}:${M} — état à minuit : ` +
+      `${runningSince === 0 ? "déjà en marche" : "déterminé depuis les jours précédents"}`
+    );
+
+  } catch (e) {
+    console.warn("Erreur calcul Historique :", f.name, e);
+  } finally {
+    endScan();
+  }
 }
 
 
@@ -3699,7 +5171,26 @@ async function openSiteAndShowTiles(siteId, siteName="") {
   await renderSiteSubfolderTiles(siteId, siteName);
 }
 
+function setDefaultDateFilterFromAprilFirst(){
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
 
+  filterStartDate = `${yyyy}-04-01`;
+  filterEndDate   = `${yyyy}-${mm}-${dd}`;
+
+  suppressAutoFilter = true;
+  try {
+    fpStart?.setDate(filterStartDate, false);
+    fpEnd?.setDate(filterEndDate, false);
+  } finally {
+    suppressAutoFilter = false;
+  }
+
+  document.querySelectorAll(".date-field")
+    .forEach(df => df.classList.add("has-date"));
+}
 
   
 
@@ -3712,10 +5203,16 @@ window.onload=()=>{
   // bouton "Télécharger le dossier" caché par défaut tant qu'aucun contenu
   document.getElementById("downloadFolderBtn").style.display="none";
 
+// ✅ Filtre automatique : du 1er avril de l’année en cours à aujourd’hui
+
 loadRootFolders();
-  hideTable();
+hideTable();
 
 initDatePickers();
+
+// ✅ Active le filtre par défaut
+setDefaultDateFilterFromAprilFirst();
+
 initYearSelect();
 const last = localStorage.getItem("lastFolderId");
 if (last) {
@@ -3761,36 +5258,8 @@ function clearBrowserCache() {
 }
 </script>
 
-
-
-
-
-
-
-
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
