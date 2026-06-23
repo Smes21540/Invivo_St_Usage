@@ -1,0 +1,2545 @@
+
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>Calcul horaire séchoir à maïs</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
+<style>
+:root{
+  --bg:#f7f7f7;
+  --black:#050505;
+  --white:#ffffff;
+  --green:#00c83c;
+  --green-dark:#008f17;
+  --green-bright:#00ff38;
+  --yellow:#f6df22;
+  --yellow-dark:#b89a00;
+  --gold:#e7b61f;
+  --blue:#669cff;
+  --blue-dark:#285fbe;
+  --text:#111;
+  --shadow:#777;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:"Arial Narrow","Segoe UI",Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+.container{
+  width:min(1320px,97%);
+  margin:20px auto 45px;
+}
+.topbar{
+  position:relative;
+  min-height:72px;
+  padding:10px 18px;
+  border-bottom:2px solid #ddd;
+}
+.topbar h1{
+  margin:0;
+  text-align:center;
+  font-size:28px;
+  font-weight:600;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+}
+.topbar p{
+  margin:7px 0 0;
+  text-align:center;
+  font-size:14px;
+  text-transform:uppercase;
+}
+.nav{
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  margin:18px 0 28px;
+  flex-wrap:wrap;
+}
+.nav a{
+  text-decoration:none;
+  color:#000;
+  background:linear-gradient(#fff96b,#f0d800);
+  border:3px outset #fff47d;
+  box-shadow:3px 3px 0 #aaa;
+  padding:9px 18px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.nav a.active{
+  background:linear-gradient(#7ab0ff,#4d84e6);
+  color:white;
+  border-color:#9fc2ff;
+}
+.section{
+  margin:0 0 30px;
+  background:transparent;
+}
+.section h2{
+  margin:0 0 16px;
+  padding:9px 14px;
+  color:white;
+  background:var(--green);
+  font-size:18px;
+  font-weight:500;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+.section:nth-of-type(3) h2{
+  background:var(--blue);
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(320px,1fr));
+  column-gap:54px;
+  row-gap:10px;
+  padding:0 12px;
+}
+.field,.result{
+  min-height:46px;
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) minmax(170px,220px);
+  align-items:center;
+  gap:12px;
+}
+.field label,.result .label{
+  text-align:right;
+  font-size:15px;
+  text-transform:uppercase;
+  letter-spacing:.2px;
+}
+.input-wrap{
+  display:flex;
+  align-items:center;
+  min-height:42px;
+  background:var(--black);
+  border:4px solid var(--yellow-dark);
+  box-shadow:3px 3px 0 #b7b7b7;
+}
+input{
+  width:100%;
+  min-width:0;
+  border:0;
+  outline:0;
+  background:var(--black);
+  color:white;
+  font-family:"Arial Narrow","Segoe UI",Arial,sans-serif;
+  font-size:28px;
+  text-align:right;
+  padding:3px 7px;
+}
+.unit{
+  color:white;
+  background:var(--black);
+  align-self:stretch;
+  display:flex;
+  align-items:center;
+  font-size:17px;
+  white-space:nowrap;
+  padding:0 8px 0 4px;
+}
+.result strong{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  min-height:42px;
+  padding:4px 10px;
+  background:var(--black);
+  color:white;
+  border:4px solid var(--green);
+  box-shadow:3px 3px 0 #b7b7b7;
+  font-size:27px;
+  font-weight:400;
+  white-space:nowrap;
+}
+.result.gold strong{
+  background:linear-gradient(180deg,#efc940,#dba915);
+  border-color:#c69a08;
+  color:white;
+}
+.result.blue strong{
+  border-color:var(--blue);
+}
+.result.main{
+  grid-column:1/-1;
+  grid-template-columns:minmax(260px,1fr) minmax(260px,360px);
+  margin-top:12px;
+}
+.result.main strong{
+  min-height:72px;
+  background:var(--green-bright);
+  color:#000;
+  border:5px solid #1df13f;
+  font-size:38px;
+  font-weight:500;
+}
+.result.main .label{
+  color:#000;
+  font-size:19px;
+  font-weight:700;
+}
+.help{
+  grid-column:2;
+  font-size:11px;
+  color:#444;
+  text-align:center;
+  margin-top:-5px;
+}
+.actions{
+  display:flex;
+  justify-content:center;
+  margin-top:22px;
+}
+button{
+  cursor:pointer;
+  background:linear-gradient(#fff96b,#f0d800);
+  border:4px outset #fff47d;
+  box-shadow:3px 3px 0 #aaa;
+  color:#000;
+  padding:10px 20px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.note{
+  margin:30px 12px 0;
+  padding:12px 16px;
+  background:#fff7bd;
+  border-left:7px solid var(--yellow);
+  font-size:13px;
+  line-height:1.45;
+}
+.choice-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(280px,1fr));
+  gap:30px;
+  margin-top:40px;
+}
+.choice{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:180px;
+  text-decoration:none;
+  border:5px solid var(--green);
+  background:#fff;
+  box-shadow:6px 6px 0 #aaa;
+  color:#000;
+}
+.choice:nth-child(2){border-color:var(--blue)}
+.choice .choice-title{
+  font-size:25px;
+  text-transform:uppercase;
+  font-weight:700;
+}
+.choice .choice-sub{
+  margin-top:10px;
+  font-size:15px;
+}
+@media(max-width:850px){
+  .grid{grid-template-columns:1fr;column-gap:0}
+  .field,.result{grid-template-columns:1fr}
+  .field label,.result .label{text-align:left}
+  .result.main{grid-column:auto;grid-template-columns:1fr}
+  .choice-grid{grid-template-columns:1fr}
+}
+
+.section-gaz h2{
+  background:linear-gradient(180deg,#fff56a,#f0d800) !important;
+  color:#000 !important;
+}
+
+
+/* === Version compacte écran classique === */
+.container{
+  width:min(1240px,98%);
+  margin:8px auto 18px;
+}
+.topbar{
+  min-height:52px;
+  padding:6px 12px;
+}
+.topbar h1{
+  font-size:22px;
+}
+.topbar p{
+  margin-top:3px;
+  font-size:12px;
+}
+.nav{
+  gap:8px;
+  margin:8px 0 12px;
+}
+.nav a{
+  padding:6px 12px;
+  font-size:12px;
+}
+.section{
+  margin-bottom:12px;
+}
+.section h2{
+  margin-bottom:7px;
+  padding:6px 10px;
+  font-size:15px;
+}
+.grid{
+  grid-template-columns:repeat(2,minmax(280px,1fr));
+  column-gap:28px;
+  row-gap:4px;
+  padding:0 8px;
+}
+.field,.result{
+  min-height:36px;
+  grid-template-columns:minmax(190px,1fr) minmax(145px,190px);
+  gap:8px;
+}
+.field label,.result .label{
+  font-size:12px;
+}
+.input-wrap{
+  min-height:34px;
+  border-width:3px;
+  box-shadow:2px 2px 0 #b7b7b7;
+}
+input{
+  font-size:21px;
+  padding:1px 5px;
+}
+.unit{
+  font-size:14px;
+  padding:0 6px 0 3px;
+}
+.result strong{
+  min-height:34px;
+  padding:2px 7px;
+  border-width:3px;
+  box-shadow:2px 2px 0 #b7b7b7;
+  font-size:21px;
+}
+.result.main{
+  margin-top:6px;
+  grid-template-columns:minmax(220px,1fr) minmax(220px,300px);
+}
+.result.main strong{
+  min-height:50px;
+  border-width:4px;
+  font-size:30px;
+}
+.result.main .label{
+  font-size:15px;
+}
+.actions{
+  margin-top:10px;
+}
+.note{
+  margin:12px 8px 0;
+  padding:8px 10px;
+  font-size:11px;
+}
+.choice-grid{
+  gap:18px;
+  margin-top:20px;
+}
+.choice{
+  min-height:125px;
+}
+.choice .choice-title{
+  font-size:20px;
+}
+.choice .choice-sub{
+  margin-top:6px;
+  font-size:13px;
+}
+@media(max-height:800px){
+  .container{margin-top:4px}
+  .section{margin-bottom:8px}
+  .section h2{padding:4px 8px}
+  .grid{row-gap:2px}
+  .field,.result{min-height:32px}
+  .input-wrap,.result strong{min-height:30px}
+  input,.result strong{font-size:19px}
+  .result.main strong{min-height:44px;font-size:27px}
+}
+
+
+/* === Zone titre et export PDF === */
+.pdf-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  margin:6px auto 12px;
+  flex-wrap:wrap;
+}
+.pdf-toolbar label{
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.pdf-toolbar input{
+  width:280px;
+  min-height:32px;
+  background:#fff;
+  color:#000;
+  border:2px solid #777;
+  box-shadow:none;
+  font-size:16px;
+  text-align:left;
+  padding:4px 8px;
+}
+.pdf-toolbar button{
+  padding:7px 14px;
+  font-size:12px;
+}
+.print-title{
+  display:none;
+  text-align:center;
+  font-size:22px;
+  font-weight:700;
+  margin:0 0 12px;
+  text-transform:uppercase;
+}
+@media print{
+  body{background:#fff}
+  .nav,.pdf-toolbar{display:none !important}
+  .print-title{display:block !important}
+  .container{
+    width:100%;
+    margin:0;
+  }
+  .section{
+    break-inside:avoid;
+  }
+  .topbar{
+    border:0;
+  }
+}
+
+
+/* Utilisé uniquement pendant la création du PDF */
+body.pdf-capture .nav,
+body.pdf-capture .pdf-toolbar{
+  display:none !important;
+}
+body.pdf-capture .print-title{
+  display:block !important;
+}
+
+
+/* Bouton PDF compact orange */
+.pdf-toolbar button{
+  padding:6px 12px !important;
+  min-height:auto !important;
+  font-size:12px !important;
+  line-height:1.2 !important;
+  background:#f57c00 !important;
+  border-color:#e65100 !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+.pdf-toolbar button:hover{
+  background:#ef6c00 !important;
+}
+
+
+/* Bouton PDF : même police et mêmes dimensions que les boutons de navigation */
+.pdf-toolbar button{
+  padding:9px 18px !important;
+  font-family:inherit !important;
+  font-size:inherit !important;
+  line-height:normal !important;
+  font-weight:800 !important;
+  text-transform:uppercase !important;
+  background:linear-gradient(#ffad42,#f57c00) !important;
+  border:3px outset #ffbd66 !important;
+  color:#fff !important;
+  box-shadow:3px 3px 0 #aaa !important;
+}
+.pdf-toolbar button:hover{
+  background:linear-gradient(#ff9b22,#ef6c00) !important;
+}
+
+
+/* Bouton PDF placé avec les boutons de navigation */
+.nav{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.nav .nav-pdf-btn{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+  min-width:0 !important;
+  width:auto !important;
+  height:auto !important;
+  margin:0 !important;
+  padding:9px 18px !important;
+  font-family:inherit !important;
+  font-size:inherit !important;
+  line-height:normal !important;
+  font-weight:800 !important;
+  text-transform:uppercase !important;
+  background:linear-gradient(#ffad42,#f57c00) !important;
+  border:3px outset #ffbd66 !important;
+  color:#fff !important;
+  box-shadow:3px 3px 0 #aaa !important;
+  cursor:pointer !important;
+}
+.nav .nav-pdf-btn:hover{
+  background:linear-gradient(#ff9b22,#ef6c00) !important;
+}
+.pdf-title-only{
+  margin-top:6px;
+}
+
+
+/* Les trois boutons du haut ont exactement la même taille */
+.nav a,
+.nav .nav-pdf-btn{
+  width:168px !important;
+  height:38px !important;
+  box-sizing:border-box !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding:0 8px !important;
+  margin:0 !important;
+  white-space:nowrap !important;
+}
+
+
+/* Les trois boutons du haut : dimensions et typographie strictement identiques */
+.nav a,
+.nav .nav-pdf-btn{
+  width:168px !important;
+  height:38px !important;
+  box-sizing:border-box !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding:0 8px !important;
+  margin:0 !important;
+  white-space:nowrap !important;
+  font-family:Arial, Helvetica, sans-serif !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  line-height:1 !important;
+  text-transform:uppercase !important;
+}
+
+
+/* Police globale du calculateur */
+html, body, button, input, select, textarea, a, label, span, strong, h1, h2, h3, h4, p, div{
+  font-family:"Trebuchet MS", Arial, Helvetica, sans-serif !important;
+}
+
+
+/* Force Trebuchet MS sur les trois boutons de navigation */
+.nav a,
+.nav .nav-pdf-btn{
+  font-family:"Trebuchet MS", Arial, Helvetica, sans-serif !important;
+}
+
+
+/* Boutons Sauvegarder / Ouvrir */
+.nav .nav-save-btn,
+.nav .nav-open-btn{
+  width:168px !important;
+  height:38px !important;
+  box-sizing:border-box !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding:0 8px !important;
+  margin:0 !important;
+  white-space:nowrap !important;
+  font-family:"Trebuchet MS", Arial, Helvetica, sans-serif !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  line-height:1 !important;
+  text-transform:uppercase !important;
+  color:#fff !important;
+  box-shadow:3px 3px 0 #aaa !important;
+  cursor:pointer !important;
+}
+.nav .nav-save-btn{
+  background:linear-gradient(#66bb6a,#2e7d32) !important;
+  border:3px outset #81c784 !important;
+}
+.nav .nav-open-btn{
+  background:linear-gradient(#7e57c2,#512da8) !important;
+  border:3px outset #9575cd !important;
+}
+.save-open-message{
+  min-height:18px;
+  margin:4px 0 8px;
+  text-align:center;
+  font-size:12px;
+  font-weight:700;
+}
+
+
+/* Répartition des boutons : navigation à gauche, actions à droite */
+.nav{
+  width:100% !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:20px !important;
+  flex-wrap:wrap !important;
+}
+
+.nav-left,
+.nav-right{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.nav-left{
+  justify-content:flex-start;
+}
+
+.nav-right{
+  justify-content:flex-end;
+  margin-left:auto;
+}
+
+
+/* ===== Ajouts électriques V6 sans suppression V34 ===== */
+.section-electric h2{
+  background:linear-gradient(180deg,#7ab0ff,#4d84e6) !important;
+  color:#fff !important;
+}
+.section-global h2{
+  background:linear-gradient(180deg,#8fd18f,#2e9b45) !important;
+  color:#fff !important;
+}
+.motor-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:4px;
+  padding:0 8px;
+  margin-top:5px;
+}
+.vfd-line{
+  display:grid;
+  grid-template-columns:minmax(190px,1fr) 42px minmax(300px,430px);
+  align-items:center;
+  gap:8px;
+  padding:4px 8px;
+  margin-top:6px;
+}
+.vfd-label-cell{
+  text-align:right;
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.vfd-control-cell{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+.vfd-control-cell input{
+  width:20px !important;
+  height:20px !important;
+  min-width:20px !important;
+  padding:0 !important;
+  margin:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  accent-color:#00c83c;
+}
+.frequency-inline{
+  display:none;
+  grid-template-columns:minmax(120px,1fr) minmax(145px,190px);
+  align-items:center;
+  gap:8px;
+}
+.frequency-inline label{
+  text-align:right;
+  font-size:12px;
+  text-transform:uppercase;
+}
+.comparison-card{
+  grid-column:1/-1;
+}
+.comparison-pair{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:28px;
+}
+.vfd-only{display:none}
+.warning{
+  grid-column:1/-1;
+  padding:8px 12px;
+  background:#fff2cc;
+  border-left:6px solid #e6a700;
+  font-size:12px;
+  font-weight:700;
+}
+.warning.danger{
+  background:#ffd9d9;
+  border-left-color:#d32f2f;
+  color:#8a1111;
+}
+@media(max-width:850px){
+  .vfd-line{grid-template-columns:1fr 42px}
+  .frequency-inline{grid-column:1/-1;grid-template-columns:1fr}
+  .comparison-pair{grid-template-columns:1fr;gap:4px}
+}
+
+
+/* Courbe débit / fréquence V9 */
+.drying-model{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:minmax(360px,1.2fr) minmax(320px,.8fr);
+  gap:16px;
+  align-items:stretch;
+  margin:4px 0 8px;
+}
+.curve-box{
+  border:1px solid #b9b9b9;
+  background:#fff;
+  padding:8px;
+  min-height:260px;
+}
+.curve-box h3{
+  margin:0 0 6px;
+  font-size:12px;
+  text-align:center;
+  text-transform:uppercase;
+}
+#dryingCurve{
+  width:100%;
+  height:220px;
+  display:block;
+}
+.curve-settings{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:6px;
+}
+.curve-note{
+  padding:7px 9px;
+  background:#fff7d6;
+  border-left:5px solid #e0a000;
+  font-size:11px;
+  line-height:1.35;
+}
+@media(max-width:900px){
+  .drying-model{grid-template-columns:1fr}
+}
+
+
+/* ===== Présentation V12 ===== */
+.section-production h2{
+  background:linear-gradient(180deg,#82c884,#329846) !important;
+  color:#fff !important;
+}
+
+/* Les valeurs saisies restent noires */
+.field .input-wrap{
+  background:#050505 !important;
+}
+.field input{
+  background:#050505 !important;
+  color:#fff !important;
+}
+
+/* Les résultats calculés prennent la couleur de leur famille */
+.section-production .result strong{
+  background:#74c977 !important;
+  color:#071b08 !important;
+  border-color:#2d923f !important;
+}
+.section-gaz .result strong{
+  background:#ffe21a;
+  color:#111;
+  border-color:#c5a900;
+}
+.section-electric .result strong{
+  background:#5f98ed !important;
+  color:#071a39 !important;
+  border-color:#2f70d3 !important;
+}
+.section-global .result strong{
+  background:#58b966 !important;
+  color:#08240e !important;
+  border-color:#268438 !important;
+}
+
+/* Les IPé conservent leur coloration dynamique */
+.result.main strong{
+  transition:background-color .2s,color .2s,border-color .2s;
+}
+
+.drying-model{
+  grid-template-columns:minmax(460px,1.35fr) minmax(300px,.65fr) !important;
+}
+.curve-box{
+  min-height:300px !important;
+  overflow:visible !important;
+}
+#dryingCurve{
+  height:240px !important;
+}
+.curve-legend{
+  display:flex;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:18px;
+  margin-top:4px;
+  font-size:11px;
+  font-weight:700;
+}
+.curve-legend span{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+}
+.legend-dot{
+  display:inline-block;
+  width:12px;
+  height:12px;
+  border-radius:50%;
+}
+.legend-dot.green{background:#19a942}
+.legend-dot.orange{background:#f39a19}
+.legend-dot.red{background:#d92b2b}
+
+.reference-card{
+  border:2px solid #2e8f42;
+  background:#dff3e2;
+  padding:8px 10px;
+}
+.reference-title{
+  text-align:center;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+.reference-values{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.reference-values div{
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  gap:8px;
+  padding:5px 7px;
+  background:#fff;
+}
+.reference-values span{
+  font-size:11px;
+  font-weight:700;
+}
+.reference-values strong{
+  font-size:18px;
+  color:#187832;
+}
+
+/* Débit après : sa couleur sera réglée dynamiquement */
+#productFlowAfter{
+  transition:background-color .25s,color .25s,border-color .25s;
+}
+
+
+/* Correctifs V13 */
+.section-production .result.blue strong{
+  background:#5f98ed !important;
+  color:#071a39 !important;
+  border-color:#2f70d3 !important;
+}
+#dryingCurve{
+  cursor:grab;
+  user-select:none;
+  touch-action:none;
+}
+#dryingCurve:active{
+  cursor:grabbing;
+}
+
+
+/* Correctifs V14 */
+.after-flow-result strong{
+  transition:background-color .2s,color .2s,border-color .2s;
+}
+#elecIpe,
+#elecIpeBefore,
+#elecIpeAfter{
+  transition:background-color .2s,color .2s,border-color .2s;
+}
+
+
+/* Sections repliables V16 */
+.section > h2{
+  display:flex !important;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.section-title-text{
+  flex:1;
+}
+.section-toggle{
+  width:28px;
+  height:24px;
+  min-width:28px;
+  padding:0;
+  border:1px solid rgba(0,0,0,.35);
+  background:rgba(255,255,255,.82);
+  color:#111;
+  font-size:20px;
+  font-weight:900;
+  line-height:20px;
+  cursor:pointer;
+}
+.section-toggle:hover{
+  background:#fff;
+}
+.section.collapsed > :not(h2){
+  display:none !important;
+}
+.section.collapsed > h2{
+  margin-bottom:0 !important;
+}
+
+
+/* Comparatifs V17 */
+.comparison-pair .result.after-result{
+  grid-template-columns:minmax(145px,190px) minmax(190px,1fr) !important;
+}
+.comparison-pair .result.after-result strong{
+  order:1;
+}
+.comparison-pair .result.after-result .label{
+  order:2;
+  text-align:left !important;
+  padding-left:10px;
+}
+.comparison-pair .result:not(.after-result) .label{
+  text-align:right;
+}
+.comparison-pair .result:not(.after-result) strong{
+  order:2;
+}
+#gasIpeBefore,
+#gasIpeAfter,
+#elecIpeBefore,
+#elecIpeAfter{
+  font-size:inherit !important;
+  min-height:inherit !important;
+}
+
+
+/* Export PDF V18 */
+body.pdf-capture .section-toggle{
+  display:none !important;
+}
+body.pdf-capture .section.collapsed{
+  display:none !important;
+}
+
+
+/* Référence constructeur modifiable V24 */
+.reference-inputs{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+}
+.reference-inputs .field{
+  margin:0;
+}
+.reference-inputs label{
+  font-size:13px;
+}
+.reference-inputs .input-wrap{
+  width:100%;
+}
+.reference-inputs input{
+  width:100%;
+}
+.curve-note strong{
+  color:inherit;
+}
+
+
+/* Bulle d'information humidité V25 */
+.label-with-info{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.label-with-info > label{
+  margin:0;
+}
+.humidity-info{
+  position:relative;
+  display:inline-block;
+}
+.humidity-info summary{
+  width:19px;
+  height:19px;
+  border-radius:50%;
+  border:1px solid #2f70d3;
+  background:#dbe9ff;
+  color:#174f9f;
+  font-weight:900;
+  font-size:13px;
+  line-height:17px;
+  text-align:center;
+  cursor:pointer;
+  list-style:none;
+  user-select:none;
+}
+.humidity-info summary::-webkit-details-marker{
+  display:none;
+}
+.humidity-info-content{
+  position:absolute;
+  z-index:50;
+  top:25px;
+  left:0;
+  width:min(360px,72vw);
+  padding:11px 13px;
+  border:1px solid #2f70d3;
+  border-radius:8px;
+  background:#f4f8ff;
+  color:#102747;
+  box-shadow:0 8px 24px rgba(0,0,0,.22);
+  font-size:13px;
+  line-height:1.45;
+}
+.humidity-info[open] summary{
+  background:#2f70d3;
+  color:#fff;
+}
+
+/* Éléments volontairement absents de l'export PDF */
+body.pdf-capture .drying-model,
+body.pdf-capture .humidity-info{
+  display:none !important;
+}
+
+
+/* Rapprochement des intitulés et des champs V28 */
+@media (min-width:761px){
+  .grid > .field{
+    grid-template-columns:minmax(180px,300px) minmax(145px,190px) !important;
+    justify-content:end;
+  }
+
+  .grid > .field > label,
+  .grid > .field > .label-with-info{
+    justify-self:end;
+    width:100%;
+  }
+
+  .grid > .field > label{
+    text-align:right;
+  }
+
+  .grid > .field > .label-with-info{
+    justify-content:flex-end;
+  }
+
+  .grid > .field > .input-wrap{
+    width:100%;
+  }
+}
+
+
+/* Aide du graphique V29 */
+.graph-title-row{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+}
+.graph-title-row h3{
+  margin:0;
+}
+.graph-info .humidity-info-content{
+  left:auto;
+  right:0;
+  text-align:left;
+}
+
+
+/* Bulle humidité visible uniquement avec variateur V30 */
+.humidity-vfd-only{
+  display:none;
+}
+body.vfd-enabled .humidity-vfd-only{
+  display:inline-block;
+}
+
+
+/* Bulles explicatives V33 */
+.field-info,
+.result-label-with-info .field-info{
+  flex:0 0 auto;
+}
+.result-label-with-info{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:7px;
+}
+.result-label-with-info .label{
+  text-align:right;
+}
+.field-info .humidity-info-content{
+  left:auto;
+  right:0;
+  text-align:left;
+  text-transform:none;
+  letter-spacing:normal;
+}
+
+/* Présentation identique des coûts dans les sections 4, 5 et 6 */
+.cost-display-stack{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+  width:min(720px,100%);
+  justify-self:center;
+}
+.cost-display-stack > .result{
+  width:100%;
+  grid-template-columns:minmax(260px,1fr) minmax(190px,230px) !important;
+}
+@media(max-width:760px){
+  .cost-display-stack{
+    width:100%;
+  }
+  .cost-display-stack > .result{
+    grid-template-columns:1fr !important;
+  }
+  .result-label-with-info{
+    justify-content:flex-start;
+  }
+}
+
+
+/* Ajustements V34 */
+.cost-display-stack{
+  width:min(760px,100%);
+  justify-self:end;
+  margin-left:auto;
+}
+.cost-display-stack > .result{
+  width:100%;
+}
+.cost-display-stack > .result .label{
+  text-align:right;
+}
+.cost-display-stack > .result strong{
+  justify-self:end;
+}
+.tee-help{
+  cursor:help;
+}
+
+</style>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+<div class="topbar">
+<h1>Calcul horaire global du séchoir</h1>
+</div>
+<div class="nav">
+<div class="nav-left">
+<a class="active" href="calcul_global_horaire_v51.html">Calcul horaire</a>
+<a href="bilan_global_campagne_v51.html">Bilan campagne</a>
+</div>
+<div class="nav-right">
+<button class="nav-pdf-btn" onclick="exportPageToPDF('Calcul_Horaire')" type="button">Exporter en PDF</button>
+<button class="nav-save-btn" onclick="savePageData('calcul_horaire','Calcul_Horaire')" type="button">Sauvegarder</button>
+<button class="nav-open-btn" onclick="openPageData('calcul_horaire')" type="button">Ouvrir</button>
+</div>
+</div>
+<input accept=".json,application/json" id="openJsonFile" style="display:none;" type="file"/>
+<div class="save-open-message" id="saveOpenMessage"></div>
+<div class="pdf-toolbar pdf-title-only">
+<label for="pdfTitle">Titre</label>
+<input id="pdfTitle" placeholder="Titre du rapport" type="text" value="S21 Sombernon"/>
+</div>
+<div class="print-title" id="printTitle">S21 Sombernon</div>
+<section class="section section-gaz">
+<h2><span class="section-title-text">1 — Consommation horaire de gaz (Brûleurs)</span><button aria-expanded="true" class="section-toggle" title="Replier la section" type="button">−</button></h2>
+<div class="grid">
+<div class="field"><label>Débit de gaz mesuré</label><div class="input-wrap"><input id="gasFlow" step="1" type="number" value="390"/><span class="unit">m³/h</span></div></div>
+<div class="field"><div class="label-with-info"><label>Pression relative de lecture</label><details class="field-info humidity-info"><summary title="Explication de la pression compteur">i</summary><div class="humidity-info-content">La pression saisie est la pression relative lue au compteur. Elle est ajoutée à la pression atmosphérique pour ramener le volume mesuré aux conditions normales et calculer les Nm³.</div></details></div><div class="input-wrap"><input id="pressureMbar" step="1" type="number" value="300"/><span class="unit">mbar</span></div></div>
+<div class="field"><label>Température du gaz</label><div class="input-wrap"><input id="gasTemp" step="0.1" type="number" value="15"/><span class="unit">°C</span></div></div>
+<div class="field"><label>PCS</label><div class="input-wrap"><input id="pcs" step="0.01" type="number" value="11.5"/><span class="unit">kWh/Nm³</span></div></div>
+<div class="result gold"><div class="result-label-with-info"><span class="label">Débit normalisé</span><details class="field-info humidity-info"><summary title="Explication de la consommation en Nm³">i</summary><div class="humidity-info-content">Le Nm³ est un volume de gaz ramené à des conditions normales de pression et de température. Cette valeur corrige donc le volume réellement lu au compteur avec la pression et la température saisies.</div></details></div><strong id="normFlow"></strong></div>
+<div class="result gold"><span class="label">Puissance thermique</span><strong id="power"></strong></div>
+<div class="result gold"><span class="label">Puissance en thermies</span><strong id="thermies"></strong></div>
+
+</div>
+</section>
+<section class="section section-production">
+<h2><span class="section-title-text">2 — Débit séchage et eau évaporée</span><button aria-expanded="true" class="section-toggle" title="Replier la section" type="button">−</button></h2>
+<div class="grid">
+<div class="field"><div class="label-with-info"><label>Humidité maïs en entrée</label>
+<details class="humidity-info humidity-vfd-only">
+<summary title="Information sur le débit d’air">i</summary>
+<div class="humidity-info-content">
+    Lorsque le maïs entre en dessous de 26 %, la quantité d’eau à extraire est plus faible :
+    la vitesse des ventilateurs peut généralement être réduite sans risque particulier.
+    Lorsque le maïs entre autour de 30 à 35 %, le besoin de séchage est plus important :
+    il faut conserver davantage de débit d’air.
+  </div>
+</details>
+</div><div class="input-wrap"><input id="hIn" step="0.1" type="number" value="26.5"/><span class="unit">%</span></div></div>
+<div class="field"><label>Humidité maïs en sortie</label><div class="input-wrap"><input id="hOut" step="0.1" type="number" value="16"/><span class="unit">%</span></div></div>
+<div class="field"><label>Poids d’une extraction en sortie</label><div class="input-wrap"><input id="extractionWeight" step="1" type="number" value="2380"/><span class="unit">kg</span></div></div>
+<div class="field"><label>Temps entre extractions</label><div class="input-wrap"><input id="minutes" step="1" type="number" value="2"/><span class="unit">min</span><input id="seconds" step="1" type="number" value="55"/><span class="unit">s</span></div></div>
+<div class="drying-model vfd-only">
+<div class="curve-box">
+<div class="graph-title-row"><h3>Débit de séchage selon la fréquence</h3>
+<details class="graph-info humidity-info">
+<summary title="Utilisation du graphique">i</summary>
+<div class="humidity-info-content">
+    Le point représente la fréquence actuelle. Il peut être déplacé de 15 à 50 Hz.
+    Les deux lignes verticales « Début chute » et « Arrêt » peuvent également être déplacées.
+  </div>
+</details>
+</div>
+<canvas height="240" id="dryingCurve" width="760"></canvas>
+<div class="curve-legend">
+<span><i class="legend-dot green"></i>Fonctionnement normal</span>
+<span><i class="legend-dot orange"></i>Dégradation du débit</span>
+<span><i class="legend-dot red"></i>Zone critique</span>
+</div>
+</div>
+<div class="curve-settings">
+<div class="reference-card">
+<div class="reference-title">Référence constructeur</div>
+<div class="reference-inputs">
+<div class="field">
+<label>Humidité entrée constructeur</label>
+<div class="input-wrap">
+<input id="referenceHIn" max="99.9" min="0.1" step="0.1" type="number" value="35"/>
+<span class="unit">%</span>
+</div>
+</div>
+<div class="field">
+<label>Humidité sortie constructeur</label>
+<div class="input-wrap">
+<input id="referenceHOut" max="99.8" min="0" step="0.1" type="number" value="15"/>
+<span class="unit">%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="field">
+<label>Début de chute du débit</label>
+<div class="input-wrap">
+<input id="criticalHz" max="50" min="15" step="1" type="number" value="44"/>
+<span class="unit">Hz</span>
+</div>
+</div>
+<div class="field">
+<label>Arrêt théorique du séchage</label>
+<div class="input-wrap">
+<input id="stopHz" max="50" min="15" step="1" type="number" value="38"/>
+<span class="unit">Hz</span>
+</div>
+</div>
+<div class="curve-note">
+            Le séchoir est référencé pour un passage de
+            <strong id="referenceNoteIn">35 %</strong> à
+            <strong id="referenceNoteOut">15 %</strong>.
+            Jusqu’au seuil de début de chute, le débit produit est maintenu.
+            Il chute ensuite progressivement jusqu’au seuil d’arrêt théorique.
+          </div>
+</div>
+</div>
+<div class="result single-mode">
+<span class="label">Temps total</span>
+<strong id="totalSeconds"></strong>
+</div>
+<div class="comparison-card vfd-only">
+<div class="comparison-pair">
+<div class="result">
+<span class="label">Temps total avant variateur</span>
+<strong id="totalSecondsBefore"></strong>
+</div>
+<div class="result after-flow-result after-result">
+<span class="label">Temps total après variateur</span>
+<strong id="totalSecondsAfter"></strong>
+</div>
+</div>
+</div>
+<div class="result single-mode">
+<span class="label">Extractions par heure</span>
+<strong id="extrPerHour"></strong>
+</div>
+<div class="comparison-card vfd-only">
+<div class="comparison-pair">
+<div class="result">
+<span class="label">Extractions par heure avant</span>
+<strong id="extrPerHourBefore"></strong>
+</div>
+<div class="result after-flow-result after-result">
+<span class="label">Extractions par heure après</span>
+<strong id="extrPerHourAfter"></strong>
+</div>
+</div>
+</div>
+<div class="result single-mode"><span class="label">Débit produit en sortie</span><strong id="outFlow"></strong></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Débit produit avant variateur</span><strong id="productFlowBefore"></strong></div>
+<div class="result after-result"><span class="label">Débit produit après variateur</span><strong id="productFlowAfter"></strong></div>
+</div></div>
+<div class="result"><span class="label">Eau enlevée par extraction</span><strong class="calculated-neutral" id="waterPerExtraction"></strong></div>
+<div class="result single-mode"><span class="label">Eau enlevée par heure</span><strong id="waterKgHour"></strong></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label" title="Tonnes d’eau évaporée">Eau évaporée avant</span><strong id="waterHourBefore"></strong></div>
+<div class="result after-result"><span class="label" title="Tonnes d’eau évaporée">Eau évaporée après</span><strong id="waterHourAfter"></strong></div>
+</div></div>
+<div class="result blue single-mode">
+<span class="label">Nombre de points séchoir</span>
+<strong id="dryerPoints"></strong>
+</div>
+<div class="comparison-card vfd-only">
+<div class="comparison-pair">
+<div class="result blue">
+<span class="label">Nombre de points avant</span>
+<strong id="dryerPointsBefore"></strong>
+</div>
+<div class="result blue after-flow-result after-result">
+<span class="label">Nombre de points après</span>
+<strong id="dryerPointsAfter"></strong>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="section section-electric">
+<h2><span class="section-title-text">3 — Électricité (Ventilation)</span><button aria-expanded="true" class="section-toggle" title="Replier la section" type="button">−</button></h2>
+<div class="grid">
+<div class="field"><label>Nombre de moteurs</label><div class="input-wrap"><input id="motorCount" max="50" min="1" step="1" type="number" value="3"/><span class="unit">moteurs</span></div></div>
+<div class="field"><div class="label-with-info"><label>Taux de charge théorique</label><details class="field-info humidity-info"><summary title="Explication du taux de charge moteur">i</summary><div class="humidity-info-content">Le taux de charge représente la part de la puissance nominale réellement utilisée. Par exemple, un moteur de 75 kW chargé à 90 % correspond à environ 67,5 kW avant l’effet du variateur.</div></details></div><div class="input-wrap"><input id="loadFactor" max="100" min="0" step="1" type="number" value="90"/><span class="unit">%</span></div></div>
+</div>
+<div class="motor-grid" id="motorsGrid"></div>
+<div class="vfd-line">
+<div class="vfd-label-cell"><label for="globalVfd">Simuler un variateur de vitesse pour tous les moteurs</label></div>
+<div class="vfd-control-cell"><input id="globalVfd" type="checkbox"/></div>
+<div class="frequency-inline" id="frequencyWrap">
+<label>Fréquence commune</label>
+<div class="input-wrap"><input id="globalFrequency" max="50" min="15" step="1" type="number" value="50"/><span class="unit">Hz</span></div>
+</div>
+</div>
+</section>
+<section class="section section-gaz">
+<h2><span class="section-title-text">4 — Indices de performance GAZ</span><button aria-expanded="true" class="section-toggle" title="Replier la section" type="button">−</button></h2>
+<div class="grid">
+<div class="field">
+<label>Prix du MWh gaz</label>
+<div class="input-wrap">
+<input id="priceMWh" min="0" step="1" type="number" value="52"/>
+<span class="unit">€/MWh</span>
+</div>
+</div>
+<div class="result main single-mode">
+<span class="label">IPé gaz du séchoir</span>
+<strong class="tee-help" id="ipe" title="Tonnes d’eau évaporée"></strong>
+</div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result">
+<span class="label">IPé gaz avant variateur</span>
+<strong class="tee-help" id="gasIpeBefore" title="Tonnes d’eau évaporée"></strong>
+</div>
+<div class="result after-result">
+<span class="label">IPé gaz après variateur</span>
+<strong class="tee-help" id="gasIpeAfter" title="Tonnes d’eau évaporée"></strong>
+</div>
+</div></div>
+<div class="result"><span class="label">Consommation spécifique gaz</span><strong class="tee-help" id="gasSpecific" title="Tonnes d’eau évaporée"></strong></div>
+<div class="result"><span class="label" title="Tonnes d’eau évaporée">Coût par tonne d’eau évaporée</span><strong class="tee-help" id="costPerTee" title="Tonnes d’eau évaporée"></strong></div>
+<div class="result single-mode">
+<span class="label">Débit gaz</span><strong id="gasFlowCurrent"></strong>
+</div>
+<div class="cost-display-stack single-mode"><div class="result">
+<span class="label">Coût gaz par heure</span><strong id="gasCostHourCurrent"></strong>
+</div><div class="result">
+<span class="label">Coût gaz par tonne de maïs</span><strong id="gasCostTonCurrent"></strong>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Débit gaz avant</span><strong id="gasFlowBefore"></strong></div>
+<div class="result after-result"><span class="label">Débit gaz après</span><strong id="gasFlowAfter"></strong></div>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Coût gaz par heure avant</span><strong id="gasCostHourBefore"></strong></div>
+<div class="result after-result"><span class="label">Coût gaz par heure après</span><strong id="gasCostHourAfter"></strong></div>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Coût gaz par tonne avant</span><strong id="gasCostTonBefore"></strong></div>
+<div class="result after-result"><span class="label">Coût gaz par tonne après</span><strong id="gasCostTonAfter"></strong></div>
+</div></div>
+<div class="result vfd-only">
+<span class="label">Pourcentage d’économie gaz</span><strong id="gasSavingPct"></strong>
+</div>
+</div>
+</section>
+<section class="section section-electric">
+<h2><span class="section-title-text">5 — Indices de performance ÉLECTRICITÉ</span><button aria-expanded="true" class="section-toggle" title="Replier la section" type="button">−</button></h2>
+<div class="grid">
+<div class="field">
+<label>Prix du kWh électrique</label>
+<div class="input-wrap">
+<input id="kwhPrice" min="0" step="0.001" type="number" value="0.15"/>
+<span class="unit">€/kWh</span>
+</div>
+</div>
+<div class="result main single-mode">
+<span class="label">IPé électricité</span>
+<strong class="tee-help" id="elecIpe" title="Tonnes d’eau évaporée"></strong>
+</div>
+<div class="comparison-card vfd-only">
+<div class="comparison-pair">
+<div class="result">
+<span class="label">IPé électrique avant variateur</span>
+<strong class="tee-help" id="elecIpeBefore" title="Tonnes d’eau évaporée"></strong>
+</div>
+<div class="result after-result">
+<span class="label">IPé électrique après variateur</span>
+<strong class="tee-help" id="elecIpeAfter" title="Tonnes d’eau évaporée"></strong>
+</div>
+</div>
+</div>
+<div class="result single-mode">
+<span class="label">Puissance électrique</span><strong id="elecPowerCurrent"></strong>
+</div>
+<div class="cost-display-stack single-mode"><div class="result">
+<span class="label">Coût électrique par heure</span><strong id="elecCostHourCurrent"></strong>
+</div><div class="result">
+<span class="label">Coût électrique par tonne</span><strong id="elecCostTonCurrent"></strong>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Puissance électrique avant</span><strong id="elecPowerBefore"></strong></div>
+<div class="result after-result"><span class="label">Puissance électrique après</span><strong id="elecPowerAfter"></strong></div>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Coût électrique par heure avant</span><strong id="elecCostHourBefore"></strong></div>
+<div class="result after-result"><span class="label">Coût électrique par heure après</span><strong id="elecCostHourAfter"></strong></div>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Coût électrique par tonne avant</span><strong id="elecCostTonBefore"></strong></div>
+<div class="result after-result"><span class="label">Coût électrique par tonne après</span><strong id="elecCostTonAfter"></strong></div>
+</div></div>
+<div class="result vfd-only">
+<span class="label">Pourcentage d’économie électrique</span><strong id="elecSavingPct"></strong>
+</div>
+</div>
+</section>
+<section class="section section-global">
+<h2><span class="section-title-text">6 — Bilan total en euros</span><button aria-expanded="true" class="section-toggle" title="Replier la section" type="button">−</button></h2>
+<div class="grid">
+<div class="result single-mode">
+<span class="label">Coût gaz par heure</span><strong id="totalGasHourCurrent"></strong>
+</div>
+<div class="result single-mode">
+<span class="label">Coût électrique par heure</span><strong id="totalElecHourCurrent"></strong>
+</div>
+<div class="cost-display-stack single-mode"><div class="result">
+<span class="label">Coût total par heure</span><strong id="totalHourCurrent"></strong>
+</div><div class="result">
+<span class="label">Coût total par tonne</span><strong id="totalTonCurrent"></strong>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Coût total par heure avant</span><strong id="totalHourBefore"></strong></div>
+<div class="result after-result"><span class="label">Coût total par heure après</span><strong id="totalHourAfter"></strong></div>
+</div></div>
+<div class="comparison-card vfd-only"><div class="comparison-pair">
+<div class="result"><span class="label">Coût total par tonne avant</span><strong id="totalTonBefore"></strong></div>
+<div class="result after-result"><span class="label">Coût total par tonne après</span><strong id="totalTonAfter"></strong></div>
+</div></div>
+<div class="result vfd-only">
+<span class="label">Économie totale par heure</span><strong id="totalSavingHour"></strong>
+</div>
+<div class="result vfd-only">
+<span class="label">Économie totale par tonne</span><strong id="totalSavingTon"></strong>
+</div>
+<div class="result main vfd-only">
+<span class="label">Pourcentage d’économie totale</span><strong id="totalSavingPct"></strong>
+</div>
+<div class="warning vfd-only" id="vfdWarning"></div>
+</div>
+</section>
+</div>
+<script>
+
+function setupCollapsibleSections(){
+  document.querySelectorAll('.section').forEach(section=>{
+    const button=section.querySelector(':scope > h2 .section-toggle');
+    if(!button || button.dataset.ready==='1') return;
+
+    button.dataset.ready='1';
+    button.addEventListener('click',()=>{
+      const collapsed=section.classList.toggle('collapsed');
+      button.textContent=collapsed?'+':'−';
+      button.setAttribute('aria-expanded',collapsed?'false':'true');
+      button.title=collapsed?'Déplier la section':'Replier la section';
+    });
+  });
+}
+
+
+
+function renderMotors(){
+  const wrap=document.getElementById('motorsGrid');
+  if(!wrap) return;
+  const count=Math.max(1,Math.min(50,Math.floor(parseFloat(document.getElementById('motorCount').value)||1)));
+  const previous={};
+  wrap.querySelectorAll('input[data-motor]').forEach(el=>previous[el.id]=el.value);
+  wrap.innerHTML='';
+  for(let i=1;i<=count;i++){
+    const inherited =
+      previous[`motorPower${i}`] ??
+      previous[`motorPower${i-1}`] ??
+      wrap.querySelector(`#motorPower${i-1}`)?.value ??
+      '75';
+    const div=document.createElement('div');
+    div.className='field';
+    div.innerHTML=`
+      <label>Moteur ventilateur air chaud ${i}</label>
+      <div class="input-wrap">
+        <input id="motorPower${i}" data-motor type="number" min="0" step="1" value="${inherited}">
+        <span class="unit">kW</span>
+      </div>`;
+    wrap.appendChild(div);
+    div.querySelector('input').addEventListener('input',calculate);
+  }
+}
+function syncVfdVisibility(){
+  const enabled=document.getElementById('globalVfd')?.checked;
+  const frequencyWrap=document.getElementById('frequencyWrap');
+  if(frequencyWrap) frequencyWrap.style.display=enabled?'grid':'none';
+  document.querySelectorAll('.vfd-only').forEach(el=>{
+    if(!enabled) el.style.display='none';
+    else if(el.classList.contains('comparison-card')) el.style.display='block';
+    else el.style.display='grid';
+  });
+  document.querySelectorAll('.single-mode').forEach(el=>{
+    el.style.display=enabled?'none':'grid';
+  });
+  const vfdChecked=Boolean($('globalVfd')?.checked);
+  document.body.classList.toggle('vfd-enabled',vfdChecked);
+}
+function waterPerTonElectric(hIn,hOut){
+  if(hIn>=1 || hOut>=1 || hIn<=hOut) return 0;
+  return (1-hOut)/(1-hIn)-1;
+}
+function dryingFrequencyFactor(freq,criticalHz,stopHz){
+  const f=Math.max(0,Math.min(50,freq));
+  const high=Math.max(stopHz+0.1,Math.min(50,criticalHz));
+  const low=Math.max(0,Math.min(high-0.1,stopHz));
+
+  // Aucun recul du débit jusqu'au seuil haut.
+  if(f>=high) return 1;
+
+  // Arrêt théorique au seuil bas.
+  if(f<=low) return 0;
+
+  // Forme arrondie demandée :
+  // pente presque nulle à proximité de 44 Hz,
+  // puis chute de plus en plus forte en approchant de 38 Hz.
+  const position=(f-low)/(high-low);
+  return 1-Math.pow(1-position,3);
+}
+
+function humidityCapacityFactor(hIn,hOut,referenceHIn,referenceHOut){
+  const actual=waterPerTonElectric(hIn,hOut);
+  const reference=waterPerTonElectric(referenceHIn,referenceHOut);
+  if(actual<=0 || reference<=0) return 1;
+  return Math.max(0.20,Math.min(4,reference/actual));
+}
+
+function gasReductionFactor(freq,criticalHz,hIn,hOut,referenceHIn,referenceHOut){
+  const referenceWater=waterPerTonElectric(referenceHIn,referenceHOut);
+  const actualWater=waterPerTonElectric(hIn,hOut);
+
+  const loadRatio=referenceWater>0
+    ? Math.max(0,Math.min(1,actualWater/referenceWater))
+    : 1;
+
+  const factorAtCritical=Math.max(criticalHz/50,loadRatio);
+
+  if(freq>=50) return 1;
+
+  if(freq>=criticalHz){
+    const denominator=Math.max(0.1,50-criticalHz);
+    const progress=(50-freq)/denominator;
+    return 1-(1-factorAtCritical)*progress;
+  }
+
+  return factorAtCritical;
+}
+
+
+let curveDragMode=null;
+
+function curveGeometry(){
+  const canvas=$('dryingCurve');
+  if(!canvas) return null;
+
+  const rect=canvas.getBoundingClientRect();
+  const left=82;
+  const right=18;
+  const plotWidth=Math.max(1,rect.width-left-right);
+
+  return {
+    canvas,
+    rect,
+    left,
+    right,
+    plotWidth,
+    xFromFrequency:frequency =>
+      left+((frequency-15)/35)*plotWidth
+  };
+}
+
+function frequencyFromCurvePointer(event){
+  const geometry=curveGeometry();
+  if(!geometry) return null;
+
+  const pointerX=event.clientX-geometry.rect.left;
+  const ratio=(pointerX-geometry.left)/geometry.plotWidth;
+  const frequency=15+Math.max(0,Math.min(1,ratio))*35;
+
+  return Math.round(frequency*10)/10;
+}
+
+function curveTargetFromPointer(event){
+  const geometry=curveGeometry();
+  if(!geometry) return 'frequency';
+
+  const pointerX=event.clientX-geometry.rect.left;
+  const criticalX=geometry.xFromFrequency(num('criticalHz'));
+  const stopX=geometry.xFromFrequency(num('stopHz'));
+  const tolerance=14;
+
+  if(Math.abs(pointerX-criticalX)<=tolerance) return 'critical';
+  if(Math.abs(pointerX-stopX)<=tolerance) return 'stop';
+  return 'frequency';
+}
+
+function updateCurveValue(event){
+  const frequency=frequencyFromCurvePointer(event);
+  if(frequency===null) return;
+
+  if(curveDragMode==='critical'){
+    const minimum=num('stopHz')+0.5;
+    $('criticalHz').value=Math.max(minimum,Math.min(50,frequency)).toFixed(1);
+  }else if(curveDragMode==='stop'){
+    const maximum=num('criticalHz')-0.5;
+    $('stopHz').value=Math.max(15,Math.min(maximum,frequency)).toFixed(1);
+  }else{
+    $('globalFrequency').value=frequency.toFixed(1);
+  }
+
+  calculate();
+}
+
+function setupCurveDragging(){
+  const canvas=$('dryingCurve');
+  if(!canvas || canvas.dataset.dragReady==='1') return;
+
+  canvas.dataset.dragReady='1';
+  canvas.style.touchAction='none';
+
+  canvas.addEventListener('pointerdown',event=>{
+    curveDragMode=curveTargetFromPointer(event);
+    canvas.setPointerCapture(event.pointerId);
+    canvas.style.cursor=curveDragMode==='frequency'?'grabbing':'ew-resize';
+    updateCurveValue(event);
+  });
+
+  canvas.addEventListener('pointermove',event=>{
+    if(curveDragMode){
+      updateCurveValue(event);
+      return;
+    }
+
+    const target=curveTargetFromPointer(event);
+    canvas.style.cursor=target==='frequency'?'grab':'ew-resize';
+  });
+
+  const stopDragging=event=>{
+    curveDragMode=null;
+    const target=curveTargetFromPointer(event);
+    canvas.style.cursor=target==='frequency'?'grab':'ew-resize';
+
+    if(canvas.hasPointerCapture?.(event.pointerId)){
+      canvas.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  canvas.addEventListener('pointerup',stopDragging);
+  canvas.addEventListener('pointercancel',stopDragging);
+  canvas.addEventListener('pointerleave',()=>{
+    if(!curveDragMode) canvas.style.cursor='grab';
+  });
+}
+
+function applyIncreaseWarningColor(elementId,beforeValue,afterValue){
+  const el=$(elementId);
+  if(!el) return;
+
+  let background='#74c977';
+  let border='#2d923f';
+  let text='#071b08';
+
+  if(Number.isFinite(beforeValue) && Number.isFinite(afterValue) && beforeValue>0){
+    const increase=(afterValue-beforeValue)/beforeValue;
+
+    if(increase>0.10){
+      const t=Math.max(0,Math.min(1,(increase-0.10)/0.10));
+      const hue=35*(1-t);
+      background=`hsl(${hue},88%,50%)`;
+      border=`hsl(${hue},90%,34%)`;
+      text='#fff';
+    }
+  }
+
+  el.style.setProperty('background-color',background,'important');
+  el.style.setProperty('border-color',border,'important');
+  el.style.setProperty('color',text,'important');
+}
+
+function applyFlowHealthColor(elementId,ratio){
+  const el=$(elementId);
+  if(!el) return;
+
+  const safeRatio=Math.max(0,Math.min(1,ratio));
+  let background='#74c977';
+  let border='#2d923f';
+  let text='#071b08';
+
+  // Jusqu'à 10 % de perte : vert.
+  // De 10 à 20 % : orange vers rouge.
+  // Au-delà de 20 % de perte : rouge vif.
+  const loss=1-safeRatio;
+  if(loss>0.10){
+    const t=Math.max(0,Math.min(1,(loss-0.10)/0.10));
+    const hue=35*(1-t);
+    background=`hsl(${hue},88%,50%)`;
+    border=`hsl(${hue},90%,34%)`;
+    text='#fff';
+  }
+
+  el.style.setProperty('background-color',background,'important');
+  el.style.setProperty('border-color',border,'important');
+  el.style.setProperty('color',text,'important');
+}
+
+function applyElectricIpeColor(elementId, value){
+  const el=$(elementId);
+  if(!el) return;
+
+  // 42 kWh/tée ou moins : vert
+  // 45 kWh/tée ou plus : rouge
+  // interpolation progressive entre les deux.
+  const ratio=Math.max(0,Math.min(1,(value-42)/(45-42)));
+  const hue=120*(1-ratio);
+
+  el.style.backgroundColor=`hsl(${hue},78%,45%)`;
+  el.style.borderColor=`hsl(${hue},82%,31%)`;
+  el.style.color=ratio<0.55 ? '#071b08' : '#fff';
+}
+
+function drawDryingCurve(currentFreq,criticalHz,stopHz,humidityFactor){
+  const canvas=$('dryingCurve');
+  if(!canvas) return;
+
+  const rect=canvas.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  const width=Math.max(560,Math.round(rect.width||760));
+  const height=240;
+
+  canvas.width=width*dpr;
+  canvas.height=height*dpr;
+
+  const ctx=canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  const left=82,right=18,top=38,bottom=42;
+  const plotW=width-left-right;
+  const plotH=height-top-bottom;
+
+  const x=f=>left+(f-15)/35*plotW;
+  const y=v=>top+plotH-(v/1.05)*plotH;
+
+  ctx.clearRect(0,0,width,height);
+  ctx.font='11px Trebuchet MS';
+  ctx.textBaseline='middle';
+
+  // Grille
+  ctx.strokeStyle='#d5d5d5';
+  ctx.lineWidth=1;
+  for(let f=15;f<=50;f+=5){
+    ctx.beginPath();
+    ctx.moveTo(x(f),top);
+    ctx.lineTo(x(f),top+plotH);
+    ctx.stroke();
+    ctx.fillStyle='#222';
+    ctx.textAlign='center';
+    ctx.fillText(String(f),x(f),height-23);
+  }
+  ctx.textAlign='left';
+
+  for(let p=0;p<=1.0;p+=0.2){
+    const yy=y(p);
+    ctx.beginPath();
+    ctx.moveTo(left,yy);
+    ctx.lineTo(left+plotW,yy);
+    ctx.stroke();
+    ctx.fillStyle='#222';
+    ctx.textAlign='right';
+    ctx.fillText(Math.round(p*100)+' %',left-10,yy);
+  }
+
+  // Axes
+  ctx.strokeStyle='#111';
+  ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(left,top);
+  ctx.lineTo(left,top+plotH);
+  ctx.lineTo(left+plotW,top+plotH);
+  ctx.stroke();
+
+  // Courbe segmentée vert -> orange -> rouge
+  for(let f=15;f<50;f+=0.15){
+    const f2=Math.min(50,f+0.15);
+    const v1=dryingFrequencyFactor(f,criticalHz,stopHz);
+    const v2=dryingFrequencyFactor(f2,criticalHz,stopHz);
+    const average=(v1+v2)/2;
+
+    let hue;
+    if(f>=criticalHz) hue=125;
+    else hue=Math.max(0,120*average);
+
+    ctx.strokeStyle=`hsl(${hue},75%,42%)`;
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(x(f),y(v1));
+    ctx.lineTo(x(f2),y(v2));
+    ctx.stroke();
+  }
+
+  // Seuils
+  [
+    [criticalHz,'Début chute','#e28a00'],
+    [stopHz,'Arrêt','#c51f2e']
+  ].forEach(([f,label,color])=>{
+    ctx.strokeStyle=color;
+    ctx.setLineDash([5,4]);
+    ctx.beginPath();
+    ctx.moveTo(x(f),top);
+    ctx.lineTo(x(f),top+plotH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=color;
+    ctx.textAlign='center';
+    const labelY = label==='Début chute' ? 10 : 24;
+    ctx.fillText(`${label} ${fmt(f,0)} Hz`,x(f),labelY);
+  });
+
+  // Point actuel
+  const currentValue=dryingFrequencyFactor(currentFreq,criticalHz,stopHz);
+  const hue=currentFreq>=criticalHz ? 125 : Math.max(0,120*currentValue);
+  ctx.fillStyle=`hsl(${hue},80%,38%)`;
+  ctx.beginPath();
+  ctx.arc(x(currentFreq),y(currentValue),6,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle='#111';
+  ctx.textAlign='left';
+  ctx.fillText(`${fmt(currentFreq,0)} Hz — ${fmt(currentValue*100,0)} %`,
+    Math.min(width-105,x(currentFreq)+8),
+    Math.max(top+16,y(currentValue)-12));
+
+  // Titres d'axes, avec vraie marge à gauche
+  ctx.fillStyle='#222';
+  ctx.textAlign='center';
+  ctx.fillText('Fréquence ventilateurs (Hz)',left+plotW/2,height-7);
+
+  ctx.save();
+  ctx.translate(18,top+plotH/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('Débit de séchage relatif',0,0);
+  ctx.restore();
+}
+
+
+function getIpeColor(value){
+  const min = 900;
+  const max = 1500;
+  if (!Number.isFinite(value)) return '#00ff38';
+  if (value <= min) return '#00ff38';
+  if (value >= max) return '#ff1f1f';
+
+  const ratio = (value - min) / (max - min);
+  const hue = 120 * (1 - ratio); // 120 = vert, 0 = rouge
+  return `hsl(${hue}, 95%, 50%)`;
+}
+
+function applyIpeColor(elementId, value){
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const color = getIpeColor(value);
+  el.style.background = color;
+  el.style.borderColor = color;
+  el.style.color = value >= 1300 ? '#fff' : '#000';
+}
+
+const defaults = {
+  gasFlow:390, pressureMbar:300, gasTemp:15, pcs:11.5, priceMWh:52,
+  referenceHIn:35, referenceHOut:15,
+  hIn:26.5, hOut:16, extractionWeight:2380, minutes:2, seconds:55
+};
+const $ = id => document.getElementById(id);
+const num = id => parseFloat($(id).value) || 0;
+const fmt = (n,d=2) => Number.isFinite(n) ? n.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d}) : '0,00';
+
+function calculate(){
+  const gasFlow=num('gasFlow'), pressure=num('pressureMbar'), temp=num('gasTemp');
+  const pcs=num('pcs'), price=num('priceMWh');
+  const hIn=num('hIn')/100, hOut=num('hOut')/100;
+  const wOut=num('extractionWeight');
+  const totalSeconds=num('minutes')*60+num('seconds');
+
+  const normFlow = gasFlow * ((1013.25 + pressure)/1013.25) * (273.15/(temp+273.15));
+  const energy = normFlow * pcs;
+  const thermies = energy / 1.16222;
+  const hourlyCost = energy/1000 * price;
+
+  const extrPerHour = totalSeconds>0 ? 3600/totalSeconds : 0;
+  const outFlow = wOut*extrPerHour/1000;
+  const inWeight = (1-hIn)>0 ? wOut*(1-hOut)/(1-hIn) : 0;
+  const waterPerExtraction = inWeight-wOut;
+  const waterKgHour = waterPerExtraction*extrPerHour;
+  const waterTeeHour = waterKgHour/1000;
+
+  const ipe = waterTeeHour>0 ? energy/waterTeeHour : 0;
+  const gasSpecific = waterTeeHour>0 ? normFlow/waterTeeHour : 0;
+  const costPerTee = waterTeeHour>0 ? hourlyCost/waterTeeHour : 0;
+  const costPerTon = outFlow>0 ? hourlyCost/outFlow : 0;
+  const dryerPoints = waterTeeHour * 850;
+
+  $('normFlow').textContent=fmt(normFlow)+' Nm³/h';
+
+  $('power').textContent=fmt(energy)+' kW';
+  $('thermies').textContent=fmt(thermies)+' th/h';
+
+  $('totalSeconds').textContent=fmt(totalSeconds,0)+' s';
+  $('extrPerHour').textContent=fmt(extrPerHour)+' extr./h';
+  $('outFlow').textContent=fmt(outFlow)+' t/h';
+
+  $('waterPerExtraction').textContent=fmt(waterPerExtraction)+' kg';
+  $('waterKgHour').textContent=fmt(waterKgHour)+' kg/h';
+
+  $('ipe').textContent=fmt(ipe)+' kWh/tée';
+  applyIpeColor('ipe', ipe);
+  $('gasSpecific').textContent=fmt(gasSpecific)+' Nm³/tée';
+  $('costPerTee').textContent=fmt(costPerTee)+' €/tée';
+  $('dryerPoints').textContent=fmt(dryerPoints,0)+' Pts';
+
+  let nominalElec=0;
+  const motorCount=Math.max(1,Math.floor(num('motorCount')||1));
+  for(let i=1;i<=motorCount;i++) nominalElec+=num(`motorPower${i}`);
+
+  const loadFactor=num('loadFactor')/100;
+  const elecBefore=nominalElec*loadFactor;
+  const frequency=Math.max(15,Math.min(50,num('globalFrequency')||50));
+  const elecAfter=elecBefore*Math.pow(frequency/50,3);
+
+  const criticalHz=Math.max(1,Math.min(50,num('criticalHz')||44));
+  const stopHz=Math.max(1,Math.min(criticalHz-0.1,num('stopHz')||38));
+
+  let referenceHIn=Math.max(0.001,Math.min(0.999,num('referenceHIn')/100));
+  let referenceHOut=Math.max(0,Math.min(0.998,num('referenceHOut')/100));
+
+  if(referenceHOut>=referenceHIn){
+    referenceHOut=Math.max(0,referenceHIn-0.001);
+  }
+
+  $('referenceNoteIn').textContent=fmt(referenceHIn*100,1)+' %';
+  $('referenceNoteOut').textContent=fmt(referenceHOut*100,1)+' %';
+
+  const humidityFactor=humidityCapacityFactor(hIn,hOut,referenceHIn,referenceHOut);
+  const frequencyFlowFactor=dryingFrequencyFactor(frequency,criticalHz,stopHz);
+
+  // Le débit avant est le débit réel issu du poids et de la cadence d'extraction.
+  const productFlowBefore=outFlow;
+
+  // Le débit reste inchangé jusqu'à 44 Hz, puis suit la courbe jusqu'à 38 Hz.
+  const productFlowAfter=productFlowBefore*frequencyFlowFactor;
+
+  // Tonnes d'eau évaporées par tonne de produit sortie.
+  const waterRemovedPerTon=waterPerTonElectric(hIn,hOut);
+
+  // Tonnes d'eau évaporées par heure avant et après variation.
+  const waterTeeHourBefore=waterRemovedPerTon*productFlowBefore;
+  const waterTeeHourAfter=waterRemovedPerTon*productFlowAfter;
+
+  const extrPerHourBefore=extrPerHour;
+  const extrPerHourAfter=extrPerHourBefore*frequencyFlowFactor;
+  const totalSecondsBefore=totalSeconds;
+  const totalSecondsAfter=frequencyFlowFactor>0
+    ? totalSecondsBefore/frequencyFlowFactor
+    : 0;
+
+  const dryerPointsBefore=waterTeeHourBefore*850;
+  const dryerPointsAfter=waterTeeHourAfter*850;
+
+  const elecCostHourBefore=elecBefore*num('kwhPrice');
+  const elecCostHourAfter=elecAfter*num('kwhPrice');
+  const elecCostTonBefore=productFlowBefore>0 ? elecCostHourBefore/productFlowBefore : 0;
+  const elecCostTonAfter=productFlowAfter>0 ? elecCostHourAfter/productFlowAfter : 0;
+  const elecSavingPct=elecBefore>0 ? (elecBefore-elecAfter)/elecBefore*100 : 0;
+  const elecIpeBefore=waterTeeHourBefore>0 ? elecBefore/waterTeeHourBefore : 0;
+  const elecIpeAfter=waterTeeHourAfter>0 ? elecAfter/waterTeeHourAfter : 0;
+
+  const gasFactor=gasReductionFactor(frequency,criticalHz,hIn,hOut,referenceHIn,referenceHOut);
+  const gasFlowAfter=normFlow*gasFactor;
+  const gasEnergyAfter=gasFlowAfter*pcs;
+  const gasCostHourAfter=gasEnergyAfter/1000*price;
+  const gasIpeBefore=waterTeeHourBefore>0 ? energy/waterTeeHourBefore : 0;
+  const gasIpeAfter=waterTeeHourAfter>0 ? gasEnergyAfter/waterTeeHourAfter : 0;
+  const gasCostTonBefore=productFlowBefore>0 ? hourlyCost/productFlowBefore : 0;
+  const gasCostTonAfter=productFlowAfter>0 ? gasCostHourAfter/productFlowAfter : 0;
+  const gasSavingPct=hourlyCost>0 ? (hourlyCost-gasCostHourAfter)/hourlyCost*100 : 0;
+
+  const totalHourBefore=hourlyCost+elecCostHourBefore;
+  const totalHourAfter=gasCostHourAfter+elecCostHourAfter;
+  const totalTonBefore=productFlowBefore>0 ? totalHourBefore/productFlowBefore : 0;
+  const totalTonAfter=productFlowAfter>0 ? totalHourAfter/productFlowAfter : 0;
+  const totalSavingHour=Math.max(0,totalHourBefore-totalHourAfter);
+  const totalSavingTon=Math.max(0,totalTonBefore-totalTonAfter);
+  const totalSavingPct=totalHourBefore>0 ? totalSavingHour/totalHourBefore*100 : 0;
+
+  // GAZ sans variateur
+  $('gasFlowCurrent').textContent=fmt(normFlow)+' Nm³/h';
+  $('gasCostHourCurrent').textContent=fmt(hourlyCost)+' €/h';
+  $('gasCostTonCurrent').textContent=fmt(gasCostTonBefore)+' €/t maïs';
+
+  // GAZ avec variateur
+  $('totalSecondsBefore').textContent=fmt(totalSecondsBefore,0)+' s';
+  $('totalSecondsAfter').textContent=frequencyFlowFactor>0
+    ? fmt(totalSecondsAfter,0)+' s'
+    : '—';
+
+  $('extrPerHourBefore').textContent=fmt(extrPerHourBefore)+' extr./h';
+  $('extrPerHourAfter').textContent=fmt(extrPerHourAfter)+' extr./h';
+
+  $('dryerPointsBefore').textContent=fmt(dryerPointsBefore,0)+' Pts';
+  $('dryerPointsAfter').textContent=fmt(dryerPointsAfter,0)+' Pts';
+
+  $('productFlowBefore').textContent=fmt(productFlowBefore)+' t/h';
+  $('productFlowAfter').textContent=fmt(productFlowAfter)+' t/h';
+
+  const flowRatio=productFlowBefore>0 ? productFlowAfter/productFlowBefore : 0;
+  applyIncreaseWarningColor(
+    'totalSecondsAfter',
+    totalSecondsBefore,
+    frequencyFlowFactor>0 ? totalSecondsAfter : Number.POSITIVE_INFINITY
+  );
+  applyFlowHealthColor('extrPerHourAfter',flowRatio);
+  applyFlowHealthColor('productFlowAfter',flowRatio);
+  applyFlowHealthColor('waterHourAfter',flowRatio);
+  applyFlowHealthColor('dryerPointsAfter',flowRatio);
+  $('waterHourBefore').textContent=fmt(waterTeeHourBefore*1000)+' kg/h';
+  $('waterHourAfter').textContent=fmt(waterTeeHourAfter*1000)+' kg/h';
+  drawDryingCurve(frequency,criticalHz,stopHz,humidityFactor);
+
+  $('gasIpeBefore').textContent=fmt(gasIpeBefore)+' kWh/tée';
+  $('gasIpeAfter').textContent=waterTeeHourAfter>0
+    ? fmt(gasIpeAfter)+' kWh/tée'
+    : '—';
+  applyIpeColor('gasIpeBefore', gasIpeBefore);
+  if(waterTeeHourAfter>0){
+    applyIpeColor('gasIpeAfter', gasIpeAfter);
+  }else{
+    $('gasIpeAfter').style.backgroundColor='#d92b2b';
+    $('gasIpeAfter').style.color='#fff';
+  }
+
+  $('gasFlowBefore').textContent=fmt(normFlow)+' Nm³/h';
+  $('gasFlowAfter').textContent=fmt(gasFlowAfter)+' Nm³/h';
+  $('gasCostHourBefore').textContent=fmt(hourlyCost)+' €/h';
+  $('gasCostHourAfter').textContent=fmt(gasCostHourAfter)+' €/h';
+  $('gasCostTonBefore').textContent=fmt(gasCostTonBefore)+' €/t';
+  $('gasCostTonAfter').textContent=fmt(gasCostTonAfter)+' €/t';
+  $('gasSavingPct').textContent=fmt(gasSavingPct,1)+' %';
+
+  // ÉLECTRICITÉ sans variateur
+  $('elecPowerCurrent').textContent=fmt(elecBefore)+' kW';
+  $('elecCostHourCurrent').textContent=fmt(elecCostHourBefore)+' €/h';
+  $('elecCostTonCurrent').textContent=fmt(elecCostTonBefore)+' €/t';
+  $('elecIpe').textContent=fmt(elecIpeBefore)+' kWh/tée';
+  $('elecIpeBefore').textContent=fmt(elecIpeBefore)+' kWh/tée';
+  $('elecIpeAfter').textContent=waterTeeHourAfter>0
+    ? fmt(elecIpeAfter)+' kWh/tée'
+    : '—';
+
+  applyElectricIpeColor('elecIpe',elecIpeBefore);
+  applyElectricIpeColor('elecIpeBefore',elecIpeBefore);
+
+  if(waterTeeHourAfter>0){
+    applyElectricIpeColor('elecIpeAfter',elecIpeAfter);
+  }else{
+    $('elecIpeAfter').style.backgroundColor='#d92b2b';
+    $('elecIpeAfter').style.borderColor='#9f1515';
+    $('elecIpeAfter').style.color='#fff';
+  }
+
+  // ÉLECTRICITÉ avec variateur
+  $('elecPowerBefore').textContent=fmt(elecBefore)+' kW';
+  $('elecPowerAfter').textContent=fmt(elecAfter)+' kW';
+  $('elecCostHourBefore').textContent=fmt(elecCostHourBefore)+' €/h';
+  $('elecCostHourAfter').textContent=fmt(elecCostHourAfter)+' €/h';
+  $('elecCostTonBefore').textContent=fmt(elecCostTonBefore)+' €/t';
+  $('elecCostTonAfter').textContent=fmt(elecCostTonAfter)+' €/t';
+  $('elecSavingPct').textContent=fmt(elecSavingPct,1)+' %';
+
+  // BILAN TOTAL
+  $('totalGasHourCurrent').textContent=fmt(hourlyCost)+' €/h';
+  $('totalElecHourCurrent').textContent=fmt(elecCostHourBefore)+' €/h';
+  $('totalHourCurrent').textContent=fmt(totalHourBefore)+' €/h';
+  $('totalTonCurrent').textContent=fmt(totalTonBefore)+' €/t';
+
+  $('totalHourBefore').textContent=fmt(totalHourBefore)+' €/h';
+  $('totalHourAfter').textContent=fmt(totalHourAfter)+' €/h';
+  $('totalTonBefore').textContent=fmt(totalTonBefore)+' €/t';
+  $('totalTonAfter').textContent=fmt(totalTonAfter)+' €/t';
+  $('totalSavingHour').textContent=fmt(totalSavingHour)+' €/h';
+  $('totalSavingTon').textContent=fmt(totalSavingTon)+' €/t';
+  $('totalSavingPct').textContent=fmt(totalSavingPct,1)+' %';
+
+  const warning=$('vfdWarning');
+  if(warning){
+    if(frequency<=stopHz){
+      warning.textContent='À cette fréquence, le débit de séchage théorique est nul.';
+      warning.className='warning danger vfd-only';
+    }else if(frequency<criticalHz){
+      warning.textContent='Entre les deux seuils, le débit de séchage chute fortement : les coûts par tonne et les IPé peuvent se dégrader.';
+      warning.className='warning danger vfd-only';
+    }else if(frequency>=49.999){
+      warning.textContent='Variateur activé à 50 Hz : aucune économie, les valeurs avant et après sont identiques.';
+      warning.className='warning vfd-only';
+    }else{
+      warning.textContent=`De 50 Hz à ${fmt(criticalHz,0)} Hz, le débit de séchage est maintenu. La consommation horaire peut diminuer sans baisse du débit produit.`;
+      warning.className='warning vfd-only';
+    }
+  }
+}
+function normalizeTimer(){
+  const minutesInput = $('minutes');
+  const secondsInput = $('seconds');
+
+  let minutes = parseInt(minutesInput.value, 10);
+  let seconds = parseInt(secondsInput.value, 10);
+
+  if (!Number.isFinite(minutes)) minutes = 0;
+  if (!Number.isFinite(seconds)) seconds = 0;
+
+  let total = minutes * 60 + seconds;
+  if (total < 0) total = 0;
+
+  minutesInput.value = Math.floor(total / 60);
+  secondsInput.value = total % 60;
+
+  calculate();
+}
+
+$('minutes').addEventListener('input', normalizeTimer);
+$('seconds').addEventListener('input', normalizeTimer);
+
+document.querySelectorAll('input').forEach(i=>{
+  if (i.id !== 'minutes' && i.id !== 'seconds'){
+    i.addEventListener('input', calculate);
+  }
+});
+
+setupCollapsibleSections();
+renderMotors();
+syncVfdVisibility();
+setupCurveDragging();
+window.addEventListener('resize',calculate);
+$('motorCount').addEventListener('input',()=>{renderMotors();calculate();});
+$('globalVfd').addEventListener('change',()=>{
+  const anchor=$('globalVfd');
+  const topBefore=anchor.getBoundingClientRect().top;
+
+  syncVfdVisibility();
+  calculate();
+
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const topAfter=anchor.getBoundingClientRect().top;
+      window.scrollBy({
+        top:topAfter-topBefore,
+        left:0,
+        behavior:'auto'
+      });
+    });
+  });
+});
+$('globalFrequency').addEventListener('input',calculate);
+normalizeTimer();
+
+function sanitizeFileName(value){
+  return (value || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'Sans_titre';
+}
+
+async function exportPageToPDF(prefix){
+  const titleInput = document.getElementById('pdfTitle');
+  const printTitle = document.getElementById('printTitle');
+  const button = document.querySelector('.nav-pdf-btn');
+  const cleanTitle = sanitizeFileName(titleInput ? titleInput.value : '');
+  const visibleTitle = titleInput && titleInput.value.trim()
+    ? titleInput.value.trim()
+    : cleanTitle.replace(/_/g, ' ');
+
+  if (printTitle) printTitle.textContent = visibleTitle;
+
+  const container = document.querySelector('.container');
+  if (!container) return;
+
+  const oldText = button ? button.textContent : '';
+  if (button){
+    button.disabled = true;
+    button.textContent = 'Création du PDF...';
+  }
+
+  document.body.classList.add('pdf-capture');
+
+  try{
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      scrollX: 0,
+      scrollY: 0
+    });
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 6;
+    const maxWidth = pageWidth - margin * 2;
+    const maxHeight = pageHeight - margin * 2;
+
+    const ratio = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
+    const imgWidth = canvas.width * ratio;
+    const imgHeight = canvas.height * ratio;
+    const x = (pageWidth - imgWidth) / 2;
+    const y = (pageHeight - imgHeight) / 2;
+
+    pdf.addImage(
+      canvas.toDataURL('image/jpeg', 0.95),
+      'JPEG',
+      x, y, imgWidth, imgHeight,
+      undefined,
+      'FAST'
+    );
+
+    pdf.save(`${prefix}_${cleanTitle}.pdf`);
+  } catch(error){
+    console.error('Erreur export PDF :', error);
+    alert("Impossible de générer le PDF.");
+  } finally {
+    document.body.classList.remove('pdf-capture');
+    if (button){
+      button.disabled = false;
+      button.textContent = oldText || 'Exporter en PDF';
+    }
+  }
+}
+
+
+function collectCollapsedSections(){
+  return Array.from(document.querySelectorAll('.section')).map((section,index)=>{
+    const title=section.querySelector(':scope > h2 .section-title-text')
+      ?.textContent.trim() || `section-${index}`;
+    return {
+      index,
+      title,
+      collapsed:section.classList.contains('collapsed')
+    };
+  });
+}
+
+function restoreCollapsedSections(savedSections){
+  if(!Array.isArray(savedSections)) return;
+
+  const sections=Array.from(document.querySelectorAll('.section'));
+
+  savedSections.forEach(saved=>{
+    let section=null;
+
+    if(Number.isInteger(saved.index)){
+      section=sections[saved.index] || null;
+    }
+
+    if(!section && saved.title){
+      section=sections.find(candidate=>{
+        const title=candidate.querySelector(':scope > h2 .section-title-text')
+          ?.textContent.trim();
+        return title===saved.title;
+      }) || null;
+    }
+
+    if(!section) return;
+
+    section.classList.toggle('collapsed',Boolean(saved.collapsed));
+
+    const button=section.querySelector(':scope > h2 .section-toggle');
+    if(button){
+      button.textContent=saved.collapsed?'+':'−';
+      button.setAttribute('aria-expanded',saved.collapsed?'false':'true');
+      button.title=saved.collapsed?'Déplier la section':'Replier la section';
+    }
+  });
+}
+
+function applySavedValuesInCorrectOrder(values){
+  if(!values || typeof values!=='object') return;
+
+  // 1. Champs structurants avant les champs dynamiques.
+  const motorCount=document.getElementById('motorCount');
+  if(motorCount && values.motorCount!==undefined){
+    motorCount.value=values.motorCount;
+  }
+
+  // 2. Recréation exacte des champs moteurs.
+  if(typeof renderMotors==='function'){
+    renderMotors();
+  }
+
+  // 3. Réinjection de toutes les valeurs, moteurs compris.
+  Object.entries(values).forEach(([id,value])=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+
+    if(el.type==='checkbox'){
+      el.checked=Boolean(value);
+    }else if(el.type==='radio'){
+      el.checked=String(el.value)===String(value);
+    }else{
+      el.value=value;
+    }
+  });
+
+  // 4. Mise à jour unique et propre de l'interface.
+  if(typeof syncVfdVisibility==='function'){
+    syncVfdVisibility();
+  }
+  if(typeof normalizeTimer==='function'){
+    normalizeTimer();
+  }
+  if(typeof calculate==='function'){
+    calculate();
+  }
+}
+
+function getPageTitleForSave(){
+  const titleInput = document.getElementById('pdfTitle');
+  return titleInput ? titleInput.value.trim() : '';
+}
+
+function collectInputValues(){
+  const values = {};
+  document.querySelectorAll('input, select, textarea').forEach(el => {
+    if (!el.id || el.id === 'openJsonFile') return;
+    if (el.type === 'checkbox'){
+      values[el.id] = el.checked;
+    } else if (el.type === 'radio'){
+      if (el.checked) values[el.name || el.id] = el.value;
+    } else {
+      values[el.id] = el.value;
+    }
+  });
+  return values;
+}
+
+function applyInputValues(values){
+  Object.entries(values || {}).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox'){
+      el.checked = Boolean(value);
+    } else {
+      el.value = value;
+    }
+    el.dispatchEvent(new Event('input', { bubbles:true }));
+    el.dispatchEvent(new Event('change', { bubbles:true }));
+  });
+}
+
+function showSaveOpenMessage(text, isError=false){
+  const el = document.getElementById('saveOpenMessage');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = isError ? '#b71c1c' : '#2e7d32';
+  clearTimeout(window.__saveOpenTimer);
+  window.__saveOpenTimer = setTimeout(() => {
+    el.textContent = '';
+  }, 4500);
+}
+
+async function savePageData(pageType, filePrefix){
+  try{
+    const payload = {
+      type: pageType,
+      version: 51,
+      savedAt: new Date().toISOString(),
+      title: getPageTitleForSave(),
+      values: collectInputValues(),
+      collapsedSections: collectCollapsedSections(),
+      dynamicData: {
+        motorCount: document.getElementById('motorCount')
+          ? Number(document.getElementById('motorCount').value)
+          : null,
+        motorIds: Array.from(
+          document.querySelectorAll('#motorsGrid input[data-motor]')
+        ).map(el=>el.id)
+      }
+    };
+
+    const cleanTitle = sanitizeFileName(payload.title || 'Sans_titre');
+    const filename = `${filePrefix}_${cleanTitle}.json`;
+    const jsonText = JSON.stringify(payload, null, 2);
+
+    if ('showSaveFilePicker' in window){
+      try{
+        const handle = await window.showSaveFilePicker({
+          id: `sechoir-${pageType}`,
+          suggestedName: filename,
+          startIn: 'documents',
+          types: [{
+            description: 'Sauvegarde calculateur séchoir',
+            accept: {
+              'application/json': ['.json']
+            }
+          }]
+        });
+
+        const writable = await handle.createWritable();
+        await writable.write(jsonText);
+        await writable.close();
+
+        showSaveOpenMessage(`Sauvegarde enregistrée : ${handle.name}`);
+        return;
+      } catch(error){
+        if (error && error.name === 'AbortError'){
+          showSaveOpenMessage('Sauvegarde annulée.', true);
+          return;
+        }
+        console.warn('Fenêtre Enregistrer sous indisponible, téléchargement classique utilisé.', error);
+      }
+    }
+
+    const blob = new Blob([jsonText], {
+      type:'application/json;charset=utf-8'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    showSaveOpenMessage(`Sauvegarde téléchargée : ${filename}`);
+  } catch(error){
+    console.error(error);
+    showSaveOpenMessage('Impossible de créer la sauvegarde.', true);
+  }
+}
+
+function openPageData(expectedType){
+  const input = document.getElementById('openJsonFile');
+  if (!input) return;
+
+  input.value = '';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    try{
+      const data = JSON.parse(await file.text());
+
+      if (!data || data.type !== expectedType){
+        throw new Error(
+          expectedType === 'calcul_horaire'
+            ? "Ce fichier n'est pas une sauvegarde du calcul horaire."
+            : "Ce fichier n'est pas une sauvegarde du bilan campagne."
+        );
+      }
+
+      if (!data.values || typeof data.values !== 'object'){
+        throw new Error('Le fichier de sauvegarde est incomplet.');
+      }
+
+      applySavedValuesInCorrectOrder(data.values);
+
+      const titleInput = document.getElementById('pdfTitle');
+      if (titleInput && data.title !== undefined){
+        titleInput.value = data.title;
+      }
+
+      restoreCollapsedSections(data.collapsedSections);
+
+      showSaveOpenMessage(`Sauvegarde ouverte : ${file.name}`);
+    } catch(error){
+      console.error(error);
+      showSaveOpenMessage(error.message || 'Impossible d’ouvrir cette sauvegarde.', true);
+    }
+  };
+
+  input.click();
+}
+
+</script>
+</body>
+</html>

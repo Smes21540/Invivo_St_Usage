@@ -2709,8 +2709,8 @@ if (
       <button class="gaz-btn traca-modulee" style="display:none;" title="Moyenne Modulée uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Modulée : calcul...</button>
       <button class="gaz-btn traca-debit" style="display:none;" title="Moyenne Débit uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Débit : calcul...</button>
       <button class="gaz-btn traca-ipe" style="display:none;" title="Moyenne Ipé uniquement pendant le fonctionnement réel du séchoir." disabled>🟢 Ipé : calcul...</button>
-      <button class="gaz-btn traca-conso-m3" style="display:none;" title="Consommation gaz totale calculée depuis le compteur Gaz Total S1/S2/...." disabled>⛽ Gaz total : calcul...</button>
-      <button class="gaz-btn traca-conso-kwh" style="display:none;" title="Énergie gaz totale calculée depuis le compteur Cpt Gaz kWh S1/S2/...." disabled>⚡ Gaz total : calcul...</button>
+      <button class="gaz-btn traca-conso-m3" style="display:none;" title="Consommation gaz totale calculée par somme des incréments cohérents du compteur Gaz Total S1/S2/... ; les sauts aberrants sont ignorés." disabled>⛽ Gaz total : calcul...</button>
+      <button class="gaz-btn traca-conso-kwh" style="display:none;" title="Énergie gaz totale calculée par somme des incréments cohérents du compteur Cpt Gaz kWh S1/S2/... ; les sauts aberrants sont ignorés." disabled>⚡ Gaz total : calcul...</button>
       <button class="gaz-btn traca-tonnage" style="display:none;" title="Tonnage extrait calculé depuis le compteur Cumul (tonnes)." disabled>⚖️ Tonnage : calcul...</button>
       <button class="gaz-btn traca-duree" style="display:none;" title="Durée calculée comme dans Consommation gaz : une minute pour chaque intervalle où le compteur kWh augmente." disabled>⏱️ Durée : calcul...</button>
       <button class="gaz-btn traca-kwhh" style="display:none;" title="Puissance moyenne calculée : kWh consommés divisés par la durée de fonctionnement." disabled>📈 kWh/h : calcul...</button>
@@ -4249,32 +4249,62 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
 
     const allRows = lines.slice(1).map(parseCsvLineSafe);
     const num = (cols, idx) => idx === -1 ? NaN : Number.parseFloat(String(cols[idx] ?? "").trim().replace(",", "."));
-    const sumPositiveDeltas = idx => {
+    // Additionne les incréments successifs cohérents plutôt que de faire
+    // simplement dernière valeur - première valeur. Cela supporte les remises
+    // à zéro et rejette les sauts parasites de compteurs.
+    const sumPositiveDeltas = (idx, maxDelta = Infinity) => {
       if (idx === -1) return NaN;
       let total = 0, previous = NaN, found = false;
+
       for (const cols of allRows) {
         const current = num(cols, idx);
         if (!Number.isFinite(current)) continue;
+
         if (Number.isFinite(previous)) {
           const delta = current - previous;
-          if (delta > 0) { total += delta; found = true; }
+
+          if (delta > 0 && delta <= maxDelta) {
+            total += delta;
+            found = true;
+          } else if (delta > maxDelta) {
+            console.warn(
+              `[Traça_Temp] Saut compteur ignoré dans ${f.name} :`,
+              { colonne: headers[idx], precedent: previous, courant: current, delta }
+            );
+          }
         }
+
         previous = current;
       }
+
       return found ? total : NaN;
     };
 
-    const consoM3 = sumPositiveDeltas(idxGazTotal);
-    const consoKwh = sumPositiveDeltas(idxKwhTotal);
-    const tonnage = sumPositiveDeltas(idxTonnage);
+    // Seuils volontairement larges par ligne/minute : ils éliminent les sauts
+    // manifestement impossibles sans supprimer le fonctionnement normal.
+    const MAX_DELTA_M3_PAR_LIGNE = 100;
+    const MAX_DELTA_KWH_PAR_LIGNE = 1000;
+    const MAX_DELTA_TONNES_PAR_LIGNE = 20;
+
+    const consoM3 = sumPositiveDeltas(idxGazTotal, MAX_DELTA_M3_PAR_LIGNE);
+    const consoKwh = sumPositiveDeltas(idxKwhTotal, MAX_DELTA_KWH_PAR_LIGNE);
+    const tonnage = sumPositiveDeltas(idxTonnage, MAX_DELTA_TONNES_PAR_LIGNE);
 
     let dureeMinutes = 0;
     if (idxKwhTotal !== -1) {
       let previous = NaN;
+
       for (const cols of allRows) {
         const current = num(cols, idxKwhTotal);
         if (!Number.isFinite(current)) continue;
-        if (Number.isFinite(previous) && current > previous) dureeMinutes++;
+
+        if (Number.isFinite(previous)) {
+          const delta = current - previous;
+          if (delta > 0 && delta <= MAX_DELTA_KWH_PAR_LIGNE) {
+            dureeMinutes++;
+          }
+        }
+
         previous = current;
       }
     }
