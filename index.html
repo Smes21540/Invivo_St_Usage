@@ -2333,8 +2333,8 @@ if (folderName.toLowerCase().includes("consommation gaz")) {
       <span class="gaz-total traca-total-modulee" title="Moyenne Modulée pendant le fonctionnement détecté, affichée en minutes:secondes. Attention : certains fichiers peuvent être manquants ou incomplets.">🔵 Modulée : --:--</span>
       <span class="gaz-total traca-total-debit" title="Moyenne du débit t/h pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🔵 Débit : -- t/h</span>
       <span class="gaz-total traca-total-ipe" title="Moyenne Ipé pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🟢 Ipé : --</span>
-      <span class="gaz-total traca-total-conso-m3" title="Somme des consommations gaz en m³ calculées depuis Gaz Total S1 pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⛽ Gaz total : -- m³</span>
-      <span class="gaz-total traca-total-conso-kwh" title="Somme des consommations gaz en kWh calculées depuis Cpt Gaz kWh S1 pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⚡ Gaz total : -- kWh</span>
+      <span class="gaz-total traca-total-conso-m3" title="Somme des consommations gaz en m³ calculées depuis le compteur Gaz Total S1/S2/... pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⛽ Gaz total : -- m³</span>
+      <span class="gaz-total traca-total-conso-kwh" title="Somme des consommations gaz en kWh calculées depuis le compteur Cpt Gaz kWh S1/S2/... pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⚡ Gaz total : -- kWh</span>
       <span class="gaz-total traca-total-tonnage" title="Somme du tonnage extrait calculé depuis Cumul (tonnes) pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⚖️ Tonnage : -- t</span>
       <span class="gaz-total traca-total-duree" title="Durée totale calculée comme dans Consommation gaz : une minute par intervalle où le compteur kWh augmente. Attention : certains fichiers peuvent être manquants ou incomplets.">⏱️ Durée : --:--</span>
       <span class="gaz-total traca-total-kwhh" title="Puissance moyenne globale : total kWh divisé par la durée totale de fonctionnement.">📈 kWh/h : --</span>
@@ -2709,8 +2709,8 @@ if (
       <button class="gaz-btn traca-modulee" style="display:none;" title="Moyenne Modulée uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Modulée : calcul...</button>
       <button class="gaz-btn traca-debit" style="display:none;" title="Moyenne Débit uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Débit : calcul...</button>
       <button class="gaz-btn traca-ipe" style="display:none;" title="Moyenne Ipé uniquement pendant le fonctionnement réel du séchoir." disabled>🟢 Ipé : calcul...</button>
-      <button class="gaz-btn traca-conso-m3" style="display:none;" title="Consommation gaz totale calculée depuis le compteur Gaz Total S1." disabled>⛽ Gaz total : calcul...</button>
-      <button class="gaz-btn traca-conso-kwh" style="display:none;" title="Énergie gaz totale calculée depuis le compteur Cpt Gaz kWh S1." disabled>⚡ Gaz total : calcul...</button>
+      <button class="gaz-btn traca-conso-m3" style="display:none;" title="Consommation gaz totale calculée depuis le compteur Gaz Total S1/S2/...." disabled>⛽ Gaz total : calcul...</button>
+      <button class="gaz-btn traca-conso-kwh" style="display:none;" title="Énergie gaz totale calculée depuis le compteur Cpt Gaz kWh S1/S2/...." disabled>⚡ Gaz total : calcul...</button>
       <button class="gaz-btn traca-tonnage" style="display:none;" title="Tonnage extrait calculé depuis le compteur Cumul (tonnes)." disabled>⚖️ Tonnage : calcul...</button>
       <button class="gaz-btn traca-duree" style="display:none;" title="Durée calculée comme dans Consommation gaz : une minute pour chaque intervalle où le compteur kWh augmente." disabled>⏱️ Durée : calcul...</button>
       <button class="gaz-btn traca-kwhh" style="display:none;" title="Puissance moyenne calculée : kWh consommés divisés par la durée de fonctionnement." disabled>📈 kWh/h : calcul...</button>
@@ -4240,8 +4240,9 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
     }
 
     // === Bilan journalier issu des compteurs Traça_Temp ===
-    const idxGazTotal = findIndex(["gaztotals1"]);
-    const idxKwhTotal = findIndex(["cptgazkwhs1"]);
+    // Accepte automatiquement Gaz Total S1, S2, S3... et Cpt Gaz kWh S1, S2, S3...
+    const idxGazTotal = headers.findIndex(h => /^gaztotals\d+$/i.test(h));
+    const idxKwhTotal = headers.findIndex(h => /^(?:cpt|cpt)gazkwhs\d+$/i.test(h));
     const idxTonnage = findIndex(["cumultonnes"]);
     const idxDate = findIndex(["date"]);
     const idxTime = findIndex(["time", "heure"]);
