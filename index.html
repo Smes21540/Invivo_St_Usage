@@ -2333,6 +2333,11 @@ if (folderName.toLowerCase().includes("consommation gaz")) {
       <span class="gaz-total traca-total-modulee" title="Moyenne Modulée pendant le fonctionnement détecté, affichée en minutes:secondes. Attention : certains fichiers peuvent être manquants ou incomplets.">🔵 Modulée : --:--</span>
       <span class="gaz-total traca-total-debit" title="Moyenne du débit t/h pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🔵 Débit : -- t/h</span>
       <span class="gaz-total traca-total-ipe" title="Moyenne Ipé pendant le fonctionnement détecté, pour les fichiers actuellement visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">🟢 Ipé : --</span>
+      <span class="gaz-total traca-total-conso-m3" title="Somme des consommations gaz en m³ calculées depuis Gaz Total S1 pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⛽ Gaz total : -- m³</span>
+      <span class="gaz-total traca-total-conso-kwh" title="Somme des consommations gaz en kWh calculées depuis Cpt Gaz kWh S1 pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⚡ Gaz total : -- kWh</span>
+      <span class="gaz-total traca-total-tonnage" title="Somme du tonnage extrait calculé depuis Cumul (tonnes) pour les fichiers visibles. Attention : certains fichiers peuvent être manquants ou incomplets.">⚖️ Tonnage : -- t</span>
+      <span class="gaz-total traca-total-duree" title="Durée totale calculée comme dans Consommation gaz : une minute par intervalle où le compteur kWh augmente. Attention : certains fichiers peuvent être manquants ou incomplets.">⏱️ Durée : --:--</span>
+      <span class="gaz-total traca-total-kwhh" title="Puissance moyenne globale : total kWh divisé par la durée totale de fonctionnement.">📈 kWh/h : --</span>
     `;
     controls.appendChild(summaryDiv);
   }
@@ -2704,6 +2709,11 @@ if (
       <button class="gaz-btn traca-modulee" style="display:none;" title="Moyenne Modulée uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Modulée : calcul...</button>
       <button class="gaz-btn traca-debit" style="display:none;" title="Moyenne Débit uniquement pendant le fonctionnement réel du séchoir." disabled>🔵 Débit : calcul...</button>
       <button class="gaz-btn traca-ipe" style="display:none;" title="Moyenne Ipé uniquement pendant le fonctionnement réel du séchoir." disabled>🟢 Ipé : calcul...</button>
+      <button class="gaz-btn traca-conso-m3" style="display:none;" title="Consommation gaz totale calculée depuis le compteur Gaz Total S1." disabled>⛽ Gaz total : calcul...</button>
+      <button class="gaz-btn traca-conso-kwh" style="display:none;" title="Énergie gaz totale calculée depuis le compteur Cpt Gaz kWh S1." disabled>⚡ Gaz total : calcul...</button>
+      <button class="gaz-btn traca-tonnage" style="display:none;" title="Tonnage extrait calculé depuis le compteur Cumul (tonnes)." disabled>⚖️ Tonnage : calcul...</button>
+      <button class="gaz-btn traca-duree" style="display:none;" title="Durée calculée comme dans Consommation gaz : une minute pour chaque intervalle où le compteur kWh augmente." disabled>⏱️ Durée : calcul...</button>
+      <button class="gaz-btn traca-kwhh" style="display:none;" title="Puissance moyenne calculée : kWh consommés divisés par la durée de fonctionnement." disabled>📈 kWh/h : calcul...</button>
     </div>
   `;
 
@@ -3729,7 +3739,7 @@ document.getElementById("exportCsvBtn").addEventListener("click", async function
   }
 
   if (kind === "traca") {
-    csv = "Date,Gaz_m3_h,Normalise,Modulee_secondes,Debit_t_h,Ipe\n";
+    csv = "Date,Gaz_m3_h,Normalise,Modulee_secondes,Debit_t_h,Ipe,Conso_gaz_m3,Conso_gaz_kWh,Tonnage_t,Duree_minutes,kWh_h\n";
 
     for (const row of rows) {
       if (Number.parseInt(row.dataset.tracaRunningRows || "0", 10) <= 0) continue;
@@ -3739,8 +3749,13 @@ document.getElementById("exportCsvBtn").addEventListener("click", async function
       const modulee = Number.parseFloat(row.dataset.tracaModulee);
       const debit = Number.parseFloat(row.dataset.tracaDebit);
       const ipe = Number.parseFloat(row.dataset.tracaIpe);
+      const consoM3 = Number.parseFloat(row.dataset.tracaConsoM3);
+      const consoKwh = Number.parseFloat(row.dataset.tracaConsoKwh);
+      const tonnage = Number.parseFloat(row.dataset.tracaTonnage);
+      const dureeMinutes = Number.parseFloat(row.dataset.tracaDureeMinutes);
+      const kwhH = Number.parseFloat(row.dataset.tracaKwhH);
 
-      if (![gaz, normalise, modulee, debit, ipe].some(Number.isFinite)) continue;
+      if (![gaz, normalise, modulee, debit, ipe, consoM3, consoKwh, tonnage, dureeMinutes, kwhH].some(Number.isFinite)) continue;
 
       csv += [
         rowDate(row),
@@ -3748,7 +3763,12 @@ document.getElementById("exportCsvBtn").addEventListener("click", async function
         Number.isFinite(normalise) ? normalise.toFixed(1) : "",
         Number.isFinite(modulee) ? modulee.toFixed(1) : "",
         Number.isFinite(debit) ? debit.toFixed(1) : "",
-        Number.isFinite(ipe) ? ipe.toFixed(1) : ""
+        Number.isFinite(ipe) ? ipe.toFixed(1) : "",
+        Number.isFinite(consoM3) ? consoM3.toFixed(1) : "",
+        Number.isFinite(consoKwh) ? consoKwh.toFixed(0) : "",
+        Number.isFinite(tonnage) ? tonnage.toFixed(1) : "",
+        Number.isFinite(dureeMinutes) ? dureeMinutes.toFixed(0) : "",
+        Number.isFinite(kwhH) ? kwhH.toFixed(1) : ""
       ].map(csvValue).join(",") + "\n";
       validRows++;
     }
@@ -3820,7 +3840,7 @@ document.getElementById("exportExcelGazBtn").addEventListener("click", function 
     sheetName = "Echantillonnage";
     fileName = `export_echantillonnage_${new Date().toISOString().slice(0,10)}.xlsx`;
   } else if (kind === "traca") {
-    data = [["Date", "Gaz (m³/h)", "Normalisé", "Modulée (min:s)", "Modulée (secondes)", "Débit (t/h)", "Ipé"]];
+    data = [["Date", "Gaz (m³/h)", "Normalisé", "Modulée (min:s)", "Modulée (secondes)", "Débit (t/h)", "Ipé", "Consommation gaz (m³)", "Consommation gaz (kWh)", "Tonnage extrait (t)", "Durée (HH:mm)", "Durée (minutes)", "Moyenne (kWh/h)"]];
     for (const row of rows) {
       if (Number.parseInt(row.dataset.tracaRunningRows || "0", 10) <= 0) continue;
       const date = row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "";
@@ -3829,6 +3849,11 @@ document.getElementById("exportExcelGazBtn").addEventListener("click", function 
       const modulee = Number.parseFloat(row.dataset.tracaModulee);
       const debit = Number.parseFloat(row.dataset.tracaDebit);
       const ipe = Number.parseFloat(row.dataset.tracaIpe);
+      const consoM3 = Number.parseFloat(row.dataset.tracaConsoM3);
+      const consoKwh = Number.parseFloat(row.dataset.tracaConsoKwh);
+      const tonnage = Number.parseFloat(row.dataset.tracaTonnage);
+      const dureeMinutes = Number.parseFloat(row.dataset.tracaDureeMinutes);
+      const kwhH = Number.parseFloat(row.dataset.tracaKwhH);
       data.push([
         date,
         Number.isFinite(gaz) ? Number(gaz.toFixed(1)) : "",
@@ -3836,7 +3861,13 @@ document.getElementById("exportExcelGazBtn").addEventListener("click", function 
         Number.isFinite(modulee) ? formatSecondsToMinSec(modulee) : "",
         Number.isFinite(modulee) ? Number(modulee.toFixed(1)) : "",
         Number.isFinite(debit) ? Number(debit.toFixed(1)) : "",
-        Number.isFinite(ipe) ? Number(ipe.toFixed(1)) : ""
+        Number.isFinite(ipe) ? Number(ipe.toFixed(1)) : "",
+        Number.isFinite(consoM3) ? Number(consoM3.toFixed(1)) : "",
+        Number.isFinite(consoKwh) ? Number(consoKwh.toFixed(0)) : "",
+        Number.isFinite(tonnage) ? Number(tonnage.toFixed(1)) : "",
+        Number.isFinite(dureeMinutes) ? `${Math.floor(dureeMinutes/60)}:${String(Math.round(dureeMinutes)%60).padStart(2,"0")}` : "",
+        Number.isFinite(dureeMinutes) ? Number(dureeMinutes.toFixed(0)) : "",
+        Number.isFinite(kwhH) ? Number(kwhH.toFixed(1)) : ""
       ]);
     }
     sheetName = "Traca Temp";
@@ -4114,6 +4145,11 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
         const btn = tdAction.querySelector(item.selector);
         if (btn) btn.style.display = "none";
       }
+      for (const key of ["tracaConsoM3","tracaConsoKwh","tracaTonnage","tracaDureeMinutes","tracaKwhH"]) tr.dataset[key] = "";
+      for (const selector of [".traca-conso-m3",".traca-conso-kwh",".traca-tonnage",".traca-duree",".traca-kwhh"]) {
+        const extraBtn = tdAction.querySelector(selector);
+        if (extraBtn) extraBtn.style.display = "none";
+      }
       tr.dataset.tracaRunningRows = "";
       if (group) group.style.display = "none";
     }
@@ -4203,6 +4239,64 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
       hasAny = true;
     }
 
+    // === Bilan journalier issu des compteurs Traça_Temp ===
+    const idxGazTotal = findIndex(["gaztotals1"]);
+    const idxKwhTotal = findIndex(["cptgazkwhs1"]);
+    const idxTonnage = findIndex(["cumultonnes"]);
+    const idxDate = findIndex(["date"]);
+    const idxTime = findIndex(["time", "heure"]);
+
+    const allRows = lines.slice(1).map(parseCsvLineSafe);
+    const num = (cols, idx) => idx === -1 ? NaN : Number.parseFloat(String(cols[idx] ?? "").trim().replace(",", "."));
+    const sumPositiveDeltas = idx => {
+      if (idx === -1) return NaN;
+      let total = 0, previous = NaN, found = false;
+      for (const cols of allRows) {
+        const current = num(cols, idx);
+        if (!Number.isFinite(current)) continue;
+        if (Number.isFinite(previous)) {
+          const delta = current - previous;
+          if (delta > 0) { total += delta; found = true; }
+        }
+        previous = current;
+      }
+      return found ? total : NaN;
+    };
+
+    const consoM3 = sumPositiveDeltas(idxGazTotal);
+    const consoKwh = sumPositiveDeltas(idxKwhTotal);
+    const tonnage = sumPositiveDeltas(idxTonnage);
+
+    let dureeMinutes = 0;
+    if (idxKwhTotal !== -1) {
+      let previous = NaN;
+      for (const cols of allRows) {
+        const current = num(cols, idxKwhTotal);
+        if (!Number.isFinite(current)) continue;
+        if (Number.isFinite(previous) && current > previous) dureeMinutes++;
+        previous = current;
+      }
+    }
+    const kwhH = Number.isFinite(consoKwh) && dureeMinutes > 0 ? consoKwh / (dureeMinutes / 60) : NaN;
+
+    const extras = [
+      { selector:".traca-conso-m3", data:"tracaConsoM3", value:consoM3, text:v=>`⛽ Gaz total : ${v.toFixed(1)} m³` },
+      { selector:".traca-conso-kwh", data:"tracaConsoKwh", value:consoKwh, text:v=>`⚡ Gaz total : ${v.toFixed(0)} kWh` },
+      { selector:".traca-tonnage", data:"tracaTonnage", value:tonnage, text:v=>`⚖️ Tonnage : ${v.toFixed(1)} t` },
+      { selector:".traca-duree", data:"tracaDureeMinutes", value:dureeMinutes > 0 ? dureeMinutes : NaN, text:v=>`⏱️ Durée : ${Math.floor(v/60)}:${String(Math.round(v)%60).padStart(2,"0")}` },
+      { selector:".traca-kwhh", data:"tracaKwhH", value:kwhH, text:v=>`📈 kWh/h : ${v.toFixed(1)}` }
+    ];
+
+    for (const extra of extras) {
+      const btn = tdAction.querySelector(extra.selector);
+      tr.dataset[extra.data] = Number.isFinite(extra.value) ? String(extra.value) : "";
+      if (!btn || !Number.isFinite(extra.value)) { if (btn) btn.style.display = "none"; continue; }
+      btn.textContent = extra.text(extra.value);
+      btn.disabled = false;
+      btn.style.display = "inline-block";
+      hasAny = true;
+    }
+
     if (group) group.style.display = hasAny ? "flex" : "none";
   } catch (e) {
     console.warn("[Traça_Temp] Erreur lecture :", f.name, e);
@@ -4249,6 +4343,29 @@ function updateTracaTempTotals() {
     box.title = item.data === "tracaModulee"
       ? `Moyenne de ${values.length} journée(s) avec fonctionnement détecté, affichée en minutes:secondes. Les journées sans fonctionnement ne sont pas incluses. Attention : certains fichiers peuvent être manquants ou incomplets.`
       : `Moyenne de ${values.length} journée(s) avec fonctionnement détecté. Les périodes d'arrêt et les journées sans fonctionnement sont exclues. Attention : certains fichiers peuvent être manquants ou incomplets.`;
+    box.style.display = "inline-flex";
+    hasAny = true;
+  }
+
+  // Cumuls de campagne issus des compteurs
+  const sumField = field => rows.map(r => Number.parseFloat(r.dataset[field])).filter(Number.isFinite).reduce((a,b)=>a+b,0);
+  const totalM3 = sumField("tracaConsoM3");
+  const totalKwh = sumField("tracaConsoKwh");
+  const totalTonnage = sumField("tracaTonnage");
+  const totalMinutes = sumField("tracaDureeMinutes");
+  const globalKwhH = totalMinutes > 0 ? totalKwh / (totalMinutes / 60) : NaN;
+  const totalConfig = [
+    [".traca-total-conso-m3", totalM3, v=>`⛽ Gaz total : ${v.toFixed(1)} m³`],
+    [".traca-total-conso-kwh", totalKwh, v=>`⚡ Gaz total : ${v.toFixed(0)} kWh`],
+    [".traca-total-tonnage", totalTonnage, v=>`⚖️ Tonnage : ${v.toFixed(1)} t`],
+    [".traca-total-duree", totalMinutes, v=>`⏱️ Durée : ${Math.floor(v/60)}:${String(Math.round(v)%60).padStart(2,"0")}`],
+    [".traca-total-kwhh", globalKwhH, v=>`📈 kWh/h : ${v.toFixed(1)}`]
+  ];
+  for (const [selector,value,formatter] of totalConfig) {
+    const box = summary.querySelector(selector);
+    if (!box) continue;
+    if (!Number.isFinite(value) || value <= 0) { box.style.display = "none"; continue; }
+    box.textContent = formatter(value);
     box.style.display = "inline-flex";
     hasAny = true;
   }
