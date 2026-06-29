@@ -962,7 +962,7 @@ body[data-theme="orange"] #smes-footer-bg {
   display:inline-flex;
 }
 
-/* === Version 0.955.21 : exports strictement limités à la période === */
+/* === Version 0.955.22 : exports strictement limités à la période === */
 /* Dossier toujours masqué. Le nom de fichier n'apparaît que s'il y a au moins un PDF affiché. */
 #csvTable th:nth-child(5),
 #csvTable td:nth-child(5){
@@ -1065,7 +1065,7 @@ body[data-theme="orange"] #smes-footer-bg {
 }
 
 
-/* === Version 0.955.21 === */
+/* === Version 0.955.22 === */
 .app-version{
   color:var(--accent);
   font-size:11px;
@@ -1102,7 +1102,7 @@ body[data-theme="orange"] #smes-footer-bg {
 .historique-summary .gaz-total{display:inline-flex;align-items:center;}
 
 
-/* === Version 0.955.21 : colonne État dédiée === */
+/* === Version 0.955.22 : colonne État dédiée === */
 #csvTable th.status-column-header{
   width:72px;
   min-width:72px;
@@ -1193,7 +1193,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <a class="sechoir-calcul-btn bilan" href="bilan_campagne.html" id="sechoirCalcCampaignLink" rel="noopener noreferrer" target="_blank" title="Ouvrir le bilan campagne">
     📊 Bilan campagne
   </a>
-<span class="app-version" title="Version de l’interface">Version 0.955.21 (29/06/26)</span>
+<span class="app-version" title="Version de l’interface">Version 0.955.22 (29/06/26)</span>
 </div>
 <img alt="Logo" class="logo" id="mainLogo" src="img/logo.png"/>
 <div id="scanIndicator">🔄 Analyse en cours...</div>
@@ -1290,7 +1290,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <script>
 /* ----------- Config Drive ----------- */
 /* ----------- Version du stockage local ----------- */
-const APP_STORAGE_VERSION = "0.955.21";
+const APP_STORAGE_VERSION = "0.955.22";
 const APP_STORAGE_VERSION_KEY = "smes_storage_version";
 
 (function migrateLocalStorage(){
@@ -5405,10 +5405,7 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
     // non convertis ou les valeurs aberrantes telles que 6553 kW.
     const powerSamples = idxElecPower === -1 ? [] : allRows
       .map(cols => num(cols, idxElecPower))
-      .filter(value => Number.isFinite(value) && value > 0 && value < 1000);
-    const elecKwAverage = powerSamples.length
-      ? powerSamples.reduce((sum, value) => sum + value, 0) / powerSamples.length
-      : NaN;
+      .filter(value => Number.isFinite(value) && value >= 1 && value < 1000);
 
     let elecMinutes = 0;
     let elecKwhFromPower = NaN;
@@ -5482,8 +5479,20 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
       }
     }
     // Puissance moyenne électrique issue exclusivement de Elec kW ou Cons Mot kW.
-    const kwhH = elecKwAverage;
-    tr.dataset.tracaElecMinutes = Number.isFinite(elecMinutes) && elecMinutes > 0 ? String(elecMinutes) : "";
+    // Elle n'est affichée que si l'activité électrique est crédible :
+    // - lorsqu'un compteur/une colonne kWh existe, il doit réellement progresser ;
+    // - sans colonne kWh, il faut au moins deux relevés de puissance plausibles
+    //   et une durée intégrée positive. Une mesure isolée ne suffit pas.
+    const hasElecKwhColumn = idxElecCounterTotal !== -1 || idxElecKwhDirect !== -1;
+    const hasCrediblePowerActivity = hasElecKwhColumn
+      ? Number.isFinite(elecKwh) && elecKwh > 0
+      : powerSamples.length >= 2 && Number.isFinite(elecKwhFromPower) && elecKwhFromPower > 0 && elecMinutes > 0;
+    const kwhH = hasCrediblePowerActivity && powerSamples.length
+      ? powerSamples.reduce((sum, value) => sum + value, 0) / powerSamples.length
+      : NaN;
+    tr.dataset.tracaElecMinutes = hasCrediblePowerActivity && Number.isFinite(elecMinutes) && elecMinutes > 0
+      ? String(elecMinutes)
+      : "";
 
     const extras = [
       { selector:".traca-conso-m3", data:"tracaConsoM3", value:consoM3, text:v=>`⛽ Gaz total : ${v.toFixed(1)} m³` },
@@ -6719,47 +6728,73 @@ window.addEventListener("DOMContentLoaded", updateCalculatorRootLinks);
 </script>
 
 <script>
-/* Barre horizontale toujours visible, synchronisée avec le tableau */
+/* Barre horizontale toujours visible, synchronisée avec le vrai conteneur défilant */
 (function initFloatingHorizontalScrollbar(){
+  const tableWrapper = document.getElementById("tableWrapper");
   const tableContainer = document.getElementById("tableContainer");
   const table = document.getElementById("csvTable");
   const floating = document.getElementById("floatingHScroll");
   const inner = document.getElementById("floatingHScrollInner");
-  if (!tableContainer || !table || !floating || !inner) return;
+  if (!tableWrapper || !tableContainer || !table || !floating || !inner) return;
 
   let syncing = false;
+  let scrollOwner = tableWrapper;
+
+  function resolveScrollOwner(){
+    const candidates = [tableWrapper, tableContainer];
+    scrollOwner = candidates.find(el => el.scrollWidth > el.clientWidth + 1) || tableWrapper;
+    return scrollOwner;
+  }
 
   function refreshFloatingScrollbar(){
+    const owner = resolveScrollOwner();
     const rect = tableContainer.getBoundingClientRect();
+    const tableRect = table.getBoundingClientRect();
     const visible = rect.bottom > 0 && rect.top < window.innerHeight;
-    const needsScroll = tableContainer.scrollWidth > tableContainer.clientWidth + 1;
+    const needsScroll = owner.scrollWidth > owner.clientWidth + 1;
 
     if (!visible || !needsScroll || rect.width <= 0){
       floating.style.display = "none";
       return;
     }
 
+    const left = Math.max(0, rect.left);
+    const right = Math.min(window.innerWidth, rect.right);
     floating.style.display = "block";
-    floating.style.left = `${Math.max(0, rect.left)}px`;
-    floating.style.width = `${Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(0, rect.left))}px`;
-    inner.style.width = `${tableContainer.scrollWidth}px`;
+    floating.style.left = `${left}px`;
+    floating.style.width = `${Math.max(0, right - left)}px`;
 
-    if (!syncing) floating.scrollLeft = tableContainer.scrollLeft;
+    // La largeur interne doit reproduire exactement la largeur réellement défilable.
+    inner.style.width = `${Math.max(owner.scrollWidth, table.scrollWidth, Math.ceil(tableRect.width))}px`;
+
+    if (!syncing && Math.abs(floating.scrollLeft - owner.scrollLeft) > 1) {
+      floating.scrollLeft = owner.scrollLeft;
+    }
   }
 
   floating.addEventListener("scroll", () => {
+    const owner = resolveScrollOwner();
     if (syncing) return;
     syncing = true;
-    tableContainer.scrollLeft = floating.scrollLeft;
-    requestAnimationFrame(() => { syncing = false; });
-  });
+    owner.scrollLeft = floating.scrollLeft;
+    requestAnimationFrame(() => {
+      // Force la mise à jour visuelle même si le navigateur a changé de conteneur actif.
+      if (tableWrapper !== owner) tableWrapper.scrollLeft = owner.scrollLeft;
+      if (tableContainer !== owner) tableContainer.scrollLeft = owner.scrollLeft;
+      syncing = false;
+    });
+  }, { passive:true });
 
-  tableContainer.addEventListener("scroll", () => {
-    if (syncing) return;
+  const syncFromNative = event => {
+    const owner = resolveScrollOwner();
+    if (event.currentTarget !== owner || syncing) return;
     syncing = true;
-    floating.scrollLeft = tableContainer.scrollLeft;
+    floating.scrollLeft = owner.scrollLeft;
     requestAnimationFrame(() => { syncing = false; });
-  });
+  };
+
+  tableWrapper.addEventListener("scroll", syncFromNative, { passive:true });
+  tableContainer.addEventListener("scroll", syncFromNative, { passive:true });
 
   window.addEventListener("resize", refreshFloatingScrollbar);
   window.addEventListener("scroll", refreshFloatingScrollbar, true);
@@ -6769,12 +6804,14 @@ window.addEventListener("DOMContentLoaded", updateCalculatorRootLinks);
 
   if (window.ResizeObserver){
     const resizeObserver = new ResizeObserver(refreshFloatingScrollbar);
+    resizeObserver.observe(tableWrapper);
     resizeObserver.observe(tableContainer);
     resizeObserver.observe(table);
   }
 
   document.addEventListener("DOMContentLoaded", refreshFloatingScrollbar);
   window.addEventListener("load", refreshFloatingScrollbar);
+  requestAnimationFrame(refreshFloatingScrollbar);
   setInterval(refreshFloatingScrollbar, 1000);
 })();
 </script>
