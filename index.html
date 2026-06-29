@@ -203,8 +203,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 #floatingHScrollInner{height:1px;}
 
 /* Tableau */
-#tableWrapper{flex:1;overflow:auto;}
-#tableContainer{overflow:auto;border-radius:8px;box-shadow:0 4px 12px var(--shadow);background:var(--panel);}
+#tableWrapper{flex:1;overflow-y:auto;overflow-x:hidden;}
+#tableContainer{overflow-x:auto;overflow-y:visible;border-radius:8px;box-shadow:0 4px 12px var(--shadow);background:var(--panel);scrollbar-width:none;}
+#tableContainer::-webkit-scrollbar{height:0;}
 table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;}
 thead th,tbody td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--table-border);white-space:nowrap;}
 thead th{
@@ -962,7 +963,7 @@ body[data-theme="orange"] #smes-footer-bg {
   display:inline-flex;
 }
 
-/* === Version 0.955.22 : exports strictement limités à la période === */
+/* === Version 0.955.23 : exports strictement limités à la période === */
 /* Dossier toujours masqué. Le nom de fichier n'apparaît que s'il y a au moins un PDF affiché. */
 #csvTable th:nth-child(5),
 #csvTable td:nth-child(5){
@@ -1065,7 +1066,7 @@ body[data-theme="orange"] #smes-footer-bg {
 }
 
 
-/* === Version 0.955.22 === */
+/* === Version 0.955.23 === */
 .app-version{
   color:var(--accent);
   font-size:11px;
@@ -1102,7 +1103,7 @@ body[data-theme="orange"] #smes-footer-bg {
 .historique-summary .gaz-total{display:inline-flex;align-items:center;}
 
 
-/* === Version 0.955.22 : colonne État dédiée === */
+/* === Version 0.955.23 : colonne État dédiée === */
 #csvTable th.status-column-header{
   width:72px;
   min-width:72px;
@@ -1193,7 +1194,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <a class="sechoir-calcul-btn bilan" href="bilan_campagne.html" id="sechoirCalcCampaignLink" rel="noopener noreferrer" target="_blank" title="Ouvrir le bilan campagne">
     📊 Bilan campagne
   </a>
-<span class="app-version" title="Version de l’interface">Version 0.955.22 (29/06/26)</span>
+<span class="app-version" title="Version de l’interface">Version 0.955.23 (29/06/26)</span>
 </div>
 <img alt="Logo" class="logo" id="mainLogo" src="img/logo.png"/>
 <div id="scanIndicator">🔄 Analyse en cours...</div>
@@ -1290,7 +1291,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <script>
 /* ----------- Config Drive ----------- */
 /* ----------- Version du stockage local ----------- */
-const APP_STORAGE_VERSION = "0.955.22";
+const APP_STORAGE_VERSION = "0.955.23";
 const APP_STORAGE_VERSION_KEY = "smes_storage_version";
 
 (function migrateLocalStorage(){
@@ -6728,32 +6729,23 @@ window.addEventListener("DOMContentLoaded", updateCalculatorRootLinks);
 </script>
 
 <script>
-/* Barre horizontale toujours visible, synchronisée avec le vrai conteneur défilant */
+/* Barre horizontale toujours visible, reliée directement au tableau */
 (function initFloatingHorizontalScrollbar(){
-  const tableWrapper = document.getElementById("tableWrapper");
   const tableContainer = document.getElementById("tableContainer");
   const table = document.getElementById("csvTable");
   const floating = document.getElementById("floatingHScroll");
   const inner = document.getElementById("floatingHScrollInner");
-  if (!tableWrapper || !tableContainer || !table || !floating || !inner) return;
+  if (!tableContainer || !table || !floating || !inner) return;
 
-  let syncing = false;
-  let scrollOwner = tableWrapper;
-
-  function resolveScrollOwner(){
-    const candidates = [tableWrapper, tableContainer];
-    scrollOwner = candidates.find(el => el.scrollWidth > el.clientWidth + 1) || tableWrapper;
-    return scrollOwner;
-  }
+  let syncingFromFloating = false;
+  let syncingFromTable = false;
 
   function refreshFloatingScrollbar(){
-    const owner = resolveScrollOwner();
     const rect = tableContainer.getBoundingClientRect();
-    const tableRect = table.getBoundingClientRect();
-    const visible = rect.bottom > 0 && rect.top < window.innerHeight;
-    const needsScroll = owner.scrollWidth > owner.clientWidth + 1;
+    const needsScroll = tableContainer.scrollWidth > tableContainer.clientWidth + 1;
+    const tableVisible = rect.bottom > 0 && rect.top < window.innerHeight;
 
-    if (!visible || !needsScroll || rect.width <= 0){
+    if (!needsScroll || !tableVisible || rect.width <= 0){
       floating.style.display = "none";
       return;
     }
@@ -6763,48 +6755,39 @@ window.addEventListener("DOMContentLoaded", updateCalculatorRootLinks);
     floating.style.display = "block";
     floating.style.left = `${left}px`;
     floating.style.width = `${Math.max(0, right - left)}px`;
+    inner.style.width = `${tableContainer.scrollWidth}px`;
 
-    // La largeur interne doit reproduire exactement la largeur réellement défilable.
-    inner.style.width = `${Math.max(owner.scrollWidth, table.scrollWidth, Math.ceil(tableRect.width))}px`;
-
-    if (!syncing && Math.abs(floating.scrollLeft - owner.scrollLeft) > 1) {
-      floating.scrollLeft = owner.scrollLeft;
+    if (!syncingFromFloating && Math.abs(floating.scrollLeft - tableContainer.scrollLeft) > 1){
+      floating.scrollLeft = tableContainer.scrollLeft;
     }
   }
 
   floating.addEventListener("scroll", () => {
-    const owner = resolveScrollOwner();
-    if (syncing) return;
-    syncing = true;
-    owner.scrollLeft = floating.scrollLeft;
+    if (syncingFromTable) return;
+    syncingFromFloating = true;
+    tableContainer.scrollLeft = floating.scrollLeft;
     requestAnimationFrame(() => {
-      // Force la mise à jour visuelle même si le navigateur a changé de conteneur actif.
-      if (tableWrapper !== owner) tableWrapper.scrollLeft = owner.scrollLeft;
-      if (tableContainer !== owner) tableContainer.scrollLeft = owner.scrollLeft;
-      syncing = false;
+      syncingFromFloating = false;
     });
-  }, { passive:true });
+  }, {passive:true});
 
-  const syncFromNative = event => {
-    const owner = resolveScrollOwner();
-    if (event.currentTarget !== owner || syncing) return;
-    syncing = true;
-    floating.scrollLeft = owner.scrollLeft;
-    requestAnimationFrame(() => { syncing = false; });
-  };
-
-  tableWrapper.addEventListener("scroll", syncFromNative, { passive:true });
-  tableContainer.addEventListener("scroll", syncFromNative, { passive:true });
+  tableContainer.addEventListener("scroll", () => {
+    if (syncingFromFloating) return;
+    syncingFromTable = true;
+    floating.scrollLeft = tableContainer.scrollLeft;
+    requestAnimationFrame(() => {
+      syncingFromTable = false;
+    });
+  }, {passive:true});
 
   window.addEventListener("resize", refreshFloatingScrollbar);
   window.addEventListener("scroll", refreshFloatingScrollbar, true);
 
-  const observer = new MutationObserver(() => requestAnimationFrame(refreshFloatingScrollbar));
-  observer.observe(table, {subtree:true, childList:true, attributes:true});
+  const mutationObserver = new MutationObserver(() => requestAnimationFrame(refreshFloatingScrollbar));
+  mutationObserver.observe(table, {subtree:true, childList:true, attributes:true});
 
   if (window.ResizeObserver){
     const resizeObserver = new ResizeObserver(refreshFloatingScrollbar);
-    resizeObserver.observe(tableWrapper);
     resizeObserver.observe(tableContainer);
     resizeObserver.observe(table);
   }
