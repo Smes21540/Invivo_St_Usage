@@ -192,15 +192,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   position:fixed;
   bottom:0;
   z-index:2600;
-  height:18px;
-  overflow-x:auto;
-  overflow-y:hidden;
+  height:24px;
+  padding:3px 6px;
   background:var(--panel);
   border-top:1px solid var(--table-border);
   box-shadow:0 -3px 10px var(--shadow);
   display:none;
 }
-#floatingHScrollInner{height:1px;}
+#floatingHScrollRange{
+  width:100%;
+  height:18px;
+  margin:0;
+  cursor:ew-resize;
+  accent-color:var(--accent);
+}
+#floatingHScrollRange:disabled{opacity:.35;cursor:default;}
 
 /* Tableau */
 #tableWrapper{flex:1;overflow-y:auto;overflow-x:hidden;}
@@ -963,7 +969,7 @@ body[data-theme="orange"] #smes-footer-bg {
   display:inline-flex;
 }
 
-/* === Version 0.955.23 : exports strictement limités à la période === */
+/* === Version 0.955.24 : exports strictement limités à la période === */
 /* Dossier toujours masqué. Le nom de fichier n'apparaît que s'il y a au moins un PDF affiché. */
 #csvTable th:nth-child(5),
 #csvTable td:nth-child(5){
@@ -1066,7 +1072,7 @@ body[data-theme="orange"] #smes-footer-bg {
 }
 
 
-/* === Version 0.955.23 === */
+/* === Version 0.955.24 === */
 .app-version{
   color:var(--accent);
   font-size:11px;
@@ -1103,7 +1109,7 @@ body[data-theme="orange"] #smes-footer-bg {
 .historique-summary .gaz-total{display:inline-flex;align-items:center;}
 
 
-/* === Version 0.955.23 : colonne État dédiée === */
+/* === Version 0.955.24 : colonne État dédiée === */
 #csvTable th.status-column-header{
   width:72px;
   min-width:72px;
@@ -1194,7 +1200,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <a class="sechoir-calcul-btn bilan" href="bilan_campagne.html" id="sechoirCalcCampaignLink" rel="noopener noreferrer" target="_blank" title="Ouvrir le bilan campagne">
     📊 Bilan campagne
   </a>
-<span class="app-version" title="Version de l’interface">Version 0.955.23 (29/06/26)</span>
+<span class="app-version" title="Version de l’interface">Version 0.955.24 (29/06/26)</span>
 </div>
 <img alt="Logo" class="logo" id="mainLogo" src="img/logo.png"/>
 <div id="scanIndicator">🔄 Analyse en cours...</div>
@@ -1249,7 +1255,7 @@ body[data-theme="orange"] #smes-footer-bg {
 </div>
 
 <div id="floatingHScroll" aria-label="Défilement horizontal du tableau">
-  <div id="floatingHScrollInner"></div>
+  <input id="floatingHScrollRange" type="range" min="0" max="0" value="0" step="1" aria-label="Défilement horizontal du tableau">
 </div>
 
 <!-- Modale image -->
@@ -1291,7 +1297,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <script>
 /* ----------- Config Drive ----------- */
 /* ----------- Version du stockage local ----------- */
-const APP_STORAGE_VERSION = "0.955.23";
+const APP_STORAGE_VERSION = "0.955.24";
 const APP_STORAGE_VERSION_KEY = "smes_storage_version";
 
 (function migrateLocalStorage(){
@@ -6729,23 +6735,25 @@ window.addEventListener("DOMContentLoaded", updateCalculatorRootLinks);
 </script>
 
 <script>
-/* Barre horizontale toujours visible, reliée directement au tableau */
+/* Barre horizontale flottante robuste : curseur pilotant directement le tableau */
 (function initFloatingHorizontalScrollbar(){
   const tableContainer = document.getElementById("tableContainer");
   const table = document.getElementById("csvTable");
   const floating = document.getElementById("floatingHScroll");
-  const inner = document.getElementById("floatingHScrollInner");
-  if (!tableContainer || !table || !floating || !inner) return;
+  const range = document.getElementById("floatingHScrollRange");
+  if (!tableContainer || !table || !floating || !range) return;
 
-  let syncingFromFloating = false;
-  let syncingFromTable = false;
+  let dragging = false;
+  let rafId = 0;
 
   function refreshFloatingScrollbar(){
+    if (dragging) return;
+
     const rect = tableContainer.getBoundingClientRect();
-    const needsScroll = tableContainer.scrollWidth > tableContainer.clientWidth + 1;
+    const maxScroll = Math.max(0, tableContainer.scrollWidth - tableContainer.clientWidth);
     const tableVisible = rect.bottom > 0 && rect.top < window.innerHeight;
 
-    if (!needsScroll || !tableVisible || rect.width <= 0){
+    if (maxScroll <= 1 || !tableVisible || rect.width <= 0){
       floating.style.display = "none";
       return;
     }
@@ -6754,48 +6762,54 @@ window.addEventListener("DOMContentLoaded", updateCalculatorRootLinks);
     const right = Math.min(window.innerWidth, rect.right);
     floating.style.display = "block";
     floating.style.left = `${left}px`;
-    floating.style.width = `${Math.max(0, right - left)}px`;
-    inner.style.width = `${tableContainer.scrollWidth}px`;
+    floating.style.width = `${Math.max(80, right - left)}px`;
 
-    if (!syncingFromFloating && Math.abs(floating.scrollLeft - tableContainer.scrollLeft) > 1){
-      floating.scrollLeft = tableContainer.scrollLeft;
-    }
+    range.max = String(Math.round(maxScroll));
+    range.value = String(Math.min(Math.round(tableContainer.scrollLeft), Math.round(maxScroll)));
   }
 
-  floating.addEventListener("scroll", () => {
-    if (syncingFromTable) return;
-    syncingFromFloating = true;
-    tableContainer.scrollLeft = floating.scrollLeft;
-    requestAnimationFrame(() => {
-      syncingFromFloating = false;
-    });
-  }, {passive:true});
+  function setTableScrollFromRange(){
+    tableContainer.scrollLeft = Number(range.value) || 0;
+  }
+
+  range.addEventListener("pointerdown", () => { dragging = true; });
+  range.addEventListener("pointerup", () => {
+    setTableScrollFromRange();
+    dragging = false;
+    requestAnimationFrame(refreshFloatingScrollbar);
+  });
+  range.addEventListener("pointercancel", () => {
+    dragging = false;
+    requestAnimationFrame(refreshFloatingScrollbar);
+  });
+  range.addEventListener("input", setTableScrollFromRange);
+  range.addEventListener("change", setTableScrollFromRange);
 
   tableContainer.addEventListener("scroll", () => {
-    if (syncingFromFloating) return;
-    syncingFromTable = true;
-    floating.scrollLeft = tableContainer.scrollLeft;
-    requestAnimationFrame(() => {
-      syncingFromTable = false;
+    if (dragging) return;
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      const maxScroll = Math.max(0, tableContainer.scrollWidth - tableContainer.clientWidth);
+      range.max = String(Math.round(maxScroll));
+      range.value = String(Math.min(Math.round(tableContainer.scrollLeft), Math.round(maxScroll)));
     });
   }, {passive:true});
 
   window.addEventListener("resize", refreshFloatingScrollbar);
-  window.addEventListener("scroll", refreshFloatingScrollbar, true);
+  window.addEventListener("scroll", refreshFloatingScrollbar, {passive:true});
 
   const mutationObserver = new MutationObserver(() => requestAnimationFrame(refreshFloatingScrollbar));
-  mutationObserver.observe(table, {subtree:true, childList:true, attributes:true});
+  mutationObserver.observe(table, {subtree:true, childList:true});
 
   if (window.ResizeObserver){
-    const resizeObserver = new ResizeObserver(refreshFloatingScrollbar);
+    const resizeObserver = new ResizeObserver(() => requestAnimationFrame(refreshFloatingScrollbar));
     resizeObserver.observe(tableContainer);
     resizeObserver.observe(table);
   }
 
   document.addEventListener("DOMContentLoaded", refreshFloatingScrollbar);
   window.addEventListener("load", refreshFloatingScrollbar);
-  requestAnimationFrame(refreshFloatingScrollbar);
-  setInterval(refreshFloatingScrollbar, 1000);
+  setTimeout(refreshFloatingScrollbar, 300);
 })();
 </script>
 
