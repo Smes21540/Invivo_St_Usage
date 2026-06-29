@@ -185,6 +185,23 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 
 
+
+
+/* ===== Barre horizontale flottante du tableau ===== */
+#floatingHScroll{
+  position:fixed;
+  bottom:0;
+  z-index:2600;
+  height:18px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  background:var(--panel);
+  border-top:1px solid var(--table-border);
+  box-shadow:0 -3px 10px var(--shadow);
+  display:none;
+}
+#floatingHScrollInner{height:1px;}
+
 /* Tableau */
 #tableWrapper{flex:1;overflow:auto;}
 #tableContainer{overflow:auto;border-radius:8px;box-shadow:0 4px 12px var(--shadow);background:var(--panel);}
@@ -890,6 +907,11 @@ body[data-theme="orange"] #smes-footer-bg {
   color: #4a148c !important;
 }
 
+.traca-kwhh, .traca-total-kwhh {
+  background: linear-gradient(180deg, #f8bbd0, #ec407a) !important;
+  color: #880e4f !important;
+}
+
 
 
 
@@ -940,7 +962,7 @@ body[data-theme="orange"] #smes-footer-bg {
   display:inline-flex;
 }
 
-/* === Version 0.955.19 : exports strictement limités à la période === */
+/* === Version 0.955.21 : exports strictement limités à la période === */
 /* Dossier toujours masqué. Le nom de fichier n'apparaît que s'il y a au moins un PDF affiché. */
 #csvTable th:nth-child(5),
 #csvTable td:nth-child(5){
@@ -1043,7 +1065,7 @@ body[data-theme="orange"] #smes-footer-bg {
 }
 
 
-/* === Version 0.955.19 === */
+/* === Version 0.955.21 === */
 .app-version{
   color:var(--accent);
   font-size:11px;
@@ -1080,7 +1102,7 @@ body[data-theme="orange"] #smes-footer-bg {
 .historique-summary .gaz-total{display:inline-flex;align-items:center;}
 
 
-/* === Version 0.955.19 : colonne État dédiée === */
+/* === Version 0.955.21 : colonne État dédiée === */
 #csvTable th.status-column-header{
   width:72px;
   min-width:72px;
@@ -1171,7 +1193,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <a class="sechoir-calcul-btn bilan" href="bilan_campagne.html" id="sechoirCalcCampaignLink" rel="noopener noreferrer" target="_blank" title="Ouvrir le bilan campagne">
     📊 Bilan campagne
   </a>
-<span class="app-version" title="Version de l’interface">Version 0.955.19 (25/06/26)</span>
+<span class="app-version" title="Version de l’interface">Version 0.955.21 (29/06/26)</span>
 </div>
 <img alt="Logo" class="logo" id="mainLogo" src="img/logo.png"/>
 <div id="scanIndicator">🔄 Analyse en cours...</div>
@@ -1224,6 +1246,11 @@ body[data-theme="orange"] #smes-footer-bg {
 </div>
 </div>
 </div>
+
+<div id="floatingHScroll" aria-label="Défilement horizontal du tableau">
+  <div id="floatingHScrollInner"></div>
+</div>
+
 <!-- Modale image -->
 <div aria-modal="true" class="modal" id="imageModal" role="dialog">
 <span aria-label="Fermer" class="close" onclick="closeModal()">×</span>
@@ -1263,7 +1290,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <script>
 /* ----------- Config Drive ----------- */
 /* ----------- Version du stockage local ----------- */
-const APP_STORAGE_VERSION = "0.955.19";
+const APP_STORAGE_VERSION = "0.955.21";
 const APP_STORAGE_VERSION_KEY = "smes_storage_version";
 
 (function migrateLocalStorage(){
@@ -6690,5 +6717,67 @@ function updateCalculatorRootLinks(){
 }
 window.addEventListener("DOMContentLoaded", updateCalculatorRootLinks);
 </script>
+
+<script>
+/* Barre horizontale toujours visible, synchronisée avec le tableau */
+(function initFloatingHorizontalScrollbar(){
+  const tableContainer = document.getElementById("tableContainer");
+  const table = document.getElementById("csvTable");
+  const floating = document.getElementById("floatingHScroll");
+  const inner = document.getElementById("floatingHScrollInner");
+  if (!tableContainer || !table || !floating || !inner) return;
+
+  let syncing = false;
+
+  function refreshFloatingScrollbar(){
+    const rect = tableContainer.getBoundingClientRect();
+    const visible = rect.bottom > 0 && rect.top < window.innerHeight;
+    const needsScroll = tableContainer.scrollWidth > tableContainer.clientWidth + 1;
+
+    if (!visible || !needsScroll || rect.width <= 0){
+      floating.style.display = "none";
+      return;
+    }
+
+    floating.style.display = "block";
+    floating.style.left = `${Math.max(0, rect.left)}px`;
+    floating.style.width = `${Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(0, rect.left))}px`;
+    inner.style.width = `${tableContainer.scrollWidth}px`;
+
+    if (!syncing) floating.scrollLeft = tableContainer.scrollLeft;
+  }
+
+  floating.addEventListener("scroll", () => {
+    if (syncing) return;
+    syncing = true;
+    tableContainer.scrollLeft = floating.scrollLeft;
+    requestAnimationFrame(() => { syncing = false; });
+  });
+
+  tableContainer.addEventListener("scroll", () => {
+    if (syncing) return;
+    syncing = true;
+    floating.scrollLeft = tableContainer.scrollLeft;
+    requestAnimationFrame(() => { syncing = false; });
+  });
+
+  window.addEventListener("resize", refreshFloatingScrollbar);
+  window.addEventListener("scroll", refreshFloatingScrollbar, true);
+
+  const observer = new MutationObserver(() => requestAnimationFrame(refreshFloatingScrollbar));
+  observer.observe(table, {subtree:true, childList:true, attributes:true});
+
+  if (window.ResizeObserver){
+    const resizeObserver = new ResizeObserver(refreshFloatingScrollbar);
+    resizeObserver.observe(tableContainer);
+    resizeObserver.observe(table);
+  }
+
+  document.addEventListener("DOMContentLoaded", refreshFloatingScrollbar);
+  window.addEventListener("load", refreshFloatingScrollbar);
+  setInterval(refreshFloatingScrollbar, 1000);
+})();
+</script>
+
 </body>
 </html>
