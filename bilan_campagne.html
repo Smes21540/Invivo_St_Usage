@@ -1358,6 +1358,61 @@ body.vfd-enabled .humidity-vfd-only{
   line-height:1 !important;
 }
 
+
+/* Chargement des sauvegardes JSON depuis le dossier Drive transmis par l'index */
+.drive-json-loader{
+  display:none;
+  grid-template-columns:auto minmax(220px,420px) auto auto;
+  gap:8px;
+  align-items:center;
+  margin:10px 0 4px;
+  padding:10px 12px;
+  border:1px solid #b9b9b9;
+  border-radius:8px;
+  background:#f7f7f7;
+}
+.drive-json-loader.visible{
+  display:grid;
+}
+.drive-json-loader label{
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.drive-json-loader select{
+  width:100%;
+  min-width:0;
+  padding:8px 10px;
+  border:1px solid #8d8d8d;
+  border-radius:6px;
+  background:#fff;
+  color:#111;
+  font:inherit;
+}
+.drive-json-loader button{
+  border:none;
+  border-radius:7px;
+  padding:8px 12px;
+  font-weight:800;
+  cursor:pointer;
+  background:#607d8b;
+  color:#fff;
+}
+.drive-json-loader button:hover{
+  filter:brightness(1.08);
+}
+.drive-json-site{
+  grid-column:1/-1;
+  font-size:11px;
+  color:#555;
+}
+@media(max-width:760px){
+  .drive-json-loader{
+    grid-template-columns:1fr;
+  }
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -1371,8 +1426,8 @@ body.vfd-enabled .humidity-vfd-only{
 </div>
 <div class="nav">
 <div class="nav-left">
-<a href="calcul_global_horaire_v51.html">Calcul horaire</a>
-<a class="active" href="bilan_global_campagne_v51.html">Bilan campagne</a>
+<a href="calcul_horaire.html">Calcul horaire</a>
+<a class="active" href="bilan_campagne.html">Bilan campagne</a>
 </div>
 <div class="nav-right">
 <button class="nav-pdf-btn" onclick="exportPageToPDF('Bilan')" type="button">Exporter en PDF</button>
@@ -1382,6 +1437,16 @@ body.vfd-enabled .humidity-vfd-only{
 </div>
 <input accept=".json,application/json" id="openJsonFile" style="display:none;" type="file"/>
 <div class="save-open-message" id="saveOpenMessage"></div>
+<div class="drive-json-loader" id="driveJsonLoader">
+  <label for="driveJsonSelect">Sauvegardes Drive</label>
+  <select id="driveJsonSelect">
+    <option value="">Chargement de la liste…</option>
+  </select>
+  <button id="driveJsonLoadBtn" type="button">Charger</button>
+  <button id="driveJsonRefreshBtn" type="button">Actualiser</button>
+  <div class="drive-json-site" id="driveJsonSite"></div>
+</div>
+
 <div class="pdf-toolbar pdf-title-only">
 <label for="pdfTitle">Titre</label>
 <input id="pdfTitle" placeholder="Titre du rapport" type="text" value="S21 Sombernon"/>
@@ -2432,7 +2497,7 @@ async function savePageData(pageType, filePrefix){
   try{
     const payload = {
       type: pageType,
-      version: 51,
+      version: 53,
       savedAt: new Date().toISOString(),
       title: getPageTitleForSave(),
       values: collectInputValues(),
@@ -2510,29 +2575,7 @@ function openPageData(expectedType){
 
     try{
       const data = JSON.parse(await file.text());
-
-      if (!data || data.type !== expectedType){
-        throw new Error(
-          expectedType === 'calcul_horaire'
-            ? "Ce fichier n'est pas une sauvegarde du calcul horaire."
-            : "Ce fichier n'est pas une sauvegarde du bilan campagne."
-        );
-      }
-
-      if (!data.values || typeof data.values !== 'object'){
-        throw new Error('Le fichier de sauvegarde est incomplet.');
-      }
-
-      applySavedValuesInCorrectOrder(data.values);
-
-      const titleInput = document.getElementById('pdfTitle');
-      if (titleInput && data.title !== undefined){
-        titleInput.value = data.title;
-      }
-
-      restoreCollapsedSections(data.collapsedSections);
-
-      showSaveOpenMessage(`Sauvegarde ouverte : ${file.name}`);
+      applyLoadedCalculatorData(data, expectedType, file.name);
     } catch(error){
       console.error(error);
       showSaveOpenMessage(error.message || 'Impossible d’ouvrir cette sauvegarde.', true);
@@ -2627,6 +2670,184 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   window.addEventListener('resize',scheduleNormalizeAllResultBoxes);
   document.getElementById('globalVfd')?.addEventListener('change',scheduleNormalizeAllResultBoxes);
+});
+
+
+const DRIVE_PROXY_URL = "https://smes21540.netlify.app/.netlify/functions/drive";
+const DRIVE_PROXY_SITE = "Smes_Acces";
+const calculatorQuery = new URLSearchParams(window.location.search);
+const calculatorFolderId = calculatorQuery.get("folderId") || "";
+const calculatorSiteName = calculatorQuery.get("siteName") || "";
+const calculatorExpectedType = "bilan_campagne";
+
+function preserveCalculatorFolderInLinks(){
+  if (!calculatorFolderId) return;
+  const params = new URLSearchParams();
+  params.set("folderId", calculatorFolderId);
+  if (calculatorSiteName) params.set("siteName", calculatorSiteName);
+  const suffix = `?${params.toString()}`;
+
+  document.querySelectorAll(".nav-left a").forEach(link=>{
+    const base = link.getAttribute("href")?.split("?")[0];
+    if (base) link.href = `${base}${suffix}`;
+  });
+}
+
+function getDriveTargetId(file){
+  if (
+    file?.mimeType === "application/vnd.google-apps.shortcut" &&
+    file?.shortcutDetails?.targetId
+  ){
+    return file.shortcutDetails.targetId;
+  }
+  return file?.id || "";
+}
+
+async function fetchDriveJsonFiles(){
+  const loader = document.getElementById("driveJsonLoader");
+  const select = document.getElementById("driveJsonSelect");
+  const site = document.getElementById("driveJsonSite");
+
+  if (!calculatorFolderId){
+    loader?.classList.remove("visible");
+    return;
+  }
+
+  loader?.classList.add("visible");
+  if (site){
+    site.textContent = calculatorSiteName
+      ? `Dossier racine : ${calculatorSiteName}`
+      : `Dossier Drive : ${calculatorFolderId}`;
+  }
+
+  select.innerHTML = '<option value="">Chargement de la liste…</option>';
+
+  try{
+    const response = await fetch(
+      `${DRIVE_PROXY_URL}?list=true&id=${encodeURIComponent(calculatorFolderId)}&site=${encodeURIComponent(DRIVE_PROXY_SITE)}`
+    );
+
+    if (!response.ok){
+      throw new Error(`Erreur Drive ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const files = (payload.files || [])
+      .filter(file => /\.json$/i.test(file.name || ""))
+      .sort((a,b)=>(a.name || "").localeCompare(b.name || "", "fr", { sensitivity:"base" }));
+
+    select.innerHTML = "";
+
+    if (!files.length){
+      select.innerHTML = '<option value="">Aucun fichier JSON dans le dossier racine</option>';
+      return;
+    }
+
+    const compatible = [];
+
+    for (const file of files){
+      try{
+        const realId = getDriveTargetId(file);
+        const res = await fetch(
+          `${DRIVE_PROXY_URL}?id=${encodeURIComponent(realId)}&name=${encodeURIComponent(file.name)}&site=${encodeURIComponent(DRIVE_PROXY_SITE)}`
+        );
+        if (!res.ok) continue;
+
+        const text = await res.text();
+        const data = JSON.parse(text);
+
+        if (data?.type !== calculatorExpectedType) continue;
+
+        compatible.push({
+          id: realId,
+          name: file.name,
+          title: data.title || file.name.replace(/\.json$/i, "")
+        });
+      } catch(error){
+        console.warn("[Drive JSON] Fichier ignoré :", file?.name, error);
+      }
+    }
+
+    if (!compatible.length){
+      select.innerHTML = '<option value="">Aucune sauvegarde compatible avec cette page</option>';
+      return;
+    }
+
+    select.appendChild(new Option("Choisir une sauvegarde…", ""));
+    compatible.forEach(file=>{
+      const option = new Option(file.title, file.id);
+      option.dataset.fileName = file.name;
+      select.appendChild(option);
+    });
+  } catch(error){
+    console.error(error);
+    select.innerHTML = '<option value="">Impossible de charger les sauvegardes Drive</option>';
+    showSaveOpenMessage(error.message || "Erreur de lecture Drive.", true);
+  }
+}
+
+function applyLoadedCalculatorData(data, expectedType, sourceName){
+  if (!data || data.type !== expectedType){
+    throw new Error(
+      expectedType === "calcul_horaire"
+        ? "Ce fichier n’est pas une sauvegarde du calcul horaire."
+        : "Ce fichier n’est pas une sauvegarde du bilan campagne."
+    );
+  }
+
+  if (!data.values || typeof data.values !== "object"){
+    throw new Error("Le fichier de sauvegarde est incomplet.");
+  }
+
+  applySavedValuesInCorrectOrder(data.values);
+
+  const titleInput = document.getElementById("pdfTitle");
+  if (titleInput && data.title !== undefined){
+    titleInput.value = data.title;
+  }
+
+  restoreCollapsedSections(data.collapsedSections);
+  showSaveOpenMessage(`Sauvegarde ouverte : ${sourceName}`);
+}
+
+async function loadSelectedDriveJson(){
+  const select = document.getElementById("driveJsonSelect");
+  const option = select?.selectedOptions?.[0];
+  const fileId = select?.value;
+  if (!fileId){
+    showSaveOpenMessage("Choisir une sauvegarde Drive.", true);
+    return;
+  }
+
+  const fileName = option?.dataset?.fileName || option?.textContent || "sauvegarde.json";
+
+  try{
+    const response = await fetch(
+      `${DRIVE_PROXY_URL}?id=${encodeURIComponent(fileId)}&name=${encodeURIComponent(fileName)}&site=${encodeURIComponent(DRIVE_PROXY_SITE)}`
+    );
+
+    if (!response.ok){
+      throw new Error(`Erreur Drive ${response.status}`);
+    }
+
+    const data = JSON.parse(await response.text());
+    applyLoadedCalculatorData(data, calculatorExpectedType, fileName);
+  } catch(error){
+    console.error(error);
+    showSaveOpenMessage(error.message || "Impossible d’ouvrir cette sauvegarde Drive.", true);
+  }
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  preserveCalculatorFolderInLinks();
+
+  document.getElementById("driveJsonLoadBtn")
+    ?.addEventListener("click", loadSelectedDriveJson);
+
+  document.getElementById("driveJsonRefreshBtn")
+    ?.addEventListener("click", fetchDriveJsonFiles);
+
+  fetchDriveJsonFiles();
 });
 
 </script>
