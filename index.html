@@ -940,7 +940,7 @@ body[data-theme="orange"] #smes-footer-bg {
   display:inline-flex;
 }
 
-/* === Version 0.955.18 : exports strictement limités à la période === */
+/* === Version 0.955.19 : exports strictement limités à la période === */
 /* Dossier toujours masqué. Le nom de fichier n'apparaît que s'il y a au moins un PDF affiché. */
 #csvTable th:nth-child(5),
 #csvTable td:nth-child(5){
@@ -1043,7 +1043,7 @@ body[data-theme="orange"] #smes-footer-bg {
 }
 
 
-/* === Version 0.955.18 === */
+/* === Version 0.955.19 === */
 .app-version{
   color:var(--accent);
   font-size:11px;
@@ -1080,7 +1080,7 @@ body[data-theme="orange"] #smes-footer-bg {
 .historique-summary .gaz-total{display:inline-flex;align-items:center;}
 
 
-/* === Version 0.955.18 : colonne État dédiée === */
+/* === Version 0.955.19 : colonne État dédiée === */
 #csvTable th.status-column-header{
   width:72px;
   min-width:72px;
@@ -1171,7 +1171,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <a class="sechoir-calcul-btn bilan" href="bilan_campagne.html" id="sechoirCalcCampaignLink" rel="noopener noreferrer" target="_blank" title="Ouvrir le bilan campagne">
     📊 Bilan campagne
   </a>
-<span class="app-version" title="Version de l’interface">Version 0.955.18 (25/06/26)</span>
+<span class="app-version" title="Version de l’interface">Version 0.955.19 (25/06/26)</span>
 </div>
 <img alt="Logo" class="logo" id="mainLogo" src="img/logo.png"/>
 <div id="scanIndicator">🔄 Analyse en cours...</div>
@@ -1263,7 +1263,7 @@ body[data-theme="orange"] #smes-footer-bg {
 <script>
 /* ----------- Config Drive ----------- */
 /* ----------- Version du stockage local ----------- */
-const APP_STORAGE_VERSION = "0.955.18";
+const APP_STORAGE_VERSION = "0.955.19";
 const APP_STORAGE_VERSION_KEY = "smes_storage_version";
 
 (function migrateLocalStorage(){
@@ -2844,8 +2844,8 @@ if (folderName.toLowerCase().includes("consommation gaz")) {
         <span class="gaz-total traca-total-duree" title="Durée totale calculée comme dans Consommation gaz : une minute par intervalle où le compteur kWh augmente. Attention : certains fichiers peuvent être manquants ou incomplets.">⏱️ Durée : --:--</span>
       </label>
       <label class="summary-toggle-wrap">
-        <input class="summary-toggle" type="checkbox" checked data-daily-selector=".traca-kwhh" title="Cliquer pour afficher ou masquer les bulles kWh/h dans les lignes ci-dessous">
-        <span class="gaz-total traca-total-kwhh" title="Puissance moyenne globale : total kWh divisé par la durée totale de fonctionnement.">📈 kWh/h : --</span>
+        <input class="summary-toggle" type="checkbox" checked data-daily-selector=".traca-kwhh" title="Cliquer pour afficher ou masquer les bulles de puissance moyenne électrique dans les lignes ci-dessous">
+        <span class="gaz-total traca-total-kwhh" title="Puissance électrique moyenne calculée à partir de Elec kW ou Cons Mot kW.">⚡ kW moyen : --</span>
       </label>
     `;
     tracaHost.appendChild(summaryDiv);
@@ -3332,7 +3332,7 @@ if (
       <button class="gaz-btn traca-elec-kwh" style="display:none;" title="Énergie électrique calculée par somme des incréments cohérents du compteur Cpt kWh Elec T ; les remises à zéro et sauts aberrants sont gérés." disabled>🔌 Élec : calcul...</button>
       <button class="gaz-btn traca-tonnage" style="display:none;" title="Tonnage extrait calculé depuis le compteur Cumul (tonnes)." disabled>⚖️ Tonnage : calcul...</button>
       <button class="gaz-btn traca-duree" style="display:none;" title="Durée calculée comme dans Consommation gaz : une minute pour chaque intervalle où le compteur kWh augmente." disabled>⏱️ Durée : calcul...</button>
-      <button class="gaz-btn traca-kwhh" style="display:none;" title="Puissance moyenne calculée : kWh consommés divisés par la durée de fonctionnement." disabled>📈 kWh/h : calcul...</button>
+      <button class="gaz-btn traca-kwhh" style="display:none;" title="Puissance électrique moyenne calculée à partir de Elec kW ou Cons Mot kW pendant le fonctionnement électrique." disabled>⚡ kW moyen : calcul...</button>
     </div>
   `;
 
@@ -4575,7 +4575,7 @@ document.getElementById("exportExcelGazBtn").addEventListener("click", function 
     sheetName = "Echantillonnage";
     fileName = buildExcelExportFileName("sampling");
   } else if (kind === "traca") {
-    data = [["Date", "Gaz (m³/h)", "Normalisé", "Modulée (min:s)", "Modulée (secondes)", "Débit (t/h)", "Ipé", "Air chaud Sup (°C)", "Air chaud Inf (°C)", "Consommation gaz (m³)", "Consommation gaz (kWh)", "Électricité (kWh)", "Tonnage extrait (t)", "Durée (HH:mm)", "Durée (minutes)", "Moyenne (kWh/h)"]];
+    data = [["Date", "Gaz (m³/h)", "Normalisé", "Modulée (min:s)", "Modulée (secondes)", "Débit (t/h)", "Ipé", "Air chaud Sup (°C)", "Air chaud Inf (°C)", "Consommation gaz (m³)", "Consommation gaz (kWh)", "Électricité (kWh)", "Tonnage extrait (t)", "Durée (HH:mm)", "Durée (minutes)", "Puissance moyenne électrique (kW)"]];
     for (const row of rows) {
       const date = row.querySelector("td:nth-child(1)")?.textContent.split(" ")[0] || "";
       const gaz = Number.parseFloat(row.dataset.tracaGaz);
@@ -5136,7 +5136,7 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
         const btn = tdAction.querySelector(item.selector);
         if (btn) btn.style.display = "none";
       }
-      for (const key of ["tracaAirSup","tracaAirInf","tracaConsoM3","tracaConsoKwh","tracaElecKwh","tracaTonnage","tracaDureeMinutes","tracaKwhH"]) tr.dataset[key] = "";
+      for (const key of ["tracaAirSup","tracaAirInf","tracaConsoM3","tracaConsoKwh","tracaElecKwh","tracaElecMinutes","tracaTonnage","tracaDureeMinutes","tracaKwhH"]) tr.dataset[key] = "";
       for (const selector of [".traca-conso-m3",".traca-conso-kwh",".traca-elec-kwh",".traca-tonnage",".traca-duree",".traca-kwhh"]) {
         const extraBtn = tdAction.querySelector(selector);
         if (extraBtn) extraBtn.style.display = "none";
@@ -5312,7 +5312,15 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
     // Accepte automatiquement Gaz Total S1, S2, S3... et Cpt Gaz kWh S1, S2, S3...
     const idxGazTotal = headers.findIndex(h => /^gaztotals\d+$/i.test(h));
     const idxKwhTotal = headers.findIndex(h => /^(?:cpt|cpt)gazkwhs\d+$/i.test(h));
-    const idxElecKwhTotal = findIndex(["cptkwhelect"]);
+
+    // Électricité :
+    // 1) le compteur/énergie en kWh est toujours prioritaire ;
+    // 2) Elec kW ou Cons Mot kW sert à la puissance moyenne ;
+    // 3) la puissance n'est intégrée en kWh que si aucune colonne électrique kWh n'existe.
+    const idxElecCounterTotal = findIndex(["cptkwhelect"]);
+    const idxElecKwhDirect = findIndex(["eleckwh"]);
+    const idxElecPower = findIndex(["eleckw", "consmotkw"]);
+
     const idxTonnage = findIndex(["cumultonnes"]);
     const idxDate = findIndex(["date"]);
     const idxTime = findIndex(["time", "heure"]);
@@ -5358,8 +5366,75 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
 
     const consoM3 = sumPositiveDeltas(idxGazTotal, MAX_DELTA_M3_PAR_LIGNE);
     const consoKwh = sumPositiveDeltas(idxKwhTotal, MAX_DELTA_KWH_PAR_LIGNE);
-    const elecKwh = sumPositiveDeltas(idxElecKwhTotal, MAX_DELTA_KWH_PAR_LIGNE);
     const tonnage = sumPositiveDeltas(idxTonnage, MAX_DELTA_TONNES_PAR_LIGNE);
+
+    const parseTimeSeconds = value => {
+      const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!match) return NaN;
+      return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0);
+    };
+
+    // Valeurs de puissance plausibles. Le plafond rejette notamment les mots automate
+    // non convertis ou les valeurs aberrantes telles que 6553 kW.
+    const powerSamples = idxElecPower === -1 ? [] : allRows
+      .map(cols => num(cols, idxElecPower))
+      .filter(value => Number.isFinite(value) && value > 0 && value < 1000);
+    const elecKwAverage = powerSamples.length
+      ? powerSamples.reduce((sum, value) => sum + value, 0) / powerSamples.length
+      : NaN;
+
+    let elecMinutes = 0;
+    let elecKwhFromPower = NaN;
+    if (idxElecPower !== -1) {
+      let energy = 0;
+      let activeSeconds = 0;
+      let foundInterval = false;
+
+      for (let i = 0; i < allRows.length - 1; i++) {
+        const power = num(allRows[i], idxElecPower);
+        const t1 = parseTimeSeconds(idxTime === -1 ? "" : allRows[i][idxTime]);
+        const t2 = parseTimeSeconds(idxTime === -1 ? "" : allRows[i + 1][idxTime]);
+        let deltaSeconds = t2 - t1;
+        if (deltaSeconds < 0) deltaSeconds += 86400;
+
+        // On ignore les trous de données supérieurs à 10 minutes.
+        if (!Number.isFinite(power) || power <= 0 || power >= 1000 || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0 || deltaSeconds > 600) continue;
+        energy += power * (deltaSeconds / 3600);
+        activeSeconds += deltaSeconds;
+        foundInterval = true;
+      }
+
+      if (foundInterval) {
+        elecKwhFromPower = energy;
+        elecMinutes = activeSeconds / 60;
+      }
+    }
+
+    // Colonne Elec kWh : si elle ressemble à un compteur cumulatif, on prend ses
+    // incréments ; sinon on additionne les valeurs positives déjà exprimées en kWh.
+    const computeDirectElecKwh = idx => {
+      if (idx === -1) return NaN;
+      const values = allRows.map(cols => num(cols, idx)).filter(Number.isFinite);
+      if (!values.length) return NaN;
+      let nonDecreasing = 0, comparisons = 0;
+      for (let i = 1; i < values.length; i++) {
+        comparisons++;
+        if (values[i] >= values[i - 1]) nonDecreasing++;
+      }
+      const looksCumulative = comparisons > 0 && nonDecreasing / comparisons >= 0.9 && Math.max(...values) > Math.min(...values);
+      if (looksCumulative) return sumPositiveDeltas(idx, MAX_DELTA_KWH_PAR_LIGNE);
+      const total = values.filter(v => v > 0 && v <= MAX_DELTA_KWH_PAR_LIGNE).reduce((a, b) => a + b, 0);
+      return total > 0 ? total : NaN;
+    };
+
+    let elecKwh = NaN;
+    if (idxElecCounterTotal !== -1) {
+      elecKwh = sumPositiveDeltas(idxElecCounterTotal, MAX_DELTA_KWH_PAR_LIGNE);
+    } else if (idxElecKwhDirect !== -1) {
+      elecKwh = computeDirectElecKwh(idxElecKwhDirect);
+    } else if (idxElecPower !== -1) {
+      elecKwh = elecKwhFromPower;
+    }
 
     let dureeMinutes = 0;
     if (idxKwhTotal !== -1) {
@@ -5379,7 +5454,9 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
         previous = current;
       }
     }
-    const kwhH = Number.isFinite(consoKwh) && dureeMinutes > 0 ? consoKwh / (dureeMinutes / 60) : NaN;
+    // Puissance moyenne électrique issue exclusivement de Elec kW ou Cons Mot kW.
+    const kwhH = elecKwAverage;
+    tr.dataset.tracaElecMinutes = Number.isFinite(elecMinutes) && elecMinutes > 0 ? String(elecMinutes) : "";
 
     const extras = [
       { selector:".traca-conso-m3", data:"tracaConsoM3", value:consoM3, text:v=>`⛽ Gaz total : ${v.toFixed(1)} m³` },
@@ -5387,7 +5464,7 @@ async function computeTracaTempForRow({ f, tdAction, tr }) {
       { selector:".traca-elec-kwh", data:"tracaElecKwh", value:elecKwh, text:v=>`🔌 Élec : ${v.toFixed(1)} kWh` },
       { selector:".traca-tonnage", data:"tracaTonnage", value:tonnage, text:v=>`⚖️ Tonnage : ${v.toFixed(1)} t` },
       { selector:".traca-duree", data:"tracaDureeMinutes", value:dureeMinutes > 0 ? dureeMinutes : NaN, text:v=>`⏱️ Durée : ${Math.floor(v/60)}:${String(Math.round(v)%60).padStart(2,"0")}` },
-      { selector:".traca-kwhh", data:"tracaKwhH", value:kwhH, text:v=>`📈 kWh/h : ${v.toFixed(1)}` }
+      { selector:".traca-kwhh", data:"tracaKwhH", value:kwhH, text:v=>`⚡ kW moyen : ${v.toFixed(1)} kW` }
     ];
 
     for (const extra of extras) {
@@ -5477,14 +5554,26 @@ function updateTracaTempTotals() {
     return Number.isFinite(value) && value > 0;
   }).length;
   const totalMinutes = sumField("tracaDureeMinutes");
-  const globalKwhH = totalMinutes > 0 ? totalKwh / (totalMinutes / 60) : NaN;
+  const elecAverageRows = allVisibleRows
+    .map(r => ({
+      average: Number.parseFloat(r.dataset.tracaKwhH),
+      minutes: Number.parseFloat(r.dataset.tracaElecMinutes)
+    }))
+    .filter(item => Number.isFinite(item.average));
+  const weightedElecRows = elecAverageRows.filter(item => Number.isFinite(item.minutes) && item.minutes > 0);
+  const globalKwhH = weightedElecRows.length
+    ? weightedElecRows.reduce((sum, item) => sum + item.average * item.minutes, 0) /
+      weightedElecRows.reduce((sum, item) => sum + item.minutes, 0)
+    : elecAverageRows.length
+      ? elecAverageRows.reduce((sum, item) => sum + item.average, 0) / elecAverageRows.length
+      : NaN;
   const totalConfig = [
     [".traca-total-conso-m3", totalM3, v=>`⛽ Gaz total : ${v.toFixed(1)} m³`],
     [".traca-total-conso-kwh", totalKwh, v=>`⚡ Gaz total : ${v.toFixed(0)} kWh`],
     [".traca-total-elec-kwh", totalElecKwh, v=>`🔌 Élec total : ${v.toFixed(1)} kWh`],
     [".traca-total-tonnage", totalTonnage, v=>`⚖️ Tonnage : ${v.toFixed(1)} t (${tonnageFileCount} fichier${tonnageFileCount > 1 ? "s" : ""})`],
     [".traca-total-duree", totalMinutes, v=>`⏱️ Durée : ${Math.floor(v/60)}:${String(Math.round(v)%60).padStart(2,"0")}`],
-    [".traca-total-kwhh", globalKwhH, v=>`📈 kWh/h : ${v.toFixed(1)}`]
+    [".traca-total-kwhh", globalKwhH, v=>`⚡ kW moyen : ${v.toFixed(1)} kW`]
   ];
   for (const [selector,value,formatter] of totalConfig) {
     const box = summary.querySelector(selector);
@@ -5496,7 +5585,10 @@ function updateTracaTempTotals() {
     }
     if (selector === ".traca-total-elec-kwh") {
       const elecFileCount = allVisibleRows.filter(r => Number.isFinite(Number.parseFloat(r.dataset.tracaElecKwh))).length;
-      box.title = `Somme de l'électricité calculée sur ${elecFileCount} fichier(s) visible(s) contenant Cpt kWh Elec T, indépendamment du fonctionnement du brûleur.`;
+      box.title = `Somme de l'électricité calculée sur ${elecFileCount} fichier(s) visible(s), en privilégiant les colonnes électriques en kWh puis, seulement en leur absence, l'intégration de la puissance.`;
+    }
+    if (selector === ".traca-total-kwhh") {
+      box.title = `Puissance électrique moyenne de la période, calculée à partir de Elec kW ou Cons Mot kW.`;
     }
     box.style.display = "inline-flex";
     hasAny = true;
